@@ -191,8 +191,6 @@ DEBUG_PRINT(librsslVA_tmp)
 		file(MAKE_DIRECTORY  "${CMAKE_CURRENT_BINARY_DIR}/librsslVA_tmp.arch")
 		add_custom_command(TARGET librsslVA POST_BUILD
 							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:librsslVA_tmp>
-							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:LibXml2::LibXml2>
-							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:CJSON::CJSON>
 							COMMAND ${CMAKE_AR} -qcs $<TARGET_FILE:librsslVA> *.o
 							WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librsslVA_tmp.arch
 							DEPENDS $<TARGET_FILE:librsslVA_tmp>
