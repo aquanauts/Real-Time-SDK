@@ -260,15 +260,18 @@ OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaStrin
 	struct stat statBuffer;
 	statResult = stat(fileName.c_str(), &statBuffer);
 #endif
-
-	char* xmlData = reinterpret_cast<char*>(malloc(statBuffer.st_size + 1));
-	if (!xmlData)
-	{
-		EmaString errorMsg("Failed to allocate memory for reading configuration file[");
-		errorMsg.append(fileName.c_str()).append("]");
-		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
-		return handleConfigurationPathError(errorMsg, !path.empty());
-	}
+        char* xmlData = nullptr;
+        if (statResult != -1) {
+          xmlData = reinterpret_cast<char *>(malloc(statBuffer.st_size + 1));
+          if (!xmlData) {
+            EmaString errorMsg(
+                "Failed to allocate memory for reading configuration file[");
+            errorMsg.append(fileName.c_str()).append("]");
+            _pEmaConfig->appendErrorMessage(errorMsg,
+                                            OmmLoggerClient::ErrorEnum);
+            return handleConfigurationPathError(errorMsg, !path.empty());
+          }
+        }
 
 	FILE* fp = NULL;
 	size_t bytesRead = 0;
