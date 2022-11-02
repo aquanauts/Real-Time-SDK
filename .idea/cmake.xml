@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeSharedSettings">
+    <configurations>
+      <configuration PROFILE_NAME="Optimized" ENABLED="true" GENERATION_DIR=".builds/Optimized" CONFIG_NAME="Optimized" GENERATION_OPTIONS="-DRCDEV_TRACE_ENABLED=ON -DRCDEV_C_EXTRA_FLAGS=&quot;-ggdb3&quot; -DRCDEV_CXX_EXTRA_FLAGS=&quot;-Wno-register -ggdb3&quot; -DBUILD_UNIT_TESTS=OFF -DBUILD_ETA_APPLICATIONS=OFF -DBUILD_EMA_EXAMPLES=OFF -DBUILD_EMA_PERFTOOLS=OFF -DBUILD_EMA_TRAINING=OFF -DBUILD_RTSDK-BINARYPACK=OFF -DCMAKE_CXX_STANDARD=20 -DCMAKE_CXX_STANDARD_REQUIRED=YES -DCMAKE_CXX_EXTENSIONS=OFF -DCMAKE_EXE_LINKER_FLAGS_INIT='-std=c++20' -DCMAKE_SHARED_LINKER_FLAGS_INIT='-std=c++2a' -DCMAKE_MODULE_LINKER_FLAGS_INIT='-std=c++2a'" NO_GENERATOR="true" />
+    </configurations>
+  </component>
+</project>
