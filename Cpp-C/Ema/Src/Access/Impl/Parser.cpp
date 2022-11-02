@@ -33,10 +33,10 @@ struct Parser::Impl {
   template <typename MsgType>
   void parse(MsgType &msg, RsslBuffer buffer, unsigned char major,
              unsigned char minor) {
-    const auto type = msg.getDataType();
-    StaticDecoder::setRsslData(&msg, &buffer, type, major, minor, &dictionary);
+    const auto expectedType = msg.getDataType();
+    StaticDecoder::setRsslData(&msg, &buffer, RSSL_DT_MSG, major, minor, &dictionary);
     const auto decodedType = static_cast<Data &>(msg).getDataType();
-    if (decodedType != type) {
+    if (decodedType != expectedType) {
       if (decodedType == DataType::ErrorEnum) {
         auto &err =
             static_cast<const OmmError &>(static_cast<const Data &>(msg));
