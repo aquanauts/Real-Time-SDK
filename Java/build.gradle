@@ -44,19 +44,19 @@ repositories {
 
 ext.YEAR = '2022'
 
-ext.BuildDate = 'Tue Mar 1 16:20:22 CDT ' + "$YEAR"
-ext.SpecificationVersion = '3.6.7.0'
+ext.BuildDate = 'Thu Nov 10 16:20:22 CDT ' + "$YEAR"
+ext.SpecificationVersion = '3.6.7.2'
 ext.SpecificationVersionShort = '3.6.7'
 
 // Comment out line below to publish offical release
 // ext.SpecificationVersion = "$SpecificationVersion" + "-SNAPSHOT"
 
 // Update below to L1.all.rrg, G1.all.gload, or E1.all.eload when needed
-ext.etaImplementationVersion = 'etaj' + "$SpecificationVersionShort" + '.L1.all.rrg'
-ext.emaImplementationVersion = 'emaj' + "$SpecificationVersionShort" + '.L1.all.rrg'
+ext.etaImplementationVersion = 'etaj' + "$SpecificationVersionShort" + '.L2.all.rrg'
+ext.emaImplementationVersion = 'emaj' + "$SpecificationVersionShort" + '.L2.all.rrg'
 
 // NOTE! update with new asset version
-ext.BINARY_PACK_VERSION_TO_DOWNLOAD = '2.0.7.L1'
+ext.BINARY_PACK_VERSION_TO_DOWNLOAD = '2.0.7.L2'
 
 //=========================================================================================
 //
@@ -191,12 +191,12 @@ task uploadAll ( ) {
 	description 'Uploads All artifacts to maven central, run with -Pmavencentral'
 	if (project.hasProperty("mavencentral"))
 	{
-		dependsOn ':Eta:AnsiPage:uploadArchives'
-		dependsOn ':Eta:Core:uploadArchives'
-		dependsOn ':Eta:ValueAdd:uploadArchives'
-		dependsOn ':Eta:ValueAddCache:uploadArchives'
-		dependsOn ':Eta:Converter:uploadArchives'
-		dependsOn ':Ema:Core:uploadArchives'
+		dependsOn ':Eta:AnsiPage:publish'
+		dependsOn ':Eta:Core:publish'
+		dependsOn ':Eta:ValueAdd:publish'
+		dependsOn ':Eta:ValueAddCache:publish'
+		dependsOn ':Eta:Converter:publish'
+		dependsOn ':Ema:Core:publish'
 	}
 	else
 	{

@@ -2,12 +2,18 @@ apply plugin: 'net.saliman.cobertura'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
 apply plugin: 'application'
+apply plugin: 'java-library'
 
 def jenkinsBuild = System.getenv("BUILD_NUMBER") ?: "0"
 
 group = "com.refinitiv.eta"
 archivesBaseName = "eta"
 version "$SpecificationVersion"
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
 
 publishing {
     publications{
@@ -48,25 +54,24 @@ publishing {
 
     repositories {
         maven {
+            credentials {
+                username = findProperty('ossrhUsername')
+                password = findProperty('ossrhPassword')
+            }
             name = "repository"
-            url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-            credentials {
-                username = findProperty('ossrhUsername')
-                password = findProperty('ossrhPassword')
-            }
-        }
-        maven {
-            name = "snapshotRepository"
-            url = "https://oss.sonatype.org/content/repositories/snapshots/"
-            credentials {
-                username = findProperty('ossrhUsername')
-                password = findProperty('ossrhPassword')
-            }
+            def releaseRepository = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotRepository = "https://oss.sonatype.org/content/repositories/snapshots/"
+            url = project.version.endsWith('SNAPSHOT') ? snapshotRepository : releaseRepository
         }
     }
 }
 
 signing {
+    setRequired {
+        // signing is only required if the artifacts are to be published
+        gradle.taskGraph.allTasks.any { it.equals( PublishToMavenRepository) }
+    }
+    sign configurations.archives
     sign publishing.publications.mavenJava
 }
 
@@ -81,10 +86,10 @@ eclipse {
 }
 
 dependencies {
-    implementation group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.13'
-    implementation group: 'org.apache.httpcomponents', name: 'httpclient-cache', version: '4.5.13'
-    implementation group: 'org.apache.httpcomponents', name: 'httpmime', version: '4.5.13'
-    implementation group: 'org.lz4', name: 'lz4-java', version: '1.8.0'
+    api group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.13'
+    api group: 'org.apache.httpcomponents', name: 'httpclient-cache', version: '4.5.13'
+    api group: 'org.apache.httpcomponents', name: 'httpmime', version: '4.5.13'
+    api group: 'org.lz4', name: 'lz4-java', version: '1.8.0'
 
     testImplementation('org.mockito:mockito-all:1.9.0'){
         exclude group: 'org.hamcrest'
@@ -149,28 +154,6 @@ task cleanJavadoc (type: Delete) {
 }
 
 clean.dependsOn cleanJar, cleanJavadoc
-
-task javadocJar (type: Jar) {
-    archiveClassifier.convention('javadoc');
-    archiveClassifier.set('javadoc');
-	from javadoc.destinationDir
-    destinationDirectory.set(jar.destinationDirectory)
-
-        manifest {
-		attributes 'Specification-Title': 'Enterprise Transport API (ETA) Java Edition'
-                from sharedManifest
-        }
-}
-
-task sourcesJar(type: Jar) {
-    archiveClassifier.convention('sources');
-    archiveClassifier.set('sources');
-	from sourceSets.main.allSource
-}
-
-artifacts {
-	archives javadocJar, sourcesJar
-}
 
 test {
     systemProperty "sun.net.useExclusiveBind", "false"

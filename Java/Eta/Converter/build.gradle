@@ -2,12 +2,18 @@ apply plugin: 'net.saliman.cobertura'
 apply plugin: 'net.saliman.cobertura'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
+apply plugin: 'java-library'
 
 def jenkinsBuild = System.getenv("BUILD_NUMBER") ?: "0"
 
 group = "com.refinitiv.eta.json.converter"
 archivesBaseName = "etajConverter"
 version "$SpecificationVersion"
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
 
 publishing {
     publications{
@@ -48,25 +54,24 @@ publishing {
 
     repositories {
         maven {
+            credentials {
+                username = findProperty('ossrhUsername')
+                password = findProperty('ossrhPassword')
+            }
             name = "repository"
-            url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-            credentials {
-                username = findProperty('ossrhUsername')
-                password = findProperty('ossrhPassword')
-            }
-        }
-        maven {
-            name = "snapshotRepository"
-            url = "https://oss.sonatype.org/content/repositories/snapshots/"
-            credentials {
-                username = findProperty('ossrhUsername')
-                password = findProperty('ossrhPassword')
-            }
+            def releaseRepository = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotRepository = "https://oss.sonatype.org/content/repositories/snapshots/"
+            url = project.version.endsWith('SNAPSHOT') ? snapshotRepository : releaseRepository
         }
     }
 }
 
 signing {
+    setRequired {
+        // signing is only required if the artifacts are to be published
+        gradle.taskGraph.allTasks.any { it.equals( PublishToMavenRepository) }
+    }
+    sign configurations.archives
     sign publishing.publications.mavenJava
 }
 
@@ -81,11 +86,11 @@ eclipse {
 }
 
 dependencies {
-    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.12.7'
-    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.12.7'
+    api group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.13.4'
+    api group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.13.4.2'
 
-    implementation project(':Eta:Core')
-    implementation project(':Eta:AnsiPage')
+    api project(':Eta:Core')
+    api project(':Eta:AnsiPage')
 
     // needed for cobertura
     testRuntimeOnly group: 'org.slf4j', name: 'slf4j-api', version: '1.7.32'
@@ -142,28 +147,6 @@ task cleanJar (type: Delete) {
 }
 
 clean.dependsOn cleanJar
-
-task javadocJar (type: Jar) {
-    archiveClassifier.convention('javadoc');
-    archiveClassifier.set('javadoc');
-    from javadoc.destinationDir
-    destinationDirectory.set(jar.destinationDirectory)
-
-    manifest {
-        attributes 'Specification-Title': 'Elektron Transport API (ETA) Java Edition Converter Classes'
-        from sharedManifest
-    }
-}
-
-task sourcesJar(type: Jar) {
-    archiveClassifier.convention('sources');
-    archiveClassifier.set('sources');
-    from sourceSets.main.allSource
-}
-
-artifacts {
-    archives javadocJar, sourcesJar
-}
 
 test {
     forkEvery = 1
