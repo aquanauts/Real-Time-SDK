@@ -646,7 +646,7 @@ RsslRet _reactorWorkerReconnectAfterCredentialUpdate(RsslReactorChannelImpl* pRe
 				else
 				{
 					pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &pTokenSessionImpl->sessionAuthUrl, &pTokenSessionImpl->pOAuthCredential->clientId,
-						&pTokenSessionImpl->pOAuthCredential->clientSecret, &pTokenSessionImpl->pOAuthCredential->tokenScope, &pTokenSessionImpl->rsslPostDataBodyBuf, pTokenSessionImpl, &pReactorWorker->workerCerr);
+						&pTokenSessionImpl->pOAuthCredential->clientSecret, &pTokenSessionImpl->pOAuthCredential->clientJWK, &pTokenSessionImpl->pOAuthCredential->audience, &pTokenSessionImpl->pOAuthCredential->tokenScope, &pTokenSessionImpl->rsslPostDataBodyBuf, pTokenSessionImpl, &pReactorWorker->workerCerr);
 				}
 
 				if (pRestRequestArgs)
@@ -1149,6 +1149,7 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 #endif
 	pReactorWorker->sleepTimeMs = 3000;
 
+#ifndef NO_ETA_CPU_BIND
 	/* Bind cpu for the worker thread. */
 	if (pReactorWorker->cpuBindWorkerThread.length > 0 && pReactorWorker->cpuBindWorkerThread.data != NULL)
 	{
@@ -1161,6 +1162,7 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 			return RSSL_THREAD_RETURN();
 		}
 	}
+#endif
 
 	RTR_ATOMIC_SET(pReactorWorker->threadStarted, RSSL_REACTOR_WORKER_THREAD_STARTED);
 
@@ -1247,9 +1249,10 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 													/* Close the channel */
 													/* TODO: Error check? */
 													rsslCloseChannel(pReactorChannel->reactorChannel.pRsslChannel, &(pReactorChannel->channelWorkerCerr.rsslError));
-													pReactorChannel->channelSetupState = RSSL_RC_CHST_RECONNECTING;
 													pReactorChannel->reactorChannel.pRsslChannel = 0;
 												}
+
+												pReactorChannel->channelSetupState = RSSL_RC_CHST_RECONNECTING;
 
 												/* If the channel is using session V2 and has connected, clear out the access token, forcing the reconnection to get a new access token. */
 												if (pReactorChannel->hasConnected == RSSL_TRUE && pReactorChannel->pCurrentTokenSession != NULL && pReactorChannel->pCurrentTokenSession->pSessionImpl->sessionVersion == RSSL_RC_SESSMGMT_V2)
@@ -1525,7 +1528,7 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 													tokenServiceURL = (pTokenSessionImpl->temporaryURL.data == 0) ? pTokenSessionImpl->sessionAuthUrl : pTokenSessionImpl->temporaryURL;
 
 													pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &tokenServiceURL, &pTokenSessionImpl->pOAuthCredential->clientId,
-														&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientSecret, &pTokenSessionImpl->pOAuthCredential->tokenScope, &pTokenSessionImpl->rsslPostDataBodyBuf, pUserSpec, &pTokenSessionImpl->tokenSessionWorkerCerr);
+														&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientSecret, &pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientJWK, &pTokenSessionImpl->pOAuthCredential->audience, &pTokenSessionImpl->pOAuthCredential->tokenScope, &pTokenSessionImpl->rsslPostDataBodyBuf, pUserSpec, &pTokenSessionImpl->tokenSessionWorkerCerr);
 												}
 
 												if (pRestRequestArgs)
@@ -1651,8 +1654,14 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 												{
 													tokenServiceURL = pReactorImpl->tokenServiceURLV2;
 													sessionVersion = RSSL_RC_SESSMGMT_V2;
-													pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &tokenServiceURL, (&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientId),
-														&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientSecret, (&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.tokenScope), &pOAuthCredentialRenewalImpl->rsslPostDataBodyBuf, pUserSpec, &pReactorWorker->workerCerr);
+													pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &tokenServiceURL, 
+														(&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientId),
+														&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientSecret, 
+														&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.clientJWK, 
+														&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.audience,
+														(&pOAuthCredentialRenewalImpl->reactorOAuthCredentialRenewal.tokenScope), 
+														&pOAuthCredentialRenewalImpl->rsslPostDataBodyBuf,
+														pUserSpec, &pReactorWorker->workerCerr);
 												}
 												if (pRestRequestArgs)
 												{
@@ -2426,7 +2435,7 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 							else
 							{
 								pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &pTokenSession->sessionAuthUrl, &pTokenSession->pOAuthCredential->clientId,
-									&pTokenSession->pOAuthCredential->clientSecret, &pTokenSession->pOAuthCredential->tokenScope, &pTokenSession->rsslPostDataBodyBuf, pTokenSession, &pReactorWorker->workerCerr);
+									&pTokenSession->pOAuthCredential->clientSecret, &pTokenSession->pOAuthCredential->clientJWK, &pTokenSession->pOAuthCredential->audience, &pTokenSession->pOAuthCredential->tokenScope, &pTokenSession->rsslPostDataBodyBuf, pTokenSession, &pReactorWorker->workerCerr);
 							}
 							
 
@@ -2500,7 +2509,7 @@ RSSL_THREAD_DECLARE(runReactorWorker, pArg)
 							{
 								/* V2 does not have a refresh token concept, so request a new token from the token generator. */
 								pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &pTokenSession->sessionAuthUrl, &pTokenSession->pOAuthCredential->clientId,
-									&pTokenSession->pOAuthCredential->clientSecret, &pTokenSession->pOAuthCredential->tokenScope, &pTokenSession->rsslPostDataBodyBuf, pTokenSession, &pReactorWorker->workerCerr);
+									&pTokenSession->pOAuthCredential->clientSecret, &pTokenSession->pOAuthCredential->clientJWK, &pTokenSession->pOAuthCredential->audience, &pTokenSession->pOAuthCredential->tokenScope, &pTokenSession->rsslPostDataBodyBuf, pTokenSession, &pReactorWorker->workerCerr);
 							}
 							else
 							{
@@ -2753,6 +2762,9 @@ static void _reactorWorkerFreeChannelRDMMsgs(RsslReactorChannelImpl *pReactorCha
 
 							if (pConsRole->pOAuthCredentialList[i]->clientSecret.data)
 								memset((void*)(pConsRole->pOAuthCredentialList[i]->clientSecret.data), 0, (size_t)(pConsRole->pOAuthCredentialList[i]->clientSecret.length));
+
+							if (pConsRole->pOAuthCredentialList[i]->clientJWK.data)
+								memset((void*)(pConsRole->pOAuthCredentialList[i]->clientJWK.data), 0, (size_t)(pConsRole->pOAuthCredentialList[i]->clientJWK.length));
 
 							if (pConsRole->pOAuthCredentialList[i]->password.data)
 								memset((void*)(pConsRole->pOAuthCredentialList[i]->password.data), 0, (size_t)(pConsRole->pOAuthCredentialList[i]->password.length));
@@ -3945,7 +3957,7 @@ static void rsslRestAuthTokenResponseCallback(RsslRestResponse* restresponse, Rs
 					else
 					{
 						pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &pReactorTokenSession->sessionAuthUrl, &pReactorTokenSession->pOAuthCredential->clientId,
-							&pReactorTokenSession->pOAuthCredential->clientSecret, &pReactorTokenSession->pOAuthCredential->tokenScope, &pReactorTokenSession->rsslPostDataBodyBuf, pReactorTokenSession, &pReactorWorker->workerCerr);
+							&pReactorTokenSession->pOAuthCredential->clientSecret, &pReactorTokenSession->pOAuthCredential->clientJWK, &pReactorTokenSession->pOAuthCredential->audience, &pReactorTokenSession->pOAuthCredential->tokenScope, &pReactorTokenSession->rsslPostDataBodyBuf, pReactorTokenSession, &pReactorWorker->workerCerr);
 					}
 
 					if (pRestRequestArgs)
@@ -4058,7 +4070,7 @@ static void rsslRestAuthTokenResponseCallback(RsslRestResponse* restresponse, Rs
 					else
 					{
 						pRestRequestArgs = _reactorCreateTokenRequestV2(pReactorImpl, &pReactorTokenSession->sessionAuthUrl, &pReactorTokenSession->pOAuthCredential->clientId,
-							&pReactorTokenSession->pOAuthCredential->clientSecret, &pReactorTokenSession->pOAuthCredential->tokenScope, &pReactorTokenSession->rsslPostDataBodyBuf, pReactorTokenSession, &pReactorWorker->workerCerr);
+							&pReactorTokenSession->pOAuthCredential->clientSecret, &pReactorTokenSession->pOAuthCredential->clientJWK, &pReactorTokenSession->pOAuthCredential->audience, &pReactorTokenSession->pOAuthCredential->tokenScope, &pReactorTokenSession->rsslPostDataBodyBuf, pReactorTokenSession, &pReactorWorker->workerCerr);
 					}
 					if (pRestRequestArgs)
 					{

@@ -70,6 +70,7 @@ static RsslUInt restEnableLogViaCallback = 0U;  // 0: disabled, 1: enabled from 
 static RsslUInt32 reactorDebugLevel = RSSL_RC_DEBUG_LEVEL_NONE;
 static time_t debugInfoIntervalMS = 50;
 static time_t nextDebugTimeMS = 0;
+static RsslBool sendJsonConvError = RSSL_FALSE;
 
 #define MAX_CHAN_COMMANDS 4
 static ChannelCommand chanCommands[MAX_CHAN_COMMANDS];
@@ -84,6 +85,8 @@ char passwordBlock[128];
 char clientIdBlock[128];
 char clientSecretBlock[128];
 char scopeBlock[128];
+char clientJWKBlock[2048];
+char audienceBlock[255];
 static char traceOutputFile[128];
 static char protocolList[128];
 char authnTokenBlock[1024];
@@ -98,6 +101,8 @@ RsslBuffer userName = RSSL_INIT_BUFFER;
 RsslBuffer password = RSSL_INIT_BUFFER;
 RsslBuffer clientId = RSSL_INIT_BUFFER;
 RsslBuffer clientSecret = RSSL_INIT_BUFFER;
+RsslBuffer clientJWK = RSSL_INIT_BUFFER;
+RsslBuffer audience = RSSL_INIT_BUFFER;
 RsslBuffer authnToken = RSSL_INIT_BUFFER;
 RsslBuffer authnExtended = RSSL_INIT_BUFFER;
 RsslBuffer appId = RSSL_INIT_BUFFER;
@@ -155,6 +160,8 @@ void printUsageAndExit(char *appName)
 			"\n -clientId specifies the Client ID for Refinitiv Real-Time - Optimized, or the client ID for login v2 (mandatory). To generate clientID for a V1 login, login to Eikon,\n"
 			"\n  and search for App Key Generator. The App Key is the Client ID.\n"
 			"\n -clientSecret associated client secret for the client ID with the v2 login.\n"
+			"\n -jwkFile File containing the private JWK information for V2 login with JWT.\n"
+			"\n -audience audience claim for v2 JWT logins.\n"
 			"\n -sessionMgnt Enables session management in the Reactor for Refinitiv Real-Time - Optimized.\n"
 			"\n -takeExclusiveSignOnControl <true/false> the exclusive sign on control to force sign-out for the same credentials.\n"
 			"\n -at Specifies the Authentication Token. If this is present, the login user name type will be RDM_LOGIN_USER_AUTHN_TOKEN.\n"
@@ -193,6 +200,7 @@ void printUsageAndExit(char *appName)
 			"\n -debugTunnelStream set 'tunnelstream' debug info level"
 			"\n -debugAll enable all levels of debug info"
 			"\n -debugInfoInterval set time interval for debug log"
+			"\n -sendJsonConvError enable send json conversion error to provider"
 			, appName, appName);
 
 	/* WINDOWS: wait for user to enter something before exiting  */
@@ -211,6 +219,9 @@ void parseCommandLine(int argc, char **argv)
 
 	RsslInt32 i;
 	RsslBool cacheOption = RSSL_FALSE;
+	FILE* pFile = NULL;
+	int readSize = 0;
+
 
 	/* Check usage and retrieve operating parameters */
 	{
@@ -280,6 +291,36 @@ void parseCommandLine(int argc, char **argv)
 				i += 2;
 				clientSecret.length = snprintf(clientSecretBlock, sizeof(clientSecretBlock), "%s", argv[i - 1]);
 				clientSecret.data = clientSecretBlock;
+			}
+			else if (0 == strcmp(argv[i], "-jwkFile"))
+			{
+				/* As this is an example program showing API, this handling of the JWK is not secure. */
+				if (++i == argc) printUsageAndExit(argv[0]);
+				
+				pFile = fopen(argv[i], "rb");
+				if (pFile == NULL)
+				{
+					printf("Cannot load jwk file.\n");
+					printUsageAndExit(argv[0]);
+				}
+				/* Read the JWK contents into a pre-allocated buffer*/
+				readSize = (int)fread(clientJWKBlock, sizeof(char), 2048, pFile);
+				if (readSize == 0)
+				{
+					printf("Cannot read jwk file.\n");
+					printUsageAndExit(argv[0]);
+				}
+				clientJWK.data = clientJWKBlock;
+				clientJWK.length = readSize;
+
+				fclose(pFile);
+				i++;
+			}
+			else if (strcmp("-audience", argv[i]) == 0)
+			{
+				i += 2;
+				audience.length = snprintf(audienceBlock, sizeof(audienceBlock), "%s", argv[i - 1]);
+				audience.data = audienceBlock;
 			}
 			else if (strcmp("-tokenURLV1", argv[i]) == 0)
 			{
@@ -422,6 +463,11 @@ void parseCommandLine(int argc, char **argv)
 			{
 				i += 2; if (i > argc) printUsageAndExit(argv[0]);
 				restEnableLogViaCallback = atoi(argv[i - 1]);
+			}
+			else if (strcmp("-sendJsonConvError", argv[i]) == 0)
+			{
+				i++;
+				sendJsonConvError = RSSL_TRUE;
 			}
 			else if ((strcmp("-c", argv[i]) == 0) || (strcmp("-tcp", argv[i]) == 0) ||
 					(strcmp("-webSocket", argv[i]) == 0) || 
@@ -1437,8 +1483,10 @@ RsslReactorCallbackRet oAuthCredentialEventCallback(RsslReactor *pReactor, RsslR
 
 	if (password.length != 0)
 		reactorOAuthCredentialRenewal.password = password; /* Specified password as needed */
-	else
+	else if (clientSecret.length != 0)
 		reactorOAuthCredentialRenewal.clientSecret = clientSecret;
+	else
+		reactorOAuthCredentialRenewal.clientJWK = clientJWK;
 
 	rsslReactorSubmitOAuthCredentialRenewal(pReactor, &renewalOptions, &reactorOAuthCredentialRenewal, &rsslError);
 
@@ -1797,6 +1845,21 @@ int main(int argc, char **argv)
 		oAuthCredential.pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
 	}
 
+	/* If a JWK was specified */
+	if (clientJWK.length)
+	{
+		oAuthCredential.clientJWK = clientJWK;
+
+		/* Specified the RsslReactorOAuthCredentialEventCallback to get sensitive information as needed to authorize with the token service. */
+		oAuthCredential.pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
+	}
+
+	/* If an audience was specified */
+	if (audience.length)
+	{
+		oAuthCredential.audience = audience;
+	}
+
 	/* If an authentication Token was specified, set it on the login request and set the user name type to RDM_LOGIN_USER_AUTHN_TOKEN */
 	if (authnToken.length)
 	{
@@ -2030,6 +2093,7 @@ int main(int argc, char **argv)
 	jsonConverterOptions.pDictionary = &(chanCommands[0].dictionary);
 	jsonConverterOptions.pServiceNameToIdCallback = serviceNameToIdCallback;
 	jsonConverterOptions.pJsonConversionEventCallback = jsonConversionEventCallback;
+	jsonConverterOptions.sendJsonConvError = sendJsonConvError;
 
 	if (rsslReactorInitJsonConverter(pReactor, &jsonConverterOptions, &rsslErrorInfo) != RSSL_RET_SUCCESS)
 	{

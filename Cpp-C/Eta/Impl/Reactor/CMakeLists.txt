@@ -117,6 +117,12 @@ else()
 		set(sharedVAVersionSrc rsslVAVersionShared.c)
 	endif()
 
+	if(BUILD_ETA_JWT)
+		set(l8w8jwt_lib "l8w8jwt::libl8w8jwt")
+		set(l8w8jwt_target "$<TARGET_FILE:l8w8jwt::libl8w8jwt>")
+		set(l8w8jwt_command COMMAND ${CMAKE_AR} -x $<TARGET_FILE:l8w8jwt::libl8w8jwt>)
+	endif()
+
 	#
 	##          -- Build librssl STATIC LIBRARY --
 
@@ -124,23 +130,30 @@ else()
 	if (NOT EXISTS "${_rsslVA_tmp_dir}/src")
 		file(MAKE_DIRECTORY "${_rsslVA_tmp_dir}/src")
 	endif()
-	
+
     add_library( librsslVA_tmp STATIC ${rsslVASrcFiles} ${staticVAVersionSrc} )
 
     if (CMAKE_HOST_WIN32)
-		set_target_properties(librsslVA_tmp PROPERTIES 
+		set_target_properties(librsslVA_tmp PROPERTIES
 											ARCHIVE_OUTPUT_DIRECTORY_DEBUG_MDD
 												"${_rsslVA_tmp_dir}/lib/Debug_MDd"
 											ARCHIVE_OUTPUT_DIRECTORY_RELEASE_MD
 												"${_rsslVA_tmp_dir}/lib/Release_MD"
 								)
-		target_compile_options(librsslVA_tmp PRIVATE ${RCDEV_DEBUG_TYPE_FLAGS_STATIC})
+		target_compile_options(librsslVA_tmp PRIVATE
+                                            ${RCDEV_DEBUG_TYPE_FLAGS_STATIC}
+                                            ${RTSDK_EXTRA_FLAGS}
+                                )
 
 	else()
-		set_target_properties(librsslVA_tmp PROPERTIES 
+		set_target_properties(librsslVA_tmp PROPERTIES
 											ARCHIVE_OUTPUT_DIRECTORY
 												"${_rsslVA_tmp_dir}/lib"
 								)
+
+		target_compile_options(librsslVA_tmp PRIVATE
+                                            ${RTSDK_EXTRA_FLAGS}
+                                )
 	endif()
 
     target_include_directories(librsslVA_tmp
@@ -156,15 +169,14 @@ else()
 											${Eta_SOURCE_DIR}/Include/Reactor
 											$<TARGET_PROPERTY:librssl,INTERFACE_INCLUDE_DIRECTORIES>
                                 )
-
-	target_link_libraries( librsslVA_tmp LibXml2::LibXml2 CJSON::CJSON librssl )
+	    target_link_libraries( librsslVA_tmp LibXml2::LibXml2 CJSON::CJSON librssl ${l8w8jwt_lib})
 
 DEBUG_PRINT(librsslVA_tmp)
 
 	file(WRITE ${_rsslVA_tmp_dir}/src/librsslVA_tmp.C "void librsslArchive() {}\n")
     add_library(librsslVA STATIC ${_rsslVA_tmp_dir}/src/librsslVA_tmp.C)
 
-    target_include_directories(librsslVA 
+    target_include_directories(librsslVA
 										PUBLIC
 											$<TARGET_PROPERTY:librsslVA_tmp,INTERFACE_INCLUDE_DIRECTORIES>
 								)
@@ -175,33 +187,52 @@ DEBUG_PRINT(librsslVA_tmp)
 
     if (CMAKE_HOST_WIN32)
 		add_custom_command(TARGET librsslVA POST_BUILD
-							COMMAND ${CMAKE_LINKER} /LIB 
-														/OUT:"$<TARGET_FILE:librsslVA>" 
+							COMMAND ${CMAKE_LINKER} /LIB
+														/OUT:"$<TARGET_FILE:librsslVA>"
 														/LTCG "$<TARGET_FILE:librsslVA_tmp>"
 															  "$<TARGET_FILE:LibXml2::LibXml2>"
 															  "$<TARGET_FILE:CJSON::CJSON>"
+															  ${l8w8jwt_target}
 							DEPENDS $<TARGET_FILE:librsslVA_tmp>
 									$<TARGET_FILE:LibXml2::LibXml2>
 									$<TARGET_FILE:CJSON::CJSON>
+									${l8w8jwt_target}
 							COMMENT "Linking objects for static librsslVA ..."
 							)
 	else()
 		set_target_properties( librssl PROPERTIES PREFIX "" )
 
 		file(MAKE_DIRECTORY  "${CMAKE_CURRENT_BINARY_DIR}/librsslVA_tmp.arch")
-		add_custom_command(TARGET librsslVA POST_BUILD
-							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:librsslVA_tmp>
-							COMMAND ${CMAKE_AR} -qcs $<TARGET_FILE:librsslVA> *.o
-							WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librsslVA_tmp.arch
-							DEPENDS $<TARGET_FILE:librsslVA_tmp>
-									$<TARGET_FILE:LibXml2::LibXml2>
-									$<TARGET_FILE:CJSON::CJSON>
-							COMMENT "Archiving objects for librsslVA ..."
-							)
+
+		if(BUILD_ETA_JWT)
+			add_custom_command(TARGET librsslVA POST_BUILD
+								COMMAND ${CMAKE_AR} -x $<TARGET_FILE:librsslVA_tmp>
+								COMMAND ${CMAKE_AR} -x $<TARGET_FILE:LibXml2::LibXml2>
+								COMMAND ${CMAKE_AR} -x $<TARGET_FILE:CJSON::CJSON>
+								COMMAND ${CMAKE_AR} -x $<TARGET_FILE:l8w8jwt::libl8w8jwt>
+								COMMAND ${CMAKE_AR} -qcs $<TARGET_FILE:librsslVA> *.o
+								WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librsslVA_tmp.arch
+								DEPENDS $<TARGET_FILE:librsslVA_tmp>
+										$<TARGET_FILE:LibXml2::LibXml2>
+										$<TARGET_FILE:CJSON::CJSON>
+										$<TARGET_FILE:l8w8jwt::libl8w8jwt>
+								COMMENT "Archiving objects for librsslVA ..."
+								)
+		else()
+
+			add_custom_command(TARGET librsslVA POST_BUILD
+								COMMAND ${CMAKE_AR} -qcs $<TARGET_FILE:librsslVA> *.o
+								WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librsslVA_tmp.arch
+								DEPENDS $<TARGET_FILE:librsslVA_tmp>
+										$<TARGET_FILE:LibXml2::LibXml2>
+										$<TARGET_FILE:CJSON::CJSON>
+								COMMENT "Archiving objects for librsslVA ..."
+								)
+		endif()
 
 	endif()
 	unset(_rsslVA_tmp_dir)
-                    
+
 	#
 	##          -- Build librssl SHARED LIBRARY --
 
@@ -224,54 +255,59 @@ DEBUG_PRINT(librsslVA_tmp)
                     )
 
     set_target_properties( librsslVA librsslVA_shared
-                            PROPERTIES 
-                                PREFIX "" 
+                            PROPERTIES
+                                PREFIX ""
                                 OUTPUT_NAME librsslVA
                             )
 
     if (CMAKE_HOST_WIN32)
 
-        target_compile_options( librsslVA_shared 
-                                        PRIVATE 
-                                            "/D RSSL_VA_EXPORTS" 
+        target_compile_options( librsslVA_shared
+                                        PRIVATE
+                                            "/D RSSL_VA_EXPORTS"
                                             ${RCDEV_DEBUG_TYPE_FLAGS_NONSTATIC}
                                             ${RCDEV_TYPE_CHECK_FLAG}
+                                            ${RTSDK_EXTRA_FLAGS}
                                             $<$<CONFIG:Release_MD>:${RCDEV_FLAGS_NONSTATIC_RELEASE}>)
 
-        target_link_libraries( librsslVA_shared 
-										librssl_shared 
+		target_link_libraries( librsslVA_shared
+										librssl_shared
 										LibXml2::LibXml2
 										CJSON::CJSON
 										wininet.lib
 										ws2_32.lib
-                            )
+										${l8w8jwt_lib}
+							)
 
-         set_target_properties( librsslVA_shared 
-                                PROPERTIES 
+         set_target_properties( librsslVA_shared
+                                PROPERTIES
                                     OUTPUT_NAME librsslVA
-                                    RUNTIME_OUTPUT_DIRECTORY_DEBUG_MDD 
+                                    RUNTIME_OUTPUT_DIRECTORY_DEBUG_MDD
                                         ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG_MDD}/Shared
-                                    RUNTIME_OUTPUT_DIRECTORY_RELEASE_MD 
+                                    RUNTIME_OUTPUT_DIRECTORY_RELEASE_MD
                                         ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE_MD}/Shared
-                                    PDB_OUTPUT_DIRECTORY_DEBUG_MDD 
+                                    PDB_OUTPUT_DIRECTORY_DEBUG_MDD
                                         ${CMAKE_PDB_OUTPUT_DIRECTORY_DEBUG_MDD}/Shared
-                                    PDB_OUTPUT_DIRECTORY_RELEASE_MD 
+                                    PDB_OUTPUT_DIRECTORY_RELEASE_MD
                                         ${CMAKE_PDB_OUTPUT_DIRECTORY_RELEASE_MD}/Shared
-                                    ARCHIVE_OUTPUT_DIRECTORY_DEBUG_MDD 
+                                    ARCHIVE_OUTPUT_DIRECTORY_DEBUG_MDD
                                         ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG_MDD}/Shared
-                                    ARCHIVE_OUTPUT_DIRECTORY_RELEASE_MD 
-                                        ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE_MD}/Shared 
+                                    ARCHIVE_OUTPUT_DIRECTORY_RELEASE_MD
+                                        ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE_MD}/Shared
                             )
 
     else()
-
-        set_target_properties( librsslVA_shared 
-                                PROPERTIES 
+		target_compile_options( librsslVA_shared
+                                        PRIVATE
+                                            ${RTSDK_EXTRA_FLAGS}
+                           )
+        set_target_properties( librsslVA_shared
+                                PROPERTIES
                                     VERSION ${Eta_VERSION}
                                     SOVERSION ${librsslVA_SO_VERSION}
                             )
 
-		target_link_libraries( librsslVA_shared librssl_shared LibXml2::LibXml2 CJSON::CJSON )
+		target_link_libraries( librsslVA_shared librssl_shared LibXml2::LibXml2 CJSON::CJSON ${l8w8jwt_lib})
 	endif()
 DEBUG_PRINT(librsslVA_tmp)
 	rcdev_add_target(rtsdk librsslVA librsslVA_shared)

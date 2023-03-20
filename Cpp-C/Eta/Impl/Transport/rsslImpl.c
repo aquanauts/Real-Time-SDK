@@ -19,8 +19,9 @@
 
 #include "rtr/rsslErrors.h"
 #include "rtr/rsslAlloc.h"
-
+#ifndef NO_ETA_CPU_BIND
 #include "rtr/bindthread.h"
+#endif
 #include "rtr/rwfNetwork.h"
 #include "curl/curl.h"
 #include "rtr/ripcssljit.h"
@@ -779,6 +780,7 @@ RsslRet rsslInitializeEx(RsslInitializeExOpts *rsslInitOpts, RsslError *error)
 		/* Initialize All transports here */
 
 		/* initialize cpuid library */
+#ifndef NO_ETA_CPU_BIND
 		retVal = rsslBindThreadInitialize(error);
 
 		if (retVal < RSSL_RET_SUCCESS)
@@ -786,6 +788,7 @@ RsslRet rsslInitializeEx(RsslInitializeExOpts *rsslInitOpts, RsslError *error)
 			mutexFuncs.staticMutexUnlock();
 			return retVal;
 		}
+#endif
 
 		/* initialize debug dump functions */
 		rsslClearDebugFunctionsEx();
@@ -1076,6 +1079,15 @@ RsslServer* rsslBind(RsslBindOptions *opts, RsslError *error)
 
 	if (RSSL_NULL_PTR(opts->serviceName, "rsslBind", "opts->serviceName", error))
 		return NULL;
+
+	if (opts->protocolType == RSSL_JSON_PROTOCOL_TYPE)
+	{
+		/* error */
+		_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+		snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> rsslBind() Error: 0006 JSON protocol Type not supported on SOCKET servers.\n", __FILE__, __LINE__);
+
+		return NULL;
+	}
 
 	/* create rssl server */
 	if ((rsslSrvrImpl = _rsslNewServer()) == 0)
@@ -1780,9 +1792,12 @@ RSSL_API RsslBuffer* rsslReadEx(RsslChannel *chnl, RsslReadInArgs *readInArgs, R
 			_rsslTraceEndMsg(rsslChnlImpl, readRet, RSSL_TRUE);
 		}
 		/* check if we read a ping */
-		else if ((*readRet == RSSL_RET_READ_PING) && (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_READ))
+		else if (*readRet == RSSL_RET_READ_PING)
 		{	
-			if (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_PING)	/* are we tracing pings? */
+			/* are we tracing pings? */
+			if ( (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_READ) 
+				&& (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_PING)
+				|| (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_PING_ONLY) )
 			{
 				char message[128];
 
@@ -2071,21 +2086,20 @@ RSSL_API RsslRet rsslPing(RsslChannel *chnl, RsslError *error)
 
 	if (rtrUnlikely(rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & (RSSL_TRACE_TO_FILE_ENABLE | RSSL_TRACE_TO_STDOUT)))
 	{
-		if(rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_WRITE)
+		/* are we tracing pings? */
+		if ( (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_WRITE)
+			&& (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_PING)
+			|| (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_PING_ONLY) )
 		{
-			if (rsslChnlImpl->traceOptionsInfo.traceOptions.traceFlags & RSSL_TRACE_PING)	/* are we tracing pings? */
-			{
-				char message[128];
+			char message[128];
 
-				(void) RSSL_MUTEX_LOCK(&rsslChnlImpl->traceMutex);
-				snprintf(message, sizeof(message), "Outgoing Ping (Channel IPC descriptor = "SOCKET_PRINT_TYPE")", rsslChnlImpl->Channel.socketId);
-				_rsslXMLDumpComment(rsslChnlImpl, message, RSSL_TRUE, RSSL_FALSE);
+			(void) RSSL_MUTEX_LOCK(&rsslChnlImpl->traceMutex);
+			snprintf(message, sizeof(message), "Outgoing Ping (Channel IPC descriptor = "SOCKET_PRINT_TYPE")", rsslChnlImpl->Channel.socketId);
+			_rsslXMLDumpComment(rsslChnlImpl, message, RSSL_TRUE, RSSL_FALSE);
 
-				snprintf(message, sizeof(message), "End Message (Channel IPC descriptor = "SOCKET_PRINT_TYPE")", rsslChnlImpl->Channel.socketId);
-				_rsslXMLDumpComment(rsslChnlImpl, message, RSSL_FALSE, RSSL_TRUE);
-				(void) RSSL_MUTEX_UNLOCK(&rsslChnlImpl->traceMutex);
-
-			}
+			snprintf(message, sizeof(message), "End Message (Channel IPC descriptor = "SOCKET_PRINT_TYPE")", rsslChnlImpl->Channel.socketId);
+			_rsslXMLDumpComment(rsslChnlImpl, message, RSSL_FALSE, RSSL_TRUE);
+			(void) RSSL_MUTEX_UNLOCK(&rsslChnlImpl->traceMutex);
 		}
 	}
 
@@ -2279,8 +2293,10 @@ RsslRet rsslUninitialize()
 		_rsslCleanUp();
 		rsslUnloadTransport();
 
+#ifndef NO_ETA_CPU_BIND
 		/* Uninitialize cpuid library */
 		rsslBindThreadUninitialize();
+#endif
 
 		/* uninitialize various transports */
 		rsslSocketUninitialize();

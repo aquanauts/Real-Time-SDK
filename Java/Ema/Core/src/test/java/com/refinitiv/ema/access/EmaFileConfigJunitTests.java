@@ -1,7 +1,12 @@
 package com.refinitiv.ema.access;
 
 import junit.framework.TestCase;
+
+import com.refinitiv.ema.rdm.DataDictionary;
+import com.refinitiv.ema.rdm.EmaRdm;
+import com.refinitiv.ema.unittest.TestDictionaries;
 import com.refinitiv.ema.unittest.TestUtilities;
+import com.refinitiv.eta.codec.CodecReturnCodes;
 import com.refinitiv.eta.codec.Qos;
 import com.refinitiv.eta.codec.QosRates;
 import com.refinitiv.eta.codec.QosTimeliness;
@@ -16,6 +21,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+
+import org.junit.Test;
 
 import static com.refinitiv.ema.access.ProgrammaticConfigure.MAX_UNSIGNED_INT16;
 import static com.refinitiv.ema.access.ProgrammaticConfigure.MAX_UNSIGNED_INT32;
@@ -129,7 +136,12 @@ public class EmaFileConfigJunitTests extends TestCase
 		TestUtilities.checkResult("Dictionary value == Dictionary_1", ConsDictionary.contentEquals("Dictionary_1") );
 		intLongValue = JUnitTestConnect.configGetIntLongValue(testConfig, "Consumer_1", JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.EnableRtt);
 		TestUtilities.checkResult("EnableRtt value == 0", intLongValue == 0 );
-		
+
+		// Check SendJsonConvError in Consumer_2
+		System.out.println("\nCheck SendJsonConvError in Consumer_2 ");
+		boolValue = JUnitTestConnect.configGetBooleanValue(testConfig, "Consumer_2", JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.SendJsonConvError);
+		TestUtilities.checkResult("SendJsonConvError == 1", boolValue);
+
 		// Check values of Consumer_3
 		System.out.println("\nRetrieving Consumer_3 configuration values "); 
 
@@ -1269,7 +1281,8 @@ public class EmaFileConfigJunitTests extends TestCase
 			innerElementList.add(EmaFactory.createElementEntry().intValue("ReconnectMaxDelay", 500));
 			innerElementList.add(EmaFactory.createElementEntry().intValue("XmlTraceToStdout", 1));
 			innerElementList.add(EmaFactory.createElementEntry().intValue("MsgKeyInUpdates", 1));
-			
+			innerElementList.add(EmaFactory.createElementEntry().uintValue("SendJsonConvError", 1));
+
 			innerMap.add(EmaFactory.createMapEntry().keyAscii( "Consumer_1", MapEntry.MapAction.ADD, innerElementList));
 			innerElementList.clear();
 			
@@ -1361,7 +1374,8 @@ public class EmaFileConfigJunitTests extends TestCase
 			TestUtilities.checkResult("XmlTraceToStdout == 1", boolValue == true);
 			boolValue = JUnitTestConnect.activeConfigGetBooleanValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.ConsumerMsgKeyInUpdates, -1);
 			TestUtilities.checkResult("MsgKeyInUpdates == 1", boolValue == true);
-			
+			boolValue = JUnitTestConnect.activeConfigGetBooleanValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.SendJsonConvError, -1);
+			TestUtilities.checkResult("SendJsonConvError == 1", boolValue == true);
 			
 			// Check values of Consumer_1
 			System.out.println("\nRetrieving Consumer_1 configuration values "); 
@@ -1474,6 +1488,7 @@ public class EmaFileConfigJunitTests extends TestCase
 			innerElementList.add(EmaFactory.createElementEntry().intValue("ReissueTokenAttemptInterval", 9000));
 			innerElementList.add(EmaFactory.createElementEntry().doubleValue("TokenReissueRatio", 0.9));
 			innerElementList.add(EmaFactory.createElementEntry().uintValue( "EnableRtt", 1 ));
+			innerElementList.add(EmaFactory.createElementEntry().uintValue( "SendJsonConvError", 1 ));
 
 			innerMap.add(EmaFactory.createMapEntry().keyAscii( "Consumer_1", MapEntry.MapAction.ADD, innerElementList));
 			innerElementList.clear();
@@ -1567,6 +1582,8 @@ public class EmaFileConfigJunitTests extends TestCase
 			TestUtilities.checkResult("XmlTraceToStdout == 0", boolValue == true);
 			boolValue = JUnitTestConnect.activeConfigGetBooleanValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.ConsumerMsgKeyInUpdates, -1);
 			TestUtilities.checkResult("MsgKeyInUpdates == 1", boolValue == true);
+			boolValue = JUnitTestConnect.activeConfigGetBooleanValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.SendJsonConvError, -1);
+			TestUtilities.checkResult("SendJsonConvError == 1", boolValue == true);
 
 			intValue = JUnitTestConnect.activeConfigGetIntLongValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.RestRequestTimeout, -1);
 			TestUtilities.checkResult("RestRequestTimeout == 65000", intValue == 65000);
@@ -1690,7 +1707,8 @@ public class EmaFileConfigJunitTests extends TestCase
 			innerElementList.add(EmaFactory.createElementEntry().intValue("ReconnectAttemptLimit", 70));
 			innerElementList.add(EmaFactory.createElementEntry().intValue("ReconnectMinDelay", 7000));
 			innerElementList.add(EmaFactory.createElementEntry().intValue("ReconnectMaxDelay", 7000));
-			
+			innerElementList.add(EmaFactory.createElementEntry().uintValue("SendJsonConvError", 0));
+
 			innerMap.add(EmaFactory.createMapEntry().keyAscii( "Consumer_2", MapEntry.MapAction.ADD, innerElementList));
 			innerElementList.clear();
 			
@@ -1793,7 +1811,8 @@ public class EmaFileConfigJunitTests extends TestCase
 			TestUtilities.checkResult("XmlTraceToStdout == 0", boolValue == false);
 			boolValue = JUnitTestConnect.activeConfigGetBooleanValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.ConsumerMsgKeyInUpdates, -1);
 			TestUtilities.checkResult("MsgKeyInUpdates == 0", boolValue == false);
-			
+			boolValue = JUnitTestConnect.activeConfigGetBooleanValue(cons, JUnitTestConnect.ConfigGroupTypeConsumer, JUnitTestConnect.SendJsonConvError, -1);
+			TestUtilities.checkResult("SendJsonConvError == 0", boolValue == false);
 			
 			// Check values of Consumer_2
 			System.out.println("\nRetrieving Consumer_1 configuration values "); 
@@ -5072,7 +5091,7 @@ public void testSetInstanceNameByFunctionCall()
 			TestUtilities.checkResult("Receiving exception, test failed.", false );
 		}
 	}
-}	
+}
 	
 public void testLoadDictConfigBetweenProgrammaticAndFileForIProv()
 {
@@ -5570,6 +5589,186 @@ public void testLoadConfigFromProgrammaticForWarmStandby()
 		System.out.println(excp.getMessage());
 		TestUtilities.checkResult("Receiving exception, test failed.", false );
 	}
+}
+
+@Test
+public void testDataDictionarySpecifiedDirectlyToOmmConsumerConfig()
+{
+	DataDictionary dataDictionary = EmaFactory.createDataDictionary();
+	
+	try
+	{
+		dataDictionary.loadFieldDictionary(TestDictionaries.fieldDictionaryFileName);
+	}
+	catch(OmmException excp)
+	{
+		TestUtilities.checkResult(false, "DataDictionary.loadFieldDictionary() failed to load dictionary information - exception not expected");
+	}
+	
+	try
+	{
+		dataDictionary.loadEnumTypeDictionary(TestDictionaries.enumTableFileName);
+	}
+	catch(OmmException excp)
+	{
+		TestUtilities.checkResult(false, "DataDictionary.loadEnumTypeDictionary() failed to load denumerated types information - exception not expected");
+	}
+	
+	// To specify EmaConfig.xml file location use -DEmaConfigFileLocation=EmaConfig.xml
+	String EmaConfigFileLocation = System.getProperty("EmaConfigFileLocation");
+	OmmConsumerConfig testConfigDeepCopy = EmaFactory.createOmmConsumerConfig(EmaConfigFileLocation);
+	
+	testConfigDeepCopy.dataDictionary(dataDictionary, true);
+
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().enumDisplayTemplateVersion().toString().equals(dataDictionary.enumDisplayTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumDTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumDTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().enumRecordTemplateVersion().toString().equals(dataDictionary.enumRecordTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumRTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumRTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().fieldVersion().toString().equals(dataDictionary.fieldVersion()), 
+			"Comparing DataDictionary.infoinfoFieldVersion() with com.refinitiv.eta.codec.DataDictionary.infoFieldVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().dictionaryId() == dataDictionary.dictionaryId(), 
+			"Comparing DataDictionary.infoDictionaryId() with com.refinitiv.eta.codec.DataDictionary.infoDictionaryId()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().entries().size() == dataDictionary.entries().size() , 
+			"Comparing DataDictionary.entries().size() with com.refinitiv.eta.codec.DataDictionary.numberOfEntries()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().enumTables().size() == dataDictionary.enumTables().size() , 
+			"Comparing DataDictionary.enumTables().size() with com.refinitiv.eta.codec.DataDictionary.enumTableCount()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().maxFid() == dataDictionary.maxFid() , 
+			"Comparing DataDictionary.maxFid() with com.refinitiv.eta.codec.DataDictionary.maxFid()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().minFid() == dataDictionary.minFid() , 
+			"Comparing DataDictionary.minFid() with com.refinitiv.eta.codec.DataDictionary.minFid()");
+	
+	OmmConsumerConfig testConfigReference = EmaFactory.createOmmConsumerConfig(EmaConfigFileLocation);
+	testConfigReference.dataDictionary(dataDictionary, false);
+
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumDisplayTemplateVersion().toString().equals(dataDictionary.enumDisplayTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumDTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumDTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumRecordTemplateVersion().toString().equals(dataDictionary.enumRecordTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumRTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumRTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().fieldVersion().toString().equals(dataDictionary.fieldVersion()), 
+			"Comparing DataDictionary.infoinfoFieldVersion() with com.refinitiv.eta.codec.DataDictionary.infoFieldVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().dictionaryId() == dataDictionary.dictionaryId(), 
+			"Comparing DataDictionary.infoDictionaryId() with com.refinitiv.eta.codec.DataDictionary.infoDictionaryId()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().entries().size() == dataDictionary.entries().size() , 
+			"Comparing DataDictionary.entries().size() with com.refinitiv.eta.codec.DataDictionary.numberOfEntries()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumTables().size() == dataDictionary.enumTables().size() , 
+			"Comparing DataDictionary.enumTables().size() with com.refinitiv.eta.codec.DataDictionary.enumTableCount()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().maxFid() == dataDictionary.maxFid() , 
+			"Comparing DataDictionary.maxFid() with com.refinitiv.eta.codec.DataDictionary.maxFid()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().minFid() == dataDictionary.minFid() , 
+			"Comparing DataDictionary.minFid() with com.refinitiv.eta.codec.DataDictionary.minFid()");
+	
+	DataDictionary dataDictionary_2 = EmaFactory.createDataDictionary();
+	
+	try
+	{
+		dataDictionary_2.loadFieldDictionary(TestDictionaries.fieldDictionaryFileName);
+	}
+	catch(OmmException excp)
+	{
+		TestUtilities.checkResult(false, "DataDictionary.loadFieldDictionary() failed to load dictionary information - exception not expected");
+	}
+	
+	try
+	{
+		dataDictionary_2.loadEnumTypeDictionary(TestDictionaries.enumTableFileName);
+	}
+	catch(OmmException excp)
+	{
+		TestUtilities.checkResult(false, "DataDictionary.loadEnumTypeDictionary() failed to load denumerated types information - exception not expected");
+	}
+	// Clear dataDictionary and ensure the deep copied config still works
+	
+	dataDictionary.clear();
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().enumDisplayTemplateVersion().toString().equals(dataDictionary_2.enumDisplayTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumDTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumDTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().enumRecordTemplateVersion().toString().equals(dataDictionary_2.enumRecordTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumRTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumRTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().fieldVersion().toString().equals(dataDictionary_2.fieldVersion()), 
+			"Comparing DataDictionary.infoinfoFieldVersion() with com.refinitiv.eta.codec.DataDictionary.infoFieldVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().dictionaryId() == dataDictionary_2.dictionaryId(), 
+			"Comparing DataDictionary.infoDictionaryId() with com.refinitiv.eta.codec.DataDictionary.infoDictionaryId()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().entries().size() == dataDictionary_2.entries().size() , 
+			"Comparing DataDictionary.entries().size() with com.refinitiv.eta.codec.DataDictionary.numberOfEntries()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().enumTables().size() == dataDictionary_2.enumTables().size() , 
+			"Comparing DataDictionary.enumTables().size() with com.refinitiv.eta.codec.DataDictionary.enumTableCount()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().maxFid() == dataDictionary_2.maxFid() , 
+			"Comparing DataDictionary.maxFid() with com.refinitiv.eta.codec.DataDictionary.maxFid()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigDeepCopy).dataDictionary().minFid() == dataDictionary_2.minFid() , 
+			"Comparing DataDictionary.minFid() with com.refinitiv.eta.codec.DataDictionary.minFid()");
+	
+	// Ensure that the copy done by reference is equal to the cleared DataDictionary
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumDisplayTemplateVersion().toString().equals(dataDictionary.enumDisplayTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumDTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumDTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumRecordTemplateVersion().toString().equals(dataDictionary.enumRecordTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumRTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumRTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().fieldVersion().toString().equals(dataDictionary.fieldVersion()), 
+			"Comparing DataDictionary.infoinfoFieldVersion() with com.refinitiv.eta.codec.DataDictionary.infoFieldVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().dictionaryId() == dataDictionary.dictionaryId(), 
+			"Comparing DataDictionary.infoDictionaryId() with com.refinitiv.eta.codec.DataDictionary.infoDictionaryId()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().entries().size() == dataDictionary.entries().size() , 
+			"Comparing DataDictionary.entries().size() with com.refinitiv.eta.codec.DataDictionary.numberOfEntries()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumTables().size() == dataDictionary.enumTables().size() , 
+			"Comparing DataDictionary.enumTables().size() with com.refinitiv.eta.codec.DataDictionary.enumTableCount()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().maxFid() == dataDictionary.maxFid() , 
+			"Comparing DataDictionary.maxFid() with com.refinitiv.eta.codec.DataDictionary.maxFid()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().minFid() == dataDictionary.minFid() , 
+			"Comparing DataDictionary.minFid() with com.refinitiv.eta.codec.DataDictionary.minFid()");
+	
+	// Ensure that the copy done by reference is NOT equal to the full DataDictionary
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumDisplayTemplateVersion().toString().equals(dataDictionary_2.enumDisplayTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumDTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumDTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumRecordTemplateVersion().toString().equals(dataDictionary_2.enumRecordTemplateVersion()), 
+			"Comparing DataDictionary.infoEnumRTVersion() with com.refinitiv.eta.codec.DataDictionary.infoEnumRTVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().fieldVersion().toString().equals(dataDictionary_2.fieldVersion()), 
+			"Comparing DataDictionary.infoinfoFieldVersion() with com.refinitiv.eta.codec.DataDictionary.infoFieldVersion()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().dictionaryId() == dataDictionary_2.dictionaryId(), 
+			"Comparing DataDictionary.infoDictionaryId() with com.refinitiv.eta.codec.DataDictionary.infoDictionaryId()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().entries().size() != dataDictionary_2.entries().size() , 
+			"Comparing DataDictionary.entries().size() with com.refinitiv.eta.codec.DataDictionary.numberOfEntries()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().enumTables().size() != dataDictionary_2.enumTables().size() , 
+			"Comparing DataDictionary.enumTables().size() with com.refinitiv.eta.codec.DataDictionary.enumTableCount()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().maxFid() == dataDictionary_2.maxFid() , 
+			"Comparing DataDictionary.maxFid() with com.refinitiv.eta.codec.DataDictionary.maxFid()");
+	
+	TestUtilities.checkResult(((OmmConsumerConfigImpl)testConfigReference).dataDictionary().minFid() == dataDictionary_2.minFid() , 
+			"Comparing DataDictionary.minFid() with com.refinitiv.eta.codec.DataDictionary.minFid()");
 }
 	
 }

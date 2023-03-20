@@ -217,6 +217,8 @@ public class Reactor
 	ReactorJsonConversionEventCallback JsonConversionEventCallback;
 	private ReactorJsonConversionEvent jsonConversionEvent = new ReactorJsonConversionEvent();
 	private boolean closeChannelFromFailure = false;
+
+	private boolean sendJsonConvError = false;
 	private ParseJsonOptions parseJsonOptions = ConverterFactory.createParseJsonOptions();
 	JsonConverterError converterError = ConverterFactory.createJsonConverterError();
 	JsonConverterError getMessageError = ConverterFactory.createJsonConverterError();
@@ -1295,8 +1297,12 @@ public class Reactor
 		Buffer clientSecret = (oauthCredential != null && oauthCredential.clientSecret().length() != 0)
 				? oauthCredential.clientSecret()
 				: null;
+		
+		Buffer clientJwk = (oauthCredential != null && oauthCredential.clientJwk().length() != 0)
+				? oauthCredential.clientJwk()
+				: null;
 
-		if ((clientSecret == null || clientSecret.length() == 0))
+		if ((clientSecret == null || clientSecret.length() == 0) && (clientJwk == null || clientJwk.length() == 0))
 		{
 			if (userName == null || userName.length() == 0)
 			{
@@ -1349,11 +1355,11 @@ public class Reactor
 			return oauthCredentialOut;
 		}
 
-		if ((clientSecret == null || clientSecret.length() == 0))
+		if ((clientSecret == null || clientSecret.length() == 0) && (clientJwk == null || clientJwk.length() == 0))
 		{
 			populateErrorInfo(errorInfo, ReactorReturnCodes.INVALID_USAGE,
 					"Reactor.copyOAuthCredentialForSessionManagement",
-					"Failed to copy OAuth credential for enabling the session management; OAuth client secret does not exist.");
+					"Failed to copy OAuth credential for enabling the session management; OAuth client secret or JWK does not exist.");
 			return null;
 		}
 
@@ -1367,7 +1373,15 @@ public class Reactor
 
 		oauthCredentialOut = ReactorFactory.createReactorOAuthCredential();
 
-		oauthCredentialOut.clientSecret().data(clientSecret.toString());
+		if(clientSecret != null)
+		{
+			oauthCredentialOut.clientSecret().data(clientSecret.toString());
+		}
+		
+		if(clientJwk != null)
+		{
+			oauthCredentialOut.clientJwk().data(clientJwk.toString());
+		}
 
 		oauthCredentialOut.clientId().data(clientId.toString());
 
@@ -1377,6 +1391,11 @@ public class Reactor
 			if (oauthCredential.tokenScope().length() != 0)
 			{
 				oauthCredentialOut.tokenScope().data(oauthCredential.tokenScope().toString());
+			}
+			
+			if (oauthCredential.audience() != null && oauthCredential.audience().length() != 0)
+			{
+				oauthCredentialOut.audience().data(oauthCredential.audience().toString());
 			}
 
 			oauthCredentialOut
@@ -1607,10 +1626,11 @@ public class Reactor
 			}
 
 			if ((options.password() == null || options.password().length() == 0)
-					&& (options.clientSecret() == null || options.clientSecret().length() == 0))
+					&& (options.clientSecret() == null || options.clientSecret().length() == 0) && 
+					(options.clientJWK() == null || options.clientJWK().length() == 0))
 			{
 				return populateErrorInfo(errorInfo, ReactorReturnCodes.PARAMETER_INVALID,
-						"Reactor.queryServiceDiscovery", "Required parameter password or clientSecret is not set");
+						"Reactor.queryServiceDiscovery", "Required parameter(one of the following) password, clientSecret, and clientJWK are not set");
 			}
 
 			switch (options.transport())
@@ -1675,6 +1695,8 @@ public class Reactor
 				authOptions.password(options.password().toString());
 				authOptions.clientId(options.clientId().toString());
 				authOptions.clientSecret(options.clientSecret().toString());
+				authOptions.clientJwk(options.clientJWK().toString());
+				authOptions.audience(options.audience().toString());
 				authOptions.tokenScope(options.tokenScope().toString());
 
 				connOptions.applyServiceDiscoveryOptions(options);
@@ -1845,7 +1867,8 @@ public class Reactor
 			{
 				tokenSession.sendAuthRequestWithSensitiveInfo(oAuthCredentialRenewalCopy.password().toString(),
 						oAuthCredentialRenewalCopy.newPassword().toString(),
-						oAuthCredentialRenewalCopy.clientSecret().toString());
+						oAuthCredentialRenewalCopy.clientSecret().toString(),
+						oAuthCredentialRenewalCopy.clientJWK().toString());
 			} else
 			{
 				RestAuthOptions restAuthOptions = new RestAuthOptions(
@@ -1858,6 +1881,8 @@ public class Reactor
 				restAuthOptions.password(oAuthCredentialRenewalCopy.password().toString());
 				restAuthOptions.newPassword(oAuthCredentialRenewalCopy.newPassword().toString());
 				restAuthOptions.clientSecret(oAuthCredentialRenewalCopy.clientSecret().toString());
+				restAuthOptions.clientJwk(oAuthCredentialRenewalCopy.clientJWK().toString());
+				restAuthOptions.audience(oAuthCredentialRenewalCopy.audience().toString());
 
 				if (!restAuthOptions.username().isEmpty())
 				{
@@ -1910,6 +1935,7 @@ public class Reactor
 			oAuthCredentialRenewalOut.userName().data(oAuthCredentialRenewal.userName().toString());
 			oAuthCredentialRenewalOut.clientId().data(oAuthCredentialRenewal.clientId().toString());
 			oAuthCredentialRenewalOut.tokenScope().data(oAuthCredentialRenewal.tokenScope().toString());
+			oAuthCredentialRenewalOut.audience().data(oAuthCredentialRenewal.audience().toString());
 		}
 
 		oAuthCredentialRenewalOut.password().data(oAuthCredentialRenewal.password().toString());
@@ -1917,6 +1943,11 @@ public class Reactor
 		if (oAuthCredentialRenewal.clientSecret().length() != 0)
 		{
 			oAuthCredentialRenewalOut.clientSecret().data(oAuthCredentialRenewal.clientSecret().toString());
+		}
+		
+		if (oAuthCredentialRenewal.clientJWK().length() != 0)
+		{
+			oAuthCredentialRenewalOut.clientJWK().data(oAuthCredentialRenewal.clientJWK().toString());
 		}
 
 		if (renewalOptions.renewalModes() == ReactorOAuthCredentialRenewalOptions.RenewalModes.PASSWORD_CHANGE)
@@ -4911,7 +4942,7 @@ public class Reactor
 
 						getMessageError.clear();
 						if ((retval = jsonConverter.getErrorMessage(jsonErrorOutputBuffer, jsonErrorParams,
-								getMessageError)) == CodecReturnCodes.SUCCESS)
+								getMessageError)) == CodecReturnCodes.SUCCESS && sendJsonConvError)
 						{
 							TransportBuffer msgBuffer = reactorChannel.getBuffer(jsonErrorOutputBuffer.length(), false,
 									errorInfo);
@@ -7854,6 +7885,7 @@ public class Reactor
 			serviceNameToIdCallback = jsonConverterOptions.serviceNameToIdCallback();
 			JsonConversionEventCallback = jsonConverterOptions.jsonConversionEventCallback();
 			closeChannelFromFailure = jsonConverterOptions.closeChannelFromFailure();
+			sendJsonConvError = jsonConverterOptions.sendJsonConvError();
 		} finally
 		{
 			_reactorLock.unlock();
@@ -7912,6 +7944,12 @@ public class Reactor
 
 			reactorChannel.tunnelStreamManager().close();
 
+			if (reactorChannel.watchlist() != null)
+			{
+				reactorChannel.watchlist().close();
+				reactorChannel.watchlist(null);	
+			}
+			
 		} finally
 		{
 			_reactorLock.unlock();

@@ -286,6 +286,7 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			jsonConverterOptions.catchUnknownJsonFids(activeConfig.catchUnknownJsonFids);
 			jsonConverterOptions.closeChannelFromFailure(activeConfig.closeChannelFromFailure);
 			jsonConverterOptions.jsonConverterPoolsSize(activeConfig.globalConfig.jsonConverterPoolsSize);
+			jsonConverterOptions.sendJsonConvError(activeConfig.sendJsonConvError);
 
 			if (_rsslReactor.initJsonConverter(jsonConverterOptions, _rsslErrorInfo) != ReactorReturnCodes.SUCCESS) {
 				strBuilder().append("Failed to initialize OmmServerBaseImpl (RWF/JSON Converter).")
@@ -664,6 +665,10 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 
 			if ((ce = attributes.getPrimitiveValue(ConfigManager.CloseChannelFromConverterFailure)) != null) {
 				_activeServerConfig.closeChannelFromFailure = ce.intLongValue() > 0;
+			}
+
+			if ((ce = attributes.getPrimitiveValue(ConfigManager.SendJsonConvError)) != null) {
+				_activeServerConfig.sendJsonConvError = ce.intLongValue() > 0 ? true : false;
 			}
 				
 			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceToStdout)) != null)
@@ -1264,14 +1269,19 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 
 					if (ret < ReactorReturnCodes.SUCCESS) 
 					{
-						if (_loggerClient.isErrorEnabled()) 
-						{
-							strBuilder().append("Call to rsslReactorDispatchLoop() failed. Internal sysError='")
-									.append(_rsslErrorInfo.error().sysError()).append("' Error text='")
-									.append(_rsslErrorInfo.error().text()).append("'. ");
+						_userLock.lock();
+						try {
+							if (_loggerClient.isErrorEnabled())
+							{
+								strBuilder().append("Call to rsslReactorDispatchLoop() failed. Internal sysError='")
+										.append(_rsslErrorInfo.error().sysError()).append("' Error text='")
+										.append(_rsslErrorInfo.error().text()).append("'. ");
 
-							_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName,
-									_strBuilder.toString(), Severity.ERROR));
+								_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName,
+										_strBuilder.toString(), Severity.ERROR));
+							}
+						} finally {
+							_userLock.unlock();
 						}
 
 						return false;
@@ -1299,12 +1309,17 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 				
 				if (Thread.currentThread().isInterrupted())
 				{
-					_threadRunning = false;
-	
-					if (_loggerClient.isTraceEnabled())
-					{
-						_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName,
-								"Call to rsslReactorDispatchLoop() received thread interruption signal.", Severity.TRACE));
+					_userLock.lock();
+					try {
+						_threadRunning = false;
+
+						if (_loggerClient.isTraceEnabled())
+						{
+							_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName,
+									"Call to rsslReactorDispatchLoop() received thread interruption signal.", Severity.TRACE));
+						}
+					} finally {
+						_userLock.unlock();
 					}
 				}
 			}
@@ -1314,37 +1329,49 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 		} //end of Try		
 		catch (CancelledKeyException e)
 		{
-			if (_loggerClient.isTraceEnabled() && _state != OmmImplState.NOT_INITIALIZED )
-			{
-				_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName,
-						"Call to rsslReactorDispatchLoop() received cancelled key exception.", Severity.TRACE));
+			_userLock.lock();
+			try {
+				if (_loggerClient.isTraceEnabled() && _state != OmmImplState.NOT_INITIALIZED )
+				{
+					_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName,
+							"Call to rsslReactorDispatchLoop() received cancelled key exception.", Severity.TRACE));
+				}
+			} finally {
+				_userLock.unlock();
 			}
 
 			return true;
 		} 
 		catch (ClosedSelectorException e)
 		{
-			if (_loggerClient.isTraceEnabled() && _state != OmmImplState.NOT_INITIALIZED )
-			{
-				_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName, 
-						"Call to rsslReactorDispatchLoop() received closed selector exception.", Severity.TRACE));
+			_userLock.lock();
+			try {
+				if (_loggerClient.isTraceEnabled() && _state != OmmImplState.NOT_INITIALIZED )
+				{
+					_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName,
+							"Call to rsslReactorDispatchLoop() received closed selector exception.", Severity.TRACE));
+				}
+			} finally{
+				_userLock.unlock();
 			}
 
 			return true;
 		} 
 		catch (IOException e)
 		{
-			if (_loggerClient.isErrorEnabled())
-			{
-				_dispatchStrBuilder.setLength(0);
-				_dispatchStrBuilder.append("Call to rsslReactorDispatchLoop() failed. Received exception,")
-						.append(" exception text= ").append(e.getLocalizedMessage()).append(". ");
+			_userLock.lock();
+			try {
+				if (_loggerClient.isErrorEnabled()) {
+					_dispatchStrBuilder.setLength(0);
+					_dispatchStrBuilder.append("Call to rsslReactorDispatchLoop() failed. Received exception,")
+							.append(" exception text= ").append(e.getLocalizedMessage()).append(". ");
 
-				_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName, _dispatchStrBuilder.toString(), Severity.ERROR));
+					_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName, _dispatchStrBuilder.toString(), Severity.ERROR));
+				}
+			} finally {
+				_userLock.lock();
 			}
-
 			uninitialize();
-
 			return false;
 		}
 	}

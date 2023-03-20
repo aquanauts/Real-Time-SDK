@@ -22,8 +22,9 @@
 #include "OmmInvalidUsageException.h"
 #include "OmmJsonConverterException.h"
 #include "OmmNiProviderImpl.h"
-
+#ifndef NO_ETA_CPU_BIND
 #include "rtr/rsslBindThread.h"
+#endif
 #include "GetTime.h"
 
 #ifdef WIN32
@@ -659,6 +660,7 @@ OmmBaseImpl::~OmmBaseImpl()
 		for (i = 0; i < _oAuth2Credentials.size(); i++)
 		{
 			const_cast<EmaString&>(_oAuth2Credentials[i]->getClientSecret()).secureClear();
+			const_cast<EmaString&>(_oAuth2Credentials[i]->getClientJWK()).secureClear();
 			const_cast<EmaString&>(_oAuth2Credentials[i]->getPassword()).secureClear();
 
 			if (_OAuthReactorConfig[i] != NULL)
@@ -746,6 +748,7 @@ void OmmBaseImpl::clearSensitiveInfo()
 		for (i = 0; i < _oAuth2Credentials.size(); i++)
 		{
 			const_cast<EmaString&>(_oAuth2Credentials[i]->getClientSecret()).secureClear();
+			const_cast<EmaString&>(_oAuth2Credentials[i]->getClientJWK()).secureClear();
 			const_cast<EmaString&>(_oAuth2Credentials[i]->getPassword()).secureClear();
 
 			if (_OAuthReactorConfig[i] != NULL)
@@ -843,6 +846,9 @@ void OmmBaseImpl::readConfig(EmaConfigImpl* pConfigImpl)
 
 	if (pConfigImpl->get<UInt64>(instanceNodeName + "MaxDispatchCountUserThread", tmp))
 		_activeConfig.maxDispatchCountUserThread = static_cast<UInt32>(tmp > maxUInt32 ? maxUInt32 : tmp);
+
+	if (pConfigImpl->get<UInt64>(instanceNodeName + "SendJsonConvError", tmp))
+		_activeConfig.sendJsonConvError = tmp > 0 ? true : false;
 	
 	Int64 tmp1;
 	
@@ -1323,6 +1329,18 @@ void OmmBaseImpl::readConfig(EmaConfigImpl* pConfigImpl)
 			{
 				pOAuthCredential->clientSecret.data = const_cast<char*>(_oAuth2Credentials[i]->getClientSecret().c_str());
 				pOAuthCredential->clientSecret.length = _oAuth2Credentials[i]->getClientSecret().length();
+			}
+
+			if (_oAuth2Credentials[i]->getClientJWK().length())
+			{
+				pOAuthCredential->clientJWK.data = const_cast<char*>(_oAuth2Credentials[i]->getClientJWK().c_str());
+				pOAuthCredential->clientJWK.length = _oAuth2Credentials[i]->getClientJWK().length();
+			}
+
+			if (_oAuth2Credentials[i]->getAudience().length())
+			{
+				pOAuthCredential->audience.data = const_cast<char*>(_oAuth2Credentials[i]->getAudience().c_str());
+				pOAuthCredential->audience.length = _oAuth2Credentials[i]->getAudience().length();
 			}
 
 			if (_oAuth2Credentials[i]->getTokenScope().length())
@@ -2286,6 +2304,7 @@ void OmmBaseImpl::initialize( EmaConfigImpl* configImpl )
 			jsonConverterOptions.catchUnknownJsonFids = (RsslBool)_activeConfig.catchUnknownJsonFids;
 			jsonConverterOptions.closeChannelFromFailure = (RsslBool)_activeConfig.closeChannelFromFailure;
 			jsonConverterOptions.outputBufferSize = _activeConfig.outputBufferSize;
+			jsonConverterOptions.sendJsonConvError = _activeConfig.sendJsonConvError;
 
 			if (rsslReactorInitJsonConverter(_pRsslReactor, &jsonConverterOptions, &rsslErrorInfo) != RSSL_RET_SUCCESS)
 			{
@@ -3133,12 +3152,22 @@ void OmmBaseImpl::run()
 	_dispatchLock.lock();
 	_bApiDispatchThreadStarted = true;
 
+
 	/* Bind cpu for the API thread. */
 	if ( !_cpuApiThreadBind.empty() )
 	{
+#ifdef NO_ETA_CPU_BIND
+		_dispatchLock.unlock();
+		EmaString temp("CPU Binding is not supported by this EMA library build. OmmBaseImpl::run().");
+		
+		if (_pLoggerClient) _pLoggerClient->log(_activeConfig.instanceName, OmmLoggerClient::ErrorEnum, temp);
+		setAtExit();
+		return;
+#else
 		RsslRet ret;
 		RsslErrorInfo rsslErrorInfo;
 		clearRsslErrorInfo(&rsslErrorInfo);
+
 		if ( (ret = rsslBindThread(_cpuApiThreadBind.c_str(), &rsslErrorInfo)) != RSSL_RET_SUCCESS )
 		{
 			_dispatchLock.unlock();
@@ -3160,6 +3189,7 @@ void OmmBaseImpl::run()
 
 			if ( _pLoggerClient ) _pLoggerClient->log( _activeConfig.instanceName, OmmLoggerClient::SuccessEnum, temp );
 		}
+#endif
 	}
 
 	while ( !Thread::isStopping() && !_atExit )
@@ -3273,6 +3303,12 @@ RsslReactorCallbackRet OmmBaseImpl::oAuthCredentialCallback(RsslReactor* pRsslRe
 		{
 			credentialRenewal.clientSecret.data = (char*)oAuthCredentialImpl->getClientSecret().c_str();
 			credentialRenewal.clientSecret.length = oAuthCredentialImpl->getClientSecret().length();
+		}
+
+		if (!oAuthCredentialImpl->getClientJWK().empty())
+		{
+			credentialRenewal.clientJWK.data = (char*)oAuthCredentialImpl->getClientJWK().c_str();
+			credentialRenewal.clientJWK.length = oAuthCredentialImpl->getClientJWK().length();
 		}
 
 		if (!oAuthCredentialImpl->getTokenScope().empty())

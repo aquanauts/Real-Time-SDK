@@ -36,6 +36,8 @@ consumer-OMMSeq-001: Alter Consumer to have the following new options and implem
 
 consumer-DebugDump-001: Alter Consumer to print debug dumps and add options -dumpIpcIn, -dumpIpcOut, -dumpIpcComp, -dumpIpcInit, -dumpRsslIn, -dumpRsslOut.
 
+consumer-TracePing-001: Alter Consumer to trace Ping messages. Add option -xping, -x1, -xnowrite, -xnoread.
+
 
 Module:  Value Add Consumer
 ---------------------------
@@ -90,6 +92,8 @@ vaconsumer-OAuthV2-001: Alter VAConsumer to create 1 reactor, 2 connections, bot
 vaconsumer-OAuthV2-002: Alter VAConsumer to create 1 reactor, 2 connections, 1st connection is for STS and 2nd connection is for OAuth V2.
 
 vaconsumer-OAuthV2-003: Alter VAConsumer to create 1 reactor, 6 connections, 1st, 2nd and 3rd connection are for STS. And 4th, 5th, and 6th connection are for OAuth V2.
+
+vaconsumer-Jwt-001: Alter VAConsumer to create 1 reactor, 2 connections, both for OAuth V2 JWT but can identify either same / diff credential
 
 vaconsumer-CpuBind-001: Alter VAConsumer to add command-line options for testing bind CPU API.
  Command line options.
@@ -208,6 +212,8 @@ provider-DebugDump-001: Alter Provider to print debug dumps and add options -dum
 	Sample usage for sending source directory response.
 	./Provider -pl "rssl.json.v2,rssl.rwf" -dumpRsslOut
 	./Consumer -c websocket -pl "rssl.json.v2"
+
+provider-TracePing-001: Alters Provider to trace Ping messages. Add option -xping, -x1, -xnowrite, -xnoread.
 
 
 Module:  VA Provider 
