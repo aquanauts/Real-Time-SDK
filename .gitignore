@@ -116,3 +116,5 @@ CMakeCache.txt
 *rsslEtaJNIVersion.h
 *LinuxSoLink
 /.gradle/
+
+/RTSDK-BinaryPack

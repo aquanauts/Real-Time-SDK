@@ -398,8 +398,6 @@ else()
 		file(MAKE_DIRECTORY  "${CMAKE_CURRENT_BINARY_DIR}/librssl_tmp.arch")
 		add_custom_command(TARGET librssl POST_BUILD
 							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:librssl_tmp>
-							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:ZLIB::ZLIB>
-							COMMAND ${CMAKE_AR} -x $<TARGET_FILE:LZ4::LZ4>
 							COMMAND ${CMAKE_AR} -qcs $<TARGET_FILE:librssl> *.o
 							WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librssl_tmp.arch
 							DEPENDS $<TARGET_FILE:librssl_tmp> 
