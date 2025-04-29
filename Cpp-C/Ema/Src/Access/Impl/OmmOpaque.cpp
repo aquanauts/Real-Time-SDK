@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -37,9 +37,7 @@ OmmOpaque::~OmmOpaque()
 
 	if ( _pEncoder )
 	{
-		if ( !GlobalPool::isFinalState() )
-			g_pool._ommOpaqueEncoderPool.returnItem( _pEncoder );
-		_pEncoder = 0;
+		g_pool.returnItem( _pEncoder );
 	}
 }
 
@@ -88,7 +86,7 @@ bool OmmOpaque::hasDecoder() const
 OmmOpaque& OmmOpaque::set( const EmaBuffer& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ommOpaqueEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmOpaqueEncoderItem();
 
 	_pEncoder->set( value );
 
@@ -98,7 +96,7 @@ OmmOpaque& OmmOpaque::set( const EmaBuffer& value )
 OmmOpaque& OmmOpaque::set( const EmaString& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ommOpaqueEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmOpaqueEncoderItem();
 
 	_pEncoder->set( value );
 
@@ -112,7 +110,10 @@ const EmaString& OmmOpaque::getString() const
 
 const Encoder& OmmOpaque::getEncoder() const
 {
-	return *static_cast<const Encoder*>( _pEncoder );
+	if (!_pEncoder)
+		_pEncoder = g_pool.getOmmOpaqueEncoderItem();
+
+	return *_pEncoder;
 }
 
 bool OmmOpaque::hasEncoder() const

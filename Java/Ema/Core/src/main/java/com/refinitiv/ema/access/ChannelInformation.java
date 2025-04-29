@@ -2,7 +2,7 @@
 // *|            This source code is provided under the Apache 2.0 license      --
 // *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
 // *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+// *|          Copyright (C) 2019-2021,2023-2024 LSEG. All rights reserved.     --
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -97,7 +97,7 @@ public interface ChannelInformation
 
 	    /**
 	     * Indicates that the channel is using unreliable, sequenced multicast connection
-		 * for reading from an Refinitiv Direct Feed system.
+		 * for reading from Real-Time Direct system.
 	     */
 	    public static final int SEQUENCED_MCAST = 6;
 
@@ -120,7 +120,7 @@ public interface ChannelInformation
 		public static final int UNKNOWN = -1;
 
 		/**
-		 * Refinitiv wire format protocol
+		 * Rssl wire format protocol
 		 */
 		public static final int RWF = 0;
 		
@@ -150,6 +150,18 @@ public interface ChannelInformation
 		 */
 		public static final int LZ4 = 0x02;
 	}
+	
+	/**
+	 * Gets the EMA's configuration channel name
+	 * @return the channel name
+	 */
+	public String channelName();
+	
+	/**
+	 * Gets the EMA's configuration session channel name
+	 * @return the session channel name
+	 */
+	public String sessionChannelName();
 
 	/** Clears the ChannelInformation
 	 *  <p>invoking clear() resets all member variables to their default values</p>
@@ -297,6 +309,13 @@ public interface ChannelInformation
 	 */
 	public int compressionThreshold();
 
+	/**
+	 * Gets the security protocol
+	 *
+	 * @return the security protocol used in the connection.
+	 */
+	public String securityProtocol();
+	
 	/** Sets host name
 	 *
 	 * @param hostname is the host name associated with the channel
@@ -426,4 +445,11 @@ public interface ChannelInformation
 	 * 
 	 */
 	public void compressionThreshold(int compressionThreshold);
+	
+	/** Specifies the security protocol
+	 * 
+	 * @param securityProtocol specifies security protocol
+	 * 
+	 */
+	public void securityProtocol(String securityProtocol);
 }

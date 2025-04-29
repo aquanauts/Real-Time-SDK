@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
-*|            This source code is provided under the Apache 2.0 license      --
-*|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-*|                See the project's LICENSE.md for details.                  --
-*|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+*|            This source code is provided under the Apache 2.0 license
+*|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+*|                See the project's LICENSE.md for details.
+*|           Copyright (C) 2019-2023, 2024-2025 LSEG. All rights reserved.        --
 *|-----------------------------------------------------------------------------
 */
 
@@ -78,7 +78,7 @@ public:
 	EmaString				statusText;
 };
 
-class GroupFilter : EmaList<GroupFilter>
+class GroupFilter
 {
 public:
 
@@ -239,6 +239,8 @@ public:
 	virtual void onServiceStateChange(ClientSession* clientSession, RsslUInt serviceId, const RsslRDMServiceState&)  {}
 
 	virtual void onServiceGroupChange(ClientSession* clientSession, RsslUInt serviceId, RsslRDMServiceGroupState*&, RsslUInt32 groupStateCount) {}
+
+	virtual ~DirectoryServiceStoreClient() {}
 };
 
 class DirectoryServiceStore
@@ -281,7 +283,7 @@ public:
 
 	bool decodeSourceDirectoryKeyUInt(RsslMap&, RsslDecodeIterator&, EmaString&, Int32&);
 
-	static bool encodeDirectoryRefreshMsg(const DirectoryCache& directoryCache, RsslRDMDirectoryRefresh&, int directoryServiceFilter = (RDM_DIRECTORY_SERVICE_INFO_FILTER | RDM_DIRECTORY_SERVICE_STATE_FILTER),
+	static bool encodeDirectoryRefreshMsg(const DirectoryCache& directoryCache, RsslRDMDirectoryRefresh&, int directoryServiceFilter = (RDM_DIRECTORY_SERVICE_INFO_FILTER | RDM_DIRECTORY_SERVICE_STATE_FILTER | RDM_DIRECTORY_SERVICE_LOAD_FILTER),
 		bool specificServiceId = false, UInt16 serviceId = 0);
 
 	static bool encodeDirectoryMsg(const RsslRDMDirectoryMsg& directoryMsg, RsslRDMDirectoryMsg& encodeDirectoryMsg, int directoryServiceFilter, bool specificServiceId = false, UInt16 serviceId = 0);

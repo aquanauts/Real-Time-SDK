@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -161,6 +161,11 @@ void OmmProvider::submit( const StatusMsg& statusMsg, UInt64 handle )
 void OmmProvider::submit( const GenericMsg& genericMsg, UInt64 handle )
 {
 	_pImpl->submit( genericMsg, handle );
+}
+
+void OmmProvider::submit(const PackedMsg& packedMsg)
+{
+	_pImpl->submit(packedMsg);
 }
 
 Int64 OmmProvider::dispatch( Int64 timeOut )

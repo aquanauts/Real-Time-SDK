@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.unittest;
@@ -11,30 +11,12 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import com.refinitiv.ema.access.*;
 import com.refinitiv.eta.codec.Buffer;
 import com.refinitiv.eta.codec.Codec;
 import com.refinitiv.eta.codec.CodecFactory;
 import com.refinitiv.eta.codec.CodecReturnCodes;
-import com.refinitiv.ema.access.Data;
-import com.refinitiv.ema.access.DataType;
 import com.refinitiv.ema.access.DataType.DataTypes;
-import com.refinitiv.ema.access.ElementEntry;
-import com.refinitiv.ema.access.ElementList;
-import com.refinitiv.ema.access.EmaFactory;
-import com.refinitiv.ema.access.FieldEntry;
-import com.refinitiv.ema.access.FieldList;
-import com.refinitiv.ema.access.JUnitTestConnect;
-import com.refinitiv.ema.access.Map;
-import com.refinitiv.ema.access.MapEntry;
-import com.refinitiv.ema.access.OmmArray;
-import com.refinitiv.ema.access.OmmArrayEntry;
-import com.refinitiv.ema.access.OmmException;
-import com.refinitiv.ema.access.OmmOpaque;
-import com.refinitiv.ema.access.OmmQos;
-import com.refinitiv.ema.access.OmmReal;
-import com.refinitiv.ema.access.OmmState;
-import com.refinitiv.ema.access.OmmXml;
-import com.refinitiv.ema.access.Series;
 import com.refinitiv.ema.rdm.*;
 import com.refinitiv.ema.unittest.TestUtilities.EncodingTypeFlags;
 
@@ -328,8 +310,43 @@ public class ElementListTests extends TestCase
 	{
 		TestUtilities.printTestHead("testElementList_EncodeEMA_DecodeEMA_DecodeAll", "Encode ElementList with EMA and Decode ElementList with EMA");
 
+		String elementListString = "ElementList ElementListNum=\"555\"\n" +
+				"    ElementEntry name=\"MY_UINT\" dataType=\"UInt\" value=\"64\"\n" +
+				"    ElementEntry name=\"MY_UINT2\" dataType=\"UInt\" value=\"64\"\n" +
+				"    ElementEntry name=\"MY_REAL\" dataType=\"Real\" value=\"0.11\"\n" +
+				"    ElementEntry name=\"MY_INT\" dataType=\"Int\" value=\"32\"\n" +
+				"    ElementEntry name=\"MY_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n" +
+				"    ElementEntry name=\"MY_TIME\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n" +
+				"    ElementEntry name=\"MY_DATETIME\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n" +
+				"    ElementEntry name=\"MY_QOS\" dataType=\"Qos\" value=\"Timeliness: 5656/Rate: 2345\"\n" +
+				"    ElementEntry name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n" +
+				"    ElementEntry name=\"MY_ASCII\" dataType=\"Ascii\" value=\"ABCDEF\"\n" +
+				"    ElementEntry name=\"MY_RMTES\" dataType=\"Rmtes\" value=\"ABCDEF\"\n" +
+				"    ElementEntry name=\"MY_ENUM\" dataType=\"Enum\" value=\"29\"\n" +
+				"    ElementEntry name=\"MY_FLOAT\" dataType=\"Float\" value=\"11.11\"\n" +
+				"    ElementEntry name=\"MY_DOUBLE\" dataType=\"Double\" value=\"22.219999313354492\"\n" +
+				"    ElementEntry name=\"REAL_CODE\" dataType=\"Real\" value=\"(blank data)\"\n" +
+				"    ElementEntry name=\"MY_BUFFER\" dataType=\"Buffer\"\n" +
+				"4142 4344 4546 4748                            ABCDEFGH\n" +
+				"    ElementEntry name=\"MY_UTF8\" dataType=\"Utf8\" value=\"KLMNOPQR\"\n" +
+				"    ElementEntry name=\"ARRAY\" dataType=\"OmmArray\"\n" +
+				"        OmmArray with entries of dataType=\"Int\"\n" +
+				"            value=\"\"123\"\n" +
+				"            value=\"\"234\"\n" +
+				"            value=\"\"345\"\n" +
+				"        OmmArrayEnd\n" +
+				"    ElementEntryEnd\n" +
+				"    ElementEntry name=\"MY_OPAQUE\" dataType=\"Opaque\" value=\"Opaque\n" +
+				"\n" +
+				"4F50 5152 5354                                  OPQRST\n" +
+				"OpaqueEnd\n" +
+				"\"\n" +
+				"    ElementEntry name=\"MY_QOS\" dataType=\"Qos\" value=\"InexactDelayed/JustInTimeConflated\"\n" +
+				"ElementListEnd\n";
+
 		//EMA Encode ElementList
 		ElementList elEnc = EmaFactory.createElementList();
+		ElementList elEmpty = EmaFactory.createElementList();
 		elEnc.info( 555 );
 		
 		try {
@@ -337,74 +354,74 @@ public class ElementListTests extends TestCase
 
 			//first entry
 			ElementEntry ee = EmaFactory.createElementEntry().uintValue( "MY_UINT", 64 );
-			TestUtilities.checkResult("ElementEntry.toString() == toString() not supported", ee.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementEntry.toString() == toString()", ee.toString().equals("\nEntity is not encoded yet. Complete encoding to use this method.\n"));
 
 			elEnc.add(ee);
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//second entry
 			elEnc.add(EmaFactory.createElementEntry().uintValue( "MY_UINT2", 64));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//third entry
 			elEnc.add(EmaFactory.createElementEntry().real( "MY_REAL", 11, OmmReal.MagnitudeType.EXPONENT_NEG_2));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fourth entry
 			elEnc.add(EmaFactory.createElementEntry().intValue( "MY_INT", 32));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fifth entry
 			elEnc.add(EmaFactory.createElementEntry().date( "MY_DATE", 1999, 11, 7));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//sixth entry
 			elEnc.add(EmaFactory.createElementEntry().time( "MY_TIME", 02, 03, 04, 005));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//seventh entry
 			elEnc.add(EmaFactory.createElementEntry().dateTime( "MY_DATETIME", 1999, 11, 7, 01, 02, 03, 000));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//eightth entry
 			elEnc.add(EmaFactory.createElementEntry().qos( "MY_QOS", 5656, 2345 ));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//ninth entry
 			elEnc.add(EmaFactory.createElementEntry().state("MY_STATE", OmmState.StreamState.OPEN, OmmState.DataState.OK, OmmState.StatusCode.NONE, "Succeeded"));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 			
 			//tenth entry
 			elEnc.add(EmaFactory.createElementEntry().ascii( "MY_ASCII", "ABCDEF" ));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//eleventh entry
 			elEnc.add(EmaFactory.createElementEntry().rmtes( "MY_RMTES", ByteBuffer.wrap("ABCDEF".getBytes())));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//twelfth entry
 			elEnc.add(EmaFactory.createElementEntry().enumValue( "MY_ENUM", 29));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//thirteenth entry
 			elEnc.add(EmaFactory.createElementEntry().floatValue( "MY_FLOAT", 11.11f));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fourteenth entry
 			elEnc.add(EmaFactory.createElementEntry().doubleValue( "MY_DOUBLE", 22.22f));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fifteenth entry (blank real)
 			elEnc.add(EmaFactory.createElementEntry().codeReal("REAL_CODE"));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//sixteenth entry
 			elEnc.add(EmaFactory.createElementEntry().buffer( "MY_BUFFER", ByteBuffer.wrap("ABCDEFGH".getBytes())));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//seventeenth entry
 			elEnc.add(EmaFactory.createElementEntry().utf8( "MY_UTF8",ByteBuffer.wrap("KLMNOPQR".getBytes())));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//eighteenth entry
 			OmmArray ar1 = EmaFactory.createOmmArray();
@@ -412,22 +429,37 @@ public class ElementListTests extends TestCase
 			ar1.add(EmaFactory.createOmmArrayEntry().intValue(234));
 			ar1.add(EmaFactory.createOmmArrayEntry().intValue(345));
 			elEnc.add(EmaFactory.createElementEntry().array( "ARRAY", ar1));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//nineteenth entry
 			OmmOpaque opaque1 = EmaFactory.createOmmOpaque();
 			opaque1.buffer(ByteBuffer.wrap("OPQRST".getBytes()));
 			elEnc.add(EmaFactory.createElementEntry().opaque( "MY_OPAQUE", opaque1));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 					
 			//twentyth entry
 			elEnc.add(EmaFactory.createElementEntry().qos( "MY_QOS", 756565, 1232365));
-			TestUtilities.checkResult("ElementList.toString() == toString() not supported", elEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
-			
+			TestUtilities.checkResult("ElementList.toString() == toString()", elEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
+
+			DataDictionary emaDataDictionary = EmaFactory.createDataDictionary();
+
+			TestUtilities.checkResult("ElementList.toString(dictionary) == toString(dictionary)", elEnc.toString(emaDataDictionary).equals("\nDictionary is not loaded.\n"));
+
+			emaDataDictionary.loadFieldDictionary(TestUtilities.getFieldDictionaryFileName());
+			emaDataDictionary.loadEnumTypeDictionary(TestUtilities.getEnumTableFileName());
+
+			TestUtilities.checkResult("ElementList.toString(dictionary) == toString(dictionary)", elEnc.toString(emaDataDictionary).equals(elementListString));
+
+			TestUtilities.checkResult("ElementList.toString(dictionary) == toString(dictionary)", elEmpty.toString(emaDataDictionary).equals("ElementList\nElementListEnd\n"));
+
+			elEmpty.add(EmaFactory.createElementEntry().opaque( "MY_OPAQUE", opaque1));
+			elEmpty.clear();
+			TestUtilities.checkResult("ElementList.toString(dictionary) == toString(dictionary)", elEmpty.toString(emaDataDictionary).equals("ElementList\nElementListEnd\n"));
+
 			ElementList elDec = JUnitTestConnect.createElementList();
 			JUnitTestConnect.setRsslData(elDec, elEnc, Codec.majorVersion(), Codec.minorVersion(), null, null);
 			// check that we can still get the toString on encoded/decoded container.
-			TestUtilities.checkResult("ElementList.toString() != toString() not supported", !(elDec.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));			
+			TestUtilities.checkResult("ElementList.toString() != toString()", !(elDec.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
 
 			System.out.println(elDec);
             
@@ -442,7 +474,7 @@ public class ElementListTests extends TestCase
 			ElementEntry ee1 = iter.next();
 			TestUtilities.checkResult("ElementEntry.name()", ee1.name().equals( "MY_UINT") );
 			// check that we can still get the toString on encoded/decoded entry.
-			TestUtilities.checkResult("ElementEntry.toString() != toString() not supported", !(ee1.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));
+			TestUtilities.checkResult("ElementEntry.toString() != toString()", !(ee1.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
 			
 			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.UINT", ee1.loadType() == DataTypes.UINT );
 			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.UINT", ee1.load().dataType()== DataTypes.UINT );
@@ -777,7 +809,11 @@ public class ElementListTests extends TestCase
 			OmmXml xml = EmaFactory.createOmmXml();
 			xml.string("OPQRST");
 			elEnc.add(EmaFactory.createElementEntry().xml( "MY_XML" , xml));
-			
+
+			//35th entry
+			OmmJson json = EmaFactory.createOmmJson();
+			json.string("{\"Key\" : \"Value\"}");
+			elEnc.add(EmaFactory.createElementEntry().json( "MY_JSON" , json));
 
 			//Decoding
 			ElementList elDec = JUnitTestConnect.createElementList();
@@ -844,8 +880,8 @@ public class ElementListTests extends TestCase
 			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.DATE", ee5.loadType() == DataTypes.DATE );
 			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.DATE", ee5.load().dataType()== DataTypes.DATE );
 			TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", ee5.code() ==Data.DataCode.NO_CODE);
-					TestUtilities.checkResult("ElementEntry.date().day()", ee5.date().day() == 7 );
-		TestUtilities.checkResult("ElementEntry.date().month()()", ee5.date().month()== 11 );
+			TestUtilities.checkResult("ElementEntry.date().day()", ee5.date().day() == 7 );
+			TestUtilities.checkResult("ElementEntry.date().month()()", ee5.date().month()== 11 );
 			TestUtilities.checkResult("ElementEntry.date().year()", ee5.date().year() == 1999 );
 
 			TestUtilities.checkResult("ElementList with all data types - 5th entry", iter.hasNext() );
@@ -1061,6 +1097,14 @@ public class ElementListTests extends TestCase
 			OmmXml xml2 = ee19.xml();
 			TestUtilities.checkResult( xml2.string().equals("OPQRST"), "ElementEntry.xml().string()" );
 
+			TestUtilities.checkResult("ElementList with all data types - 35th entry", iter.hasNext() );
+			ElementEntry ee20 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()", ee20.name().equals( "MY_JSON"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.JSON", ee20.loadType() == DataTypes.JSON);
+			TestUtilities.checkResult("ElementEntry.code() == Data.DataCode.NO_CODE", ee20.code() == Data.DataCode.NO_CODE);
+			OmmJson json2 = ee20.json();
+			TestUtilities.checkResult( json2.string().equals("{\"Key\" : \"Value\"}"), "ElementEntry.json().string()" );
+
 			TestUtilities.checkResult("ElementList after clear() - final hasNext()",  !(iter.hasNext()) );
 
 			TestUtilities.checkResult("ElementList with all data types - exception not expected" , true );
@@ -1214,6 +1258,171 @@ public class ElementListTests extends TestCase
 				TestUtilities.checkResult("ElementEntry ElementList within elementlist - hasInfo()",  !nestedEl.hasInfo() );
 
 				Iterator<ElementEntry> nestedIter = nestedEl.iterator();
+				TestUtilities.checkResult("ElementEntry ElementList within elementlist - first elementlist hasNext()" , nestedIter.hasNext());
+				ElementEntry nee1 = nestedIter.next();
+				TestUtilities.checkResult( nee1.name().equals( "MY_UINT"));
+				TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.UINT", nee1.loadType() == DataTypes.UINT);
+				TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", nee1.code() ==Data.DataCode.NO_CODE);
+				TestUtilities.checkResult("ElementEntry.uintValue()", nee1.uintValue() == 641 );
+
+				TestUtilities.checkResult("ElementEntry ElementList within elementlist - second elementlist hasNext()", !nestedIter.hasNext());
+			}
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee9 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()",ee9.name().equals( "MY_UINT"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.UINT", ee9.loadType() == DataTypes.UINT);
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.UINT", ee9.load().dataType()== DataTypes.UINT );
+			TestUtilities.checkResult("ElementEntry.uintValue()", ee9.uintValue() == 642 );
+
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - tenth hasNext()", !iter.hasNext());
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - exception not expected", true);
+			
+			dictionary = null;
+
+		} catch ( OmmException excp  ) {
+			TestUtilities.checkResult( "ElementList with primitives and ElementList - exception not expected" , false);
+			System.out.println(excp);
+		}
+	}
+	
+	public void testElementList_EncodeEMA_DecodeEMA_EfficientDecoding_ContainsElementList_EncodeDecodeAll()
+	{
+		TestUtilities.printTestHead("testElementList_EncodeEMA_DecodeEMA_EfficientDecoding_ContainsElementList_EncodeDecodeAll", "");
+
+		// load dictionary
+		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory
+				.createDataDictionary();
+		TestUtilities.eta_encodeDictionaryMsg(dictionary);
+
+		ElementList elEnc = EmaFactory.createElementList();
+		elEnc.info( 9999 );
+
+		try { 
+			//EMA Encoding
+			// encoding order:  UINT, UINT, REAL, INT, DATE, TIME, DATETIME, ElementList, UINT
+
+			//first entry 
+			elEnc.add(EmaFactory.createElementEntry().uintValue( "MY_UINT", 64 ));
+
+			//second entry
+			elEnc.add(EmaFactory.createElementEntry().uintValue( "MY_UINT2", 64 ));
+
+			//third entry
+			elEnc.add(EmaFactory.createElementEntry().real( "MY_REAL", 11, OmmReal.MagnitudeType.EXPONENT_NEG_2 ));
+
+			//fourth entry
+			elEnc.add(EmaFactory.createElementEntry().intValue( "MY_INT", 32 ));
+
+			//fifth entry
+			elEnc.add(EmaFactory.createElementEntry().date( "MY_DATE", 1999, 11, 7 ));
+
+			//sixth entry
+			elEnc.add(EmaFactory.createElementEntry().time( "MY_TIME", 02, 03, 04, 005 ));
+
+			//seventh entry
+			elEnc.add(EmaFactory.createElementEntry().dateTime( "MY_DATETIME", 1999, 11, 7, 01, 02, 03, 000 ));
+
+			//eightth entry (nested ElementList)
+			ElementList elEnc1= EmaFactory.createElementList();
+			elEnc1.add(EmaFactory.createElementEntry().uintValue( "MY_UINT", 641));
+			elEnc.add(EmaFactory.createElementEntry().elementList( "EE_UINT", elEnc1 ));
+
+			//ninth entry
+			elEnc.add(EmaFactory.createElementEntry().uintValue( "MY_UINT", 642 ));
+			
+
+			//Now do EMA decoding of ElementList
+			ElementList elDec = JUnitTestConnect.createElementList();
+			JUnitTestConnect.setRsslData(elDec, elEnc, Codec.majorVersion(), Codec.minorVersion(), dictionary, null);
+
+			System.out.println(elDec);
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - hasInfo()" , elDec.hasInfo() );
+			TestUtilities.checkResult("ElementList with primitives and ElementList - infoElementListNum()" ,  elDec.infoElementListNum() == 9999);
+
+			Iterator<ElementEntry> iter = elDec.iteratorByRef();
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee1 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()", ee1.name().equals( "MY_UINT") );
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.UINT", ee1.loadType() == DataTypes.UINT);
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.UINT", ee1.load().dataType()== DataTypes.UINT );
+			TestUtilities.checkResult("ElementEntry.uintValue()", ee1.uintValue() == 64 );
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee2 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()", ee2.name().equals( "MY_UINT2") );
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.UINT", ee2.loadType() == DataTypes.UINT);
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.UINT", ee2.load().dataType()== DataTypes.UINT );
+			TestUtilities.checkResult("ElementEntry.uintValue()", ee2.uintValue() == 64 );
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee3 = iter.next();
+			TestUtilities.checkResult( ee3.name().equals( "MY_REAL"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.REAL",  ee3.loadType() == DataTypes.REAL );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.REAL", ee3.load().dataType()== DataTypes.REAL );
+			TestUtilities.checkResult("ElementEntry.real().mantissa()", ee3.real().mantissa() == 11 );
+			TestUtilities.checkResult("ElementEntry.real().magnitudeType()", ee3.real().magnitudeType() == 12 );
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee4 = iter.next();
+			TestUtilities.checkResult( ee4.name().equals( "MY_INT"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.INT", ee4.loadType() == DataTypes.INT );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.INT", ee4.load().dataType()== DataTypes.INT );
+			TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", ee4.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("ElementEntry.intValue()" ,  ee4.intValue() == 32);
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee5 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()",ee5.name().equals( "MY_DATE"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.DATE", ee5.loadType() == DataTypes.DATE );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.DATE", ee5.load().dataType()== DataTypes.DATE );
+			TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", ee5.code() ==Data.DataCode.NO_CODE);
+					TestUtilities.checkResult("ElementEntry.date().day()", ee5.date().day() == 7 );
+		TestUtilities.checkResult("ElementEntry.date().month()()", ee5.date().month()== 11 );
+			TestUtilities.checkResult("ElementEntry.date().year()", ee5.date().year() == 1999 );
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee6 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()",ee6.name().equals( "MY_TIME"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.TIME", ee6.loadType() == DataTypes.TIME );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.TIME", ee6.load().dataType()== DataTypes.TIME );
+			TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", ee6.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("ElementEntry.time().hour()", ee6.time().hour() == 02 );
+			TestUtilities.checkResult("ElementEntry.time().minute()", ee6.time().minute() == 03 );
+			TestUtilities.checkResult("ElementEntry.time().second()", ee6.time().second() == 04 );
+			TestUtilities.checkResult("ElementEntry.time().millisecond()", ee6.time().millisecond() == 005 );
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee7 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()",ee7.name().equals( "MY_DATETIME"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.DATETIME", ee7.loadType() == DataTypes.DATETIME );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.DATETIME", ee7.load().dataType()== DataTypes.DATETIME );
+			TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", ee7.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("ElementEntry.dateTime().day()", ee7.dateTime().day() == 7 );
+			TestUtilities.checkResult("ElementEntry.dateTime().month()()",  ee7.dateTime().month()== 11 );
+			TestUtilities.checkResult("ElementEntry.dateTime().year()", ee7.dateTime().year() == 1999 );
+			TestUtilities.checkResult("ElementEntry.dateTime().hour()", ee7.dateTime().hour() == 01 );
+			TestUtilities.checkResult("ElementEntry.dateTime().minute()", ee7.dateTime().minute() == 02 );
+			TestUtilities.checkResult("ElementEntry.dateTime().second()", ee7.dateTime().second() == 03 );
+			TestUtilities.checkResult("ElementEntry.dateTime().millisecond()", ee7.dateTime().millisecond() == 000 );
+
+			TestUtilities.checkResult("ElementList with primitives and ElementList - first entry", iter.hasNext());
+			ElementEntry ee8 = iter.next();
+			TestUtilities.checkResult("ElementEntry.name()",ee8.name().equals( "EE_UINT"));
+			TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.ELEMENT_LIST", ee8.loadType() == DataTypes.ELEMENT_LIST );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.ELEMENT_LIST", ee8.load().dataType()== DataTypes.ELEMENT_LIST );
+			TestUtilities.checkResult("ElementEntry.code() ==Data.DataCode.NO_CODE", ee8.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("ElementEntry.code() == DataTypes.ELEMENT_LIST", ee8.load().dataType()== DataTypes.ELEMENT_LIST );
+			{
+				ElementList nestedEl = ee8.elementList();
+
+				TestUtilities.checkResult("ElementEntry ElementList within elementlist - hasInfo()",  !nestedEl.hasInfo() );
+
+				Iterator<ElementEntry> nestedIter = nestedEl.iteratorByRef();
 				TestUtilities.checkResult("ElementEntry ElementList within elementlist - first elementlist hasNext()" , nestedIter.hasNext());
 				ElementEntry nee1 = nestedIter.next();
 				TestUtilities.checkResult( nee1.name().equals( "MY_UINT"));
@@ -1702,6 +1911,29 @@ public class ElementListTests extends TestCase
 
                 System.out.println();
             }
+			// seventh blank array
+			{
+				TestUtilities.checkResult("ElementList.hasNext() seventh", iter.hasNext() );
+
+				ElementEntry ee7 = iter.next();
+
+				TestUtilities.checkResult("ElementEntry.name()", ee7.name().equals("MY_ARRAY"));
+
+				TestUtilities.checkResult("ElementEntry.loadType() == DataTypes.ARRAY",  ee7.loadType() == DataTypes.ARRAY );
+
+				TestUtilities.checkResult("ElementEntry.code() == Data.DataCode.BLANK",  ee7.code() == Data.DataCode.BLANK );
+
+				try {
+					ee7.array();
+					TestUtilities.checkResult("Blank array value - Exception expected", false);
+				}
+				catch (OmmException excp)
+				{
+					TestUtilities.checkResult("excp.getMessage() == \"Attempt to array() while entry data is blank.\"", excp.getMessage() == "Attempt to array() while entry data is blank.");
+				}
+
+				System.out.println();
+			}
 
             TestUtilities.checkResult("ElementList.hasNext() seventh", !iter.hasNext() );
 

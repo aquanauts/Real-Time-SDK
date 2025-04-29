@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2021-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2021-2025 LSEG. All rights reserved.
 */
 
 /*
@@ -50,13 +50,13 @@
 static RsslReactorChannel *pConsumerChannel = NULL;
 static RsslBool itemsRequested = RSSL_FALSE;
 static RsslBool isConsumerChannelUp = RSSL_FALSE;
+static RsslBool loginChannelClosed = RSSL_FALSE;
 
 static PostServiceInfo serviceInfo;
 
 static SimpleTunnelMsgHandler simpleTunnelMsgHandler;
 static void initTunnelStreamMessaging();
 RsslBool runTimeExpired = RSSL_FALSE;
-RsslSocket socketIdList[2] = { 0, 0 };
 
 /* For UserAuthn authentication login reissue */
 static RsslUInt loginReissueTime; // represented by epoch time in seconds
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
 			serviceDiscoveryOpts.password = loginRequest.password;
 	}
 
-	/* Set login password if specified. */
+	/* Set client Id if specified. */
 	if (watchlistConsumerConfig.clientId.length)
 	{
 		if (watchlistConsumerConfig.queryEndpoint)
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
 			serviceDiscoveryOpts.clientJWK = watchlistConsumerConfig.clientJWK;
 	}
 
-	/* Set JWK if specified. */
+	/* Set Audience if specified. */
 	if (watchlistConsumerConfig.audience.length)
 	{
 		if (watchlistConsumerConfig.queryEndpoint)
@@ -244,8 +244,10 @@ int main(int argc, char **argv)
 		if (watchlistConsumerConfig.tokenScope.data)
 			oauthCredential.tokenScope = watchlistConsumerConfig.tokenScope;
 		consumerRole.pOAuthCredential = &oauthCredential;
+		
+		/* Specified the RsslReactorOAuthCredentialEventCallback to get sensitive information as needed to authorize with the token service. */
+		consumerRole.pOAuthCredential->pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
 	}
-
 
 
 	/* Create Reactor. */
@@ -270,6 +272,8 @@ int main(int argc, char **argv)
 	{
 		reactorOpts.restEnableLog = watchlistConsumerConfig.restEnableLog;
 		reactorOpts.restLogOutputStream = watchlistConsumerConfig.restOutputStreamName;
+
+		reactorOpts.restVerboseMode = watchlistConsumerConfig.restVerboseMode;
 	}
 
 	if (watchlistConsumerConfig.restEnableLogViaCallback > 0)
@@ -280,6 +284,31 @@ int main(int argc, char **argv)
 	if (watchlistConsumerConfig.restEnableLogViaCallback == 1)
 	{
 		reactorOpts.restEnableLogViaCallback = RSSL_TRUE;
+	}
+
+	if (watchlistConsumerConfig.restProxyHost[0] != '\0')
+	{
+		reactorOpts.restProxyOptions.proxyHostName = watchlistConsumerConfig.restProxyHost;
+	}
+
+	if (watchlistConsumerConfig.restProxyPort[0] != '\0')
+	{
+		reactorOpts.restProxyOptions.proxyPort = watchlistConsumerConfig.restProxyPort;
+	}
+
+	if (watchlistConsumerConfig.restProxyUserName[0] != '\0')
+	{
+		reactorOpts.restProxyOptions.proxyUserName = watchlistConsumerConfig.restProxyUserName;
+	}
+
+	if (watchlistConsumerConfig.restProxyPasswd[0] != '\0')
+	{
+		reactorOpts.restProxyOptions.proxyPasswd = watchlistConsumerConfig.restProxyPasswd;
+	}
+
+	if (watchlistConsumerConfig.restProxyDomain[0] != '\0')
+	{
+		reactorOpts.restProxyOptions.proxyDomain = watchlistConsumerConfig.restProxyDomain;
 	}
 
 	if (!(pReactor = rsslCreateReactor(&reactorOpts, &rsslErrorInfo)))
@@ -325,37 +354,11 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 
-		if (watchlistConsumerConfig.proxyHost[0] != '\0')
-		{
-			serviceDiscoveryOpts.proxyHostName.data = watchlistConsumerConfig.proxyHost;
-			serviceDiscoveryOpts.proxyHostName.length = (RsslUInt32)strlen(serviceDiscoveryOpts.proxyHostName.data);
-		}
-
-		if (watchlistConsumerConfig.proxyPort[0] != '\0')
-		{
-			serviceDiscoveryOpts.proxyPort.data = watchlistConsumerConfig.proxyPort;
-			serviceDiscoveryOpts.proxyPort.length = (RsslUInt32)strlen(serviceDiscoveryOpts.proxyPort.data);
-		}
-
-		if (watchlistConsumerConfig.proxyUserName[0] != '\0')
-		{
-			serviceDiscoveryOpts.proxyUserName.data = watchlistConsumerConfig.proxyUserName;
-			serviceDiscoveryOpts.proxyUserName.length = (RsslUInt32)strlen(serviceDiscoveryOpts.proxyUserName.data);
-		}
-
-		if (watchlistConsumerConfig.proxyPasswd[0] != '\0')
-		{
-			serviceDiscoveryOpts.proxyPasswd.data = watchlistConsumerConfig.proxyPasswd;
-			serviceDiscoveryOpts.proxyPasswd.length = (RsslUInt32)strlen(serviceDiscoveryOpts.proxyPasswd.data);
-		}
-		if (watchlistConsumerConfig.proxyDomain[0] != '\0')
-
-		{
-			serviceDiscoveryOpts.proxyDomain.data = watchlistConsumerConfig.proxyDomain;
-			serviceDiscoveryOpts.proxyDomain.length = (RsslUInt32)strlen(serviceDiscoveryOpts.proxyDomain.data);
-		}
-
 		serviceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
+
+		/* Note: If RsslCreateReactorOptions.restProxyOptions are set when creating the Reactor, */
+		/* the serviceDiscoveryOpts proxy settings will not take affect for service discovery done in application: */
+		/* proxyHostName, proxyPort, proxyUserName, proxyPasswd, proxyDomain. */
 
 		if(rsslReactorQueryServiceDiscovery(pReactor, &serviceDiscoveryOpts, &rsslErrorInfo) != RSSL_RET_SUCCESS)
 		{
@@ -381,6 +384,10 @@ int main(int argc, char **argv)
 		reactorConnectInfo.enableSessionManagement = watchlistConsumerConfig.enableSessionMgnt;
 		reactorConnectInfo.location = watchlistConsumerConfig.location;
 		reactorConnectInfo.rsslConnectOptions.encryptionOpts.openSSLCAStore = watchlistConsumerConfig.sslCAStore;
+		if (watchlistConsumerConfig.tlsProtocol != RSSL_ENC_NONE)
+		{
+			reactorConnectInfo.rsslConnectOptions.encryptionOpts.encryptionProtocolFlags = watchlistConsumerConfig.tlsProtocol;
+		}
 		if (watchlistConsumerConfig.connectionType == RSSL_CONN_TYPE_WEBSOCKET || watchlistConsumerConfig.encryptedConnectionType == RSSL_CONN_TYPE_WEBSOCKET)
 		{
 			reactorConnectInfo.rsslConnectOptions.wsOpts.protocols = watchlistConsumerConfig.protocolList;
@@ -494,6 +501,15 @@ int main(int argc, char **argv)
 	jsonConverterOptions.pServiceNameToIdCallback = serviceNameToIdCallback;
 	jsonConverterOptions.pJsonConversionEventCallback = jsonConversionEventCallback;
 
+	if (watchlistConsumerConfig.jsonOutputBufferSize > 0)
+	{
+		jsonConverterOptions.outputBufferSize = watchlistConsumerConfig.jsonOutputBufferSize;
+	}
+	if (watchlistConsumerConfig.jsonTokenIncrementSize > 0)
+	{
+		jsonConverterOptions.jsonTokenIncrementSize = watchlistConsumerConfig.jsonTokenIncrementSize;
+	}
+
 	if (rsslReactorInitJsonConverter(pReactor, &jsonConverterOptions, &rsslErrorInfo) != RSSL_RET_SUCCESS)
 	{
 		printf("Error initializing RWF/JSON Converter: %s\n", rsslErrorInfo.rsslError.text);
@@ -557,7 +573,7 @@ int main(int argc, char **argv)
 			printf("time() failed.\n");
 		}
 
-		if (pConsumerChannel && !runTimeExpired)
+		if (pConsumerChannel && !runTimeExpired && !loginChannelClosed)
 		{
 			if (watchlistConsumerConfig.isTunnelStreamMessagingEnabled)
 				handleSimpleTunnelMsgHandler(pReactor, pConsumerChannel, &simpleTunnelMsgHandler);
@@ -580,17 +596,22 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if (currentTime >= stopTime)
+		if (currentTime >= stopTime || loginChannelClosed)
 		{
 			if (!runTimeExpired)
 			{
 				runTimeExpired = RSSL_TRUE;
-				printf("Run time expired.\n");
+
+				if (!loginChannelClosed)
+					printf("Run time expired.\n");
+
 				if (simpleTunnelMsgHandler.tunnelStreamHandler.pTunnelStream != NULL)
 					printf("Waiting for tunnel stream to close...\n\n");
 
 				/* Close tunnel streams if any are open. */
 				simpleTunnelMsgHandlerCloseStreams(&simpleTunnelMsgHandler);
+				if (loginChannelClosed && currentTime < stopTime)
+					stopTime = currentTime;
 			}
 
 			/* Wait for tunnel streams to close before closing channel. */
@@ -649,7 +670,7 @@ int main(int argc, char **argv)
 	rsslUninitialize();
 
 	itemDecoderCleanup();
-	
+
 	exit(0);
 }
 
@@ -1019,6 +1040,12 @@ static RsslReactorCallbackRet loginMsgCallback(RsslReactor *pReactor, RsslReacto
 				canSendLoginReissue = watchlistConsumerConfig.enableSessionMgnt ? RSSL_FALSE : RSSL_TRUE;
 			}
 
+			if (pLoginRefresh->state.streamState != RSSL_STREAM_OPEN)
+			{
+				printf("  Login attempt failed.\n");
+				loginChannelClosed = RSSL_TRUE;
+			}
+
 			break;
 		}
 
@@ -1029,7 +1056,14 @@ static RsslReactorCallbackRet loginMsgCallback(RsslReactor *pReactor, RsslReacto
 			printStreamInfo(NULL, RSSL_DMT_LOGIN, pLoginMsg->rdmMsgBase.streamId, "RDM_LG_MT_STATUS");
 
 			if (pLoginStatus->flags & RDM_LG_STF_HAS_STATE)
+			{
 				printRsslState(&pLoginStatus->state);
+				if (pLoginStatus->state.streamState != RSSL_STREAM_OPEN)
+				{
+					printf("  Login attempt failed or Login stream was closed.\n");
+					loginChannelClosed = RSSL_TRUE;
+				}
+			}
 
 			if (pLoginStatus->flags & RDM_LG_STF_HAS_USERNAME)
 				printf("  UserName: %.*s\n", pLoginStatus->userName.length, pLoginStatus->userName.data);
@@ -1268,6 +1302,30 @@ static RsslReactorCallbackRet dictionaryMsgCallback(RsslReactor *pReactor, RsslR
 	return RSSL_RC_CRET_SUCCESS;
 }
 
+/* Callback function for authentication credential events, particularily credential renewal */
+static RsslReactorCallbackRet oAuthCredentialEventCallback(RsslReactor* pReactor, RsslReactorOAuthCredentialEvent* pOAuthCredentialEvent)
+{
+	RsslReactorOAuthCredentialRenewalOptions renewalOptions;
+	RsslReactorOAuthCredentialRenewal reactorOAuthCredentialRenewal;
+	RsslErrorInfo rsslError;
+
+	rsslClearReactorOAuthCredentialRenewalOptions(&renewalOptions);
+	renewalOptions.renewalMode = RSSL_ROC_RT_RENEW_TOKEN_WITH_PASSWORD;
+
+	rsslClearReactorOAuthCredentialRenewal(&reactorOAuthCredentialRenewal);
+
+	if (watchlistConsumerConfig.password.length != 0)
+		reactorOAuthCredentialRenewal.password = watchlistConsumerConfig.password; /* Specified password as needed */
+	else if (watchlistConsumerConfig.clientSecret.length != 0)
+		reactorOAuthCredentialRenewal.clientSecret = watchlistConsumerConfig.clientSecret;
+	else
+		reactorOAuthCredentialRenewal.clientJWK = watchlistConsumerConfig.clientJWK;
+
+	rsslReactorSubmitOAuthCredentialRenewal(pReactor, &renewalOptions, &reactorOAuthCredentialRenewal, &rsslError);
+
+	return RSSL_RC_CRET_SUCCESS;
+}
+
 /* Callback function for message responses. 
  * Messages regarding items opened by the application are handled here. 
  *
@@ -1443,8 +1501,8 @@ static void clearConnection(RsslReactorChannel *pReactorChannel)
 
 		for (index = 0; index < pConsumerChannel->pWarmStandbyChInfo->socketIdCount; index++)
 		{
-			FD_CLR(socketIdList[index], &readFds);
-			FD_CLR(socketIdList[index], &exceptFds);
+			FD_CLR(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &readFds);
+			FD_CLR(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &exceptFds);
 		}
 	}
 }
@@ -1484,12 +1542,26 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 
 				for (index = 0; index < pConsumerChannel->pWarmStandbyChInfo->socketIdCount; index++)
 				{
-					socketIdList[index] = pConsumerChannel->pWarmStandbyChInfo->socketIdList[index];
-					FD_SET(socketIdList[index], &readFds);
-					FD_SET(socketIdList[index], &exceptFds);
+					FD_SET(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &readFds);
+					FD_SET(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &exceptFds);
 				}
 			}
 			printf("Channel "SOCKET_PRINT_TYPE" is up!\n\n", pReactorChannel->socketId);
+
+			RsslChannelInfo rsslChannelInfo;
+			RsslError rsslError;
+			rsslGetChannelInfo(pReactorChannel->pRsslChannel, &rsslChannelInfo, &rsslError);
+			switch (rsslChannelInfo.encryptionProtocol)
+			{
+			case RSSL_ENC_TLSV1_2:
+				printf("Encryption protocol: TLSv1.2\n\n");
+				break;
+			case RSSL_ENC_TLSV1_3:
+				printf("Encryption protocol: TLSv1.3\n\n");
+				break;
+			default:
+				printf("Encryption protocol: unknown\n\n");
+			}
 
 			if (isXmlTracingEnabled() == RSSL_TRUE) 
 			{
@@ -1498,7 +1570,7 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 				RsslErrorInfo rsslErrorInfo;
 
 				rsslClearTraceOptions(&traceOptions);
-				snprintf(traceOutputFile, 128, "rsslWatchlistConsumer\0");
+				snprintf(traceOutputFile, 128, "rsslWatchlistConsumer");
 				traceOptions.traceMsgFileName = traceOutputFile;
 				traceOptions.traceFlags |= RSSL_TRACE_TO_FILE_ENABLE | RSSL_TRACE_TO_STDOUT | RSSL_TRACE_TO_MULTIPLE_FILES | RSSL_TRACE_WRITE | RSSL_TRACE_READ | RSSL_TRACE_DUMP;
 				traceOptions.traceMsgMaxFileSize = 100000000;
@@ -1523,13 +1595,17 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 			else if (pReactorChannel->reactorChannelType == RSSL_REACTOR_CHANNEL_TYPE_WARM_STANDBY)
 			{
 				RsslUInt32 index;
+
+				for (index = 0; index < pConsumerChannel->pWarmStandbyChInfo->oldSocketIdCount; index++)
+				{
+					FD_CLR(pConsumerChannel->pWarmStandbyChInfo->oldSocketIdList[index], &readFds);
+					FD_CLR(pConsumerChannel->pWarmStandbyChInfo->oldSocketIdList[index], &exceptFds);
+				}
+
 				for (index = 0; index < pConsumerChannel->pWarmStandbyChInfo->socketIdCount; index++)
 				{
-					FD_CLR(socketIdList[index], &readFds);
-					FD_CLR(socketIdList[index], &exceptFds);
 					FD_SET(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &readFds);
 					FD_SET(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &exceptFds);
-					socketIdList[index] = pConsumerChannel->pWarmStandbyChInfo->socketIdList[index];
 				}
 			}
 
@@ -1549,6 +1625,23 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 
 			if (pConnEvent->pError)
 				printf("	Error text: %s\n\n", pConnEvent->pError->rsslError.text);
+
+			if (pReactorChannel->socketId != REACTOR_INVALID_SOCKET)
+			{
+				FD_CLR(pReactorChannel->socketId, &readFds);
+				FD_CLR(pReactorChannel->socketId, &exceptFds);
+			}
+
+			if (pReactorChannel->reactorChannelType == RSSL_REACTOR_CHANNEL_TYPE_WARM_STANDBY)
+			{
+				RsslUInt32 index;
+
+				for (index = 0; index < pConsumerChannel->pWarmStandbyChInfo->socketIdCount; index++)
+				{
+					FD_CLR(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &readFds);
+					FD_CLR(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &exceptFds);
+				}
+			}
 
 			pConsumerChannel = NULL;
 			rsslReactorCloseChannel(pReactor, pReactorChannel, &rsslErrorInfo);
@@ -1580,6 +1673,23 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 			if (pConnEvent->pError)
 				printf("	Error text: %s\n\n", pConnEvent->pError->rsslError.text);
 
+			if (pReactorChannel->socketId != REACTOR_INVALID_SOCKET)
+			{
+				FD_CLR(pReactorChannel->socketId, &readFds);
+				FD_CLR(pReactorChannel->socketId, &exceptFds);
+			}
+
+			if (pReactorChannel->reactorChannelType == RSSL_REACTOR_CHANNEL_TYPE_WARM_STANDBY)
+			{
+				RsslUInt32 index;
+
+				for (index = 0; index < pConsumerChannel->pWarmStandbyChInfo->socketIdCount; index++)
+				{
+					FD_CLR(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &readFds);
+					FD_CLR(pConsumerChannel->pWarmStandbyChInfo->socketIdList[index], &exceptFds);
+				}
+			}
+
 			isConsumerChannelUp = RSSL_FALSE;
 			return RSSL_RC_CRET_SUCCESS;
 		}
@@ -1596,7 +1706,6 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 			exit(-1);
 		}
 	}
-
 
 	return RSSL_RC_CRET_SUCCESS;
 }

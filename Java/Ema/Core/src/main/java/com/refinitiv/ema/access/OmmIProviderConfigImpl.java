@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -20,6 +20,7 @@ class OmmIProviderConfigImpl extends EmaConfigServerImpl implements OmmIProvider
 	private String _keystorePasswd;
 	private String _keystoreType;
 	private String _securityProtocol;
+	private String[] _securityProtocolVersions;
 	private String _securityProvider;
 	private String _keyManagerAlgorithm;
 	private String _trustManagerAlgorithm;
@@ -57,6 +58,7 @@ class OmmIProviderConfigImpl extends EmaConfigServerImpl implements OmmIProvider
 		_keystoreFile = null;
 		_keystorePasswd = null;
 		_securityProtocol = null;
+		_securityProtocolVersions = null;
 		_securityProvider = null;
 		_keyManagerAlgorithm = null;
 		_trustManagerAlgorithm = null;
@@ -257,6 +259,18 @@ class OmmIProviderConfigImpl extends EmaConfigServerImpl implements OmmIProvider
 	public String securityProtocol()
 	{
 		return _securityProtocol;
+	}
+	
+	@Override
+	public OmmIProviderConfig securityProtocolVersions(String[] securityProtocolVersions)
+	{
+		_securityProtocolVersions = securityProtocolVersions;
+		return this;
+	}
+	
+	public String[] securityProtocolVersions()
+	{
+		return _securityProtocolVersions;
 	}
 	
 	@Override

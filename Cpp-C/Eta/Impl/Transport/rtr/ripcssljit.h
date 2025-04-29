@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2022 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
  
@@ -81,6 +81,7 @@
 #define RSSL_11_TLS1_VERSION                    0x0301
 #define RSSL_11_TLS1_1_VERSION                  0x0302
 #define RSSL_11_TLS1_2_VERSION                  0x0303
+#define RSSL_11_TLS1_3_VERSION                  0x0304
 
 # define RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION          123
 # define RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION          124
@@ -307,7 +308,8 @@ typedef enum
 {
 	RSSL_OPENSSL_VNONE = 0,
 	RSSL_OPENSSL_V1_0 = 1,
-	RSSL_OPENSSL_V1_1 = 2
+	RSSL_OPENSSL_V1_1 = 2,
+	RSSL_OPENSSL_V3 = 3
 } RsslOpenSSLAPIVersion;
 
 typedef struct
@@ -337,14 +339,13 @@ typedef struct
 	void (*set_accept_state)(OPENSSL_SSL*);			/* SSL_set_accept_state */
 	void (*ssl_free)(OPENSSL_SSL*);				/* SSL_free */
 	int (*ssl_state)(const OPENSSL_SSL*);		/* SSL_state */
+	int (*ssl_version)(const OPENSSL_SSL*);		/* SSL_version */
 	int (*ssl_set1_host)(OPENSSL_SSL*, const char*); /* V1.1.X SSL_set1_host for host validation.*/
 	OPENSSL_X509_VERIFY_PARAM* (*ssl_get0_param)(OPENSSL_SSL*);	/* V1.1 SSL_get0_param for hostname verification */
 	void (*set_hostflags)(OPENSSL_SSL*, unsigned int); /* V1.1.X SSL_set_hostflags*/
 	OPENSSL_X509* (*ssl_get_peer_cert)(const OPENSSL_SSL*); /* SSL_get_peer_certificate*/
 	RSSL_11_OSSL_HANDSHAKE_STATE (*ssl_get_state)(const OPENSSL_SSL*); /* 1.1 SSL_get_state*/
 	const OPENSSL_SSL_METHOD* (*TLS_client_method)();    /* V1.1.X auto-negotiated method */
-	const OPENSSL_SSL_METHOD* (*TLSv1_client_method)();  /* TLSv1_client_method */
-	const OPENSSL_SSL_METHOD* (*TLSv1_1_client_method)();
 	const OPENSSL_SSL_METHOD* (*TLSv1_2_client_method)();
 	const OPENSSL_SSL_METHOD* (*SSLv23_server_method)(); /* V1.0.X auto-negoitated server method */
 	const OPENSSL_SSL_METHOD* (*TLS_server_method)(); /* V1.1.X auto-negotiated server method*/

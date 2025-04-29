@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -45,7 +45,7 @@ namespace LSEG.Eta.Codec
 		[MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
 		internal void Data(ByteBuffer buffer)
 		{
-			_buffer = buffer;
+            _buffer = buffer;
 			pointer = buffer._pointer;
 		}
 
@@ -437,17 +437,13 @@ namespace LSEG.Eta.Codec
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)] 
-		internal long ReadULong64ls(int size)
+		internal ulong ReadULong64ls(int size)
 		{
-			long value = 0L;
+			ulong value = 0;
 			for (int i = _position; i < _position + size; i++)
 			{
 				value <<= 8;
 				value |= pointer[i];
-			}
-			if (size == 8 && (pointer[_position] & 128) == 128) //sign-extend
-			{
-				value = (long)(((ulong)value) | num[size * 8]);
 			}
 			_position += size;
 

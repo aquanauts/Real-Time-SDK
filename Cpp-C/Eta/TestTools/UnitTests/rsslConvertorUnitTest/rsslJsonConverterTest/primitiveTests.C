@@ -2,7 +2,7 @@
 *| This source code is provided under the Apache 2.0 license –
 *| and is provided AS IS with no warranty or guarantee of fit for purpose. –
 *| See the project's LICENSE.md for details. –
-*| Copyright (C) 2020 Refinitiv. All rights reserved. –
+*| Copyright (C) 2020 LSEG. All rights reserved.      –
 *|-----------------------------------------------------------------------------
 */
 
@@ -15,6 +15,10 @@
 #include <float.h>
 #include <ctype.h>
 #include <rtr/rtratoi.h>
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
+#endif
 
 /* Suppress warning C4756: overflow in constant arithmetic that occurs only on VS2013 */
 #if defined(WIN32) &&  _MSC_VER == 1800
@@ -168,7 +172,7 @@ TEST_P(RealStringValueTestFixture, RealStringValueTests)
 }
 
 /* Test cases for real string values. */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, RealStringValueTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, RealStringValueTestFixture, ::testing::Values(
 	RealStringValueTestParams(RSSL_RH_INFINITY, "Inf"),
 	RealStringValueTestParams(RSSL_RH_NEG_INFINITY, "-Inf"),
 	RealStringValueTestParams(RSSL_RH_NOT_A_NUMBER, "NaN")
@@ -349,7 +353,7 @@ const RsslBuffer rmtesStringBuffers[][3] =
 };
 
 /* Test cases for Rmtes strings. */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, RmtesStringTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, RmtesStringTestFixture, ::testing::Values(
 	RmtesStringTestParams(rmtesStringBuffers[0][0], rmtesStringBuffers[0][1], rmtesStringBuffers[0][2]),
 	RmtesStringTestParams(rmtesStringBuffers[1][0], rmtesStringBuffers[1][1], rmtesStringBuffers[1][2]),
 	RmtesStringTestParams(rmtesStringBuffers[2][0], rmtesStringBuffers[2][1], rmtesStringBuffers[2][2]),
@@ -430,7 +434,7 @@ TEST_P(FloatTestFixture, FloatTest)
 		ASSERT_TRUE(_jsonDocument["Fields"][FLOAT_FIELD.fieldName.data].IsString());
 		EXPECT_STREQ("-Inf", _jsonDocument["Fields"][FLOAT_FIELD.fieldName.data].GetString());
 	}
-	else if (isnan(rsslFloat))
+	else if (::isnan(rsslFloat))
 	{
 		ASSERT_TRUE(_jsonDocument["Fields"][FLOAT_FIELD.fieldName.data].IsString());
 		EXPECT_STREQ("NaN", _jsonDocument["Fields"][FLOAT_FIELD.fieldName.data].GetString());
@@ -467,8 +471,8 @@ TEST_P(FloatTestFixture, FloatTest)
 	RsslFloat decodeFloat;
 	ASSERT_EQ(RSSL_RET_SUCCESS, rsslDecodeFloat(&_dIter, &decodeFloat));
 
-	if (isnan(rsslFloat))
-		EXPECT_TRUE(isnan(decodeFloat));
+	if (::isnan(rsslFloat))
+		EXPECT_TRUE(::isnan(decodeFloat));
 	else
 	{
 		/* Use an exact equality match. The test values include the infinity values, and comparing them 
@@ -480,7 +484,7 @@ TEST_P(FloatTestFixture, FloatTest)
 	ASSERT_EQ(RSSL_RET_END_OF_CONTAINER, rsslDecodeFieldEntry(&_dIter, &fieldEntry));
 }
 
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, FloatTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, FloatTestFixture, ::testing::Values(
 			0.0f,
 			1.0f,
 			-1.0f,
@@ -560,7 +564,7 @@ TEST_P(DoubleTestFixture, DoubleTest)
 		ASSERT_TRUE(_jsonDocument["Fields"][DOUBLE_FIELD.fieldName.data].IsString());
 		EXPECT_STREQ("-Inf", _jsonDocument["Fields"][DOUBLE_FIELD.fieldName.data].GetString());
 	}
-	else if (isnan(rsslDouble))
+	else if (::isnan(rsslDouble))
 	{
 		ASSERT_TRUE(_jsonDocument["Fields"][DOUBLE_FIELD.fieldName.data].IsString());
 		EXPECT_STREQ("NaN", _jsonDocument["Fields"][DOUBLE_FIELD.fieldName.data].GetString());
@@ -597,8 +601,8 @@ TEST_P(DoubleTestFixture, DoubleTest)
 	RsslDouble decodeDouble;
 	ASSERT_EQ(RSSL_RET_SUCCESS, rsslDecodeDouble(&_dIter, &decodeDouble));
 
-	if (isnan(rsslDouble))
-		EXPECT_TRUE(isnan(decodeDouble));
+	if (::isnan(rsslDouble))
+		EXPECT_TRUE(::isnan(decodeDouble));
 	else
 	{
 		/* Use an exact equality match. The test values include the infinity values, and comparing them 
@@ -610,7 +614,7 @@ TEST_P(DoubleTestFixture, DoubleTest)
 	ASSERT_EQ(RSSL_RET_END_OF_CONTAINER, rsslDecodeFieldEntry(&_dIter, &fieldEntry));
 }
 
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, DoubleTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, DoubleTestFixture, ::testing::Values(
 			0.0,
 			1.0,
 			-1.0,
@@ -662,7 +666,7 @@ TEST_P(InvalidFloatDoubleStringTestFixture, InvalidFloatDoubleStringTests)
 	ASSERT_TRUE(::testing::internal::RE::PartialMatch(_jsonDocument["Text"].GetString(), "JSON Unexpected Value."));
 }
 
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, InvalidFloatDoubleStringTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, InvalidFloatDoubleStringTestFixture, ::testing::Values(
 			"X",
 			"I",
 			"Infi",
@@ -797,7 +801,7 @@ TEST_P(HugeFloatDoubleTestFixture, HugeFloatDoubleTest)
 	ASSERT_EQ(RSSL_RET_END_OF_CONTAINER, rsslDecodeFieldEntry(&_dIter, &fieldEntry));
 }
 
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, HugeFloatDoubleTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, HugeFloatDoubleTestFixture, ::testing::Values(
 	HugeFloatDoubleTestParams("9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", (float)INFINITY),
 	HugeFloatDoubleTestParams("-9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", (float)(-INFINITY))
 ));
@@ -831,7 +835,7 @@ TEST_P(InvalidUintStringTestFixture, InvalidUintStringTests)
 }
 
 /* negative values correct for numbers but incorrect for UINTs */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, InvalidUintStringTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, InvalidUintStringTestFixture, ::testing::Values(
 	"-1",
 	"-2",
 	"-3",
@@ -866,7 +870,7 @@ TEST_P(InvalidUintParserTestFixture, InvalidUintParserTests)
 }
 
 /* Added additional test inputs for others invalid UInt type such as $, #, A as well. */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, InvalidUintParserTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, InvalidUintParserTestFixture, ::testing::Values(
 	"$",
 	"#",
 	"A"
@@ -960,7 +964,7 @@ TEST_P(OverflowEnumTestFixture, InvalidUintParserTests)
 }
 
 /* Added additional test inputs for others invalid UInt type such as $, #, A as well. */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, OverflowEnumTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, OverflowEnumTestFixture, ::testing::Values(
 	EnumValueTestParam(RSSL_JSON_JPT_JSON2, "-100", true),
 	EnumValueTestParam(RSSL_JSON_JPT_JSON, "-100", true),
 	EnumValueTestParam(RSSL_JSON_JPT_JSON2,"65536", true),
@@ -1067,7 +1071,7 @@ TEST_P(OverflowIntTestFixture, InvalidUintParserTests)
 }
 
 /* Added additional test inputs for others invalid UInt type such as $, #, A as well. */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, OverflowIntTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, OverflowIntTestFixture, ::testing::Values(
 	IntValueTestParam(RSSL_JSON_JPT_JSON2, "-1234567891234567891234567891234567891234567890", true, 0),
 	IntValueTestParam(RSSL_JSON_JPT_JSON, "-1234567891234567891234567891234567891234567890", true, 0),
 	IntValueTestParam(RSSL_JSON_JPT_JSON2, "6553734534444444444444444444444444444444444444344444444", true, 0),
@@ -1171,7 +1175,7 @@ TEST_P(OverflowUIntTestFixture, InvalidUintParserTests)
 }
 
 /* Added additional test inputs for others invalid UInt type such as $, #, A as well. */
-INSTANTIATE_TEST_CASE_P(PrimitiveTests, OverflowUIntTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(PrimitiveTests, OverflowUIntTestFixture, ::testing::Values(
 	UIntValueTestParam(RSSL_JSON_JPT_JSON2, "-131233333333333333333333333333333339345394583434534535", true),
 	UIntValueTestParam(RSSL_JSON_JPT_JSON, "-131233333333333333333333333333333339345394583434534535", true),
 	UIntValueTestParam(RSSL_JSON_JPT_JSON2, "6553734534444444444444444444444444444444444444344444444", true),
@@ -1453,3 +1457,119 @@ TEST(OverflowIntTest, ConversinUI64ToStrTests)
 
 	ASSERT_NE(rtr_atoui64_size_check(begin, end, &iu64res), end);
 }
+
+
+class StreamIdTestFixture : public MsgConversionTestBase, public ::testing::WithParamInterface<RsslInt32>
+{
+};
+
+/* Test on edge cases streamId */
+TEST_P(StreamIdTestFixture, StreamIdTest)
+{
+	RsslInt32 const& streamId_testValue = GetParam();
+	RsslFloat const rsslFloat = 123.45f;
+	RsslUpdateMsg updateMsg;
+	RsslMsg rsslMsg;
+	RsslFieldList fieldList;
+	RsslFieldEntry fieldEntry;
+
+	rsslClearUpdateMsg(&updateMsg);
+	updateMsg.msgBase.streamId = streamId_testValue;
+	updateMsg.msgBase.domainType = RSSL_DMT_MARKET_PRICE;
+	updateMsg.msgBase.containerType = RSSL_DT_FIELD_LIST;
+	updateMsg.updateType = RDM_UPD_EVENT_TYPE_QUOTE;
+
+	rsslUpdateMsgApplyHasMsgKey(&updateMsg);
+	rsslMsgKeyApplyHasName(&updateMsg.msgBase.msgKey);
+	updateMsg.msgBase.msgKey.name = MSG_KEY_NAME;
+	rsslMsgKeyApplyHasServiceId(&updateMsg.msgBase.msgKey);
+	updateMsg.msgBase.msgKey.serviceId = MSGKEY_SVC_ID;
+
+	rsslClearEncodeIterator(&_eIter);
+	rsslSetEncodeIteratorBuffer(&_eIter, &_rsslEncodeBuffer);
+	rsslSetEncodeIteratorRWFVersion(&_eIter, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION);
+	ASSERT_EQ(RSSL_RET_ENCODE_CONTAINER, rsslEncodeMsgInit(&_eIter, (RsslMsg*)&updateMsg, 0));
+
+	rsslClearFieldList(&fieldList);
+	fieldList.flags = RSSL_FLF_HAS_STANDARD_DATA;
+
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslEncodeFieldListInit(&_eIter, &fieldList, NULL, 0));
+
+	rsslClearFieldEntry(&fieldEntry);
+	fieldEntry.fieldId = FLOAT_FIELD.fieldId;
+	fieldEntry.dataType = RSSL_DT_FLOAT;
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslEncodeFieldEntry(&_eIter, &fieldEntry, &rsslFloat));
+
+	/* Complete encoding FieldList and Message. */
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslEncodeFieldListComplete(&_eIter, RSSL_TRUE));
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslEncodeMsgComplete(&_eIter, RSSL_TRUE));
+
+	ASSERT_NO_FATAL_FAILURE(convertRsslToJson());
+
+	/* Check message. */
+	ASSERT_TRUE(_jsonDocument.HasMember("Type"));
+	ASSERT_TRUE(_jsonDocument["Type"].IsString());
+	EXPECT_STREQ("Update", _jsonDocument["Type"].GetString());
+
+	/* Check FieldList. */
+	ASSERT_TRUE(_jsonDocument.HasMember("Fields"));
+	ASSERT_TRUE(_jsonDocument["Fields"].IsObject());
+
+	/* Check float field. */
+	ASSERT_TRUE(_jsonDocument["Fields"].HasMember(FLOAT_FIELD.fieldName.data));
+
+	ASSERT_TRUE(_jsonDocument["Fields"][FLOAT_FIELD.fieldName.data].IsNumber());
+	EXPECT_NEAR(rsslFloat, _jsonDocument["Fields"][FLOAT_FIELD.fieldName.data].GetFloat(), 0.099);
+
+	/* Convert back to RWF. */
+	ASSERT_NO_FATAL_FAILURE(convertJsonToRssl());
+
+	/* Decode the message. */
+	rsslClearDecodeIterator(&_dIter);
+	rsslSetDecodeIteratorBuffer(&_dIter, &_rsslDecodeBuffer);
+	rsslSetDecodeIteratorRWFVersion(&_dIter, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION);
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslDecodeMsg(&_dIter, &rsslMsg));
+
+	/* Verify that RsslUpdateMsg is correct. */
+	EXPECT_EQ(RSSL_MC_UPDATE, rsslMsg.msgBase.msgClass);
+	EXPECT_EQ(streamId_testValue, rsslMsg.msgBase.streamId);
+	EXPECT_EQ(RSSL_DMT_MARKET_PRICE, rsslMsg.msgBase.domainType);
+	EXPECT_EQ(RSSL_DT_FIELD_LIST, rsslMsg.msgBase.containerType);
+	EXPECT_EQ(RDM_UPD_EVENT_TYPE_QUOTE, updateMsg.updateType);
+
+	/* Check FieldList. */
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslDecodeFieldList(&_dIter, &fieldList, NULL));
+
+	/* FieldList should contain one field containing the float. */
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslDecodeFieldEntry(&_dIter, &fieldEntry));
+	ASSERT_EQ(fieldEntry.fieldId, FLOAT_FIELD.fieldId);
+
+	RsslFloat decodeFloat;
+	ASSERT_EQ(RSSL_RET_SUCCESS, rsslDecodeFloat(&_dIter, &decodeFloat));
+
+	if (::isnan(rsslFloat))
+		EXPECT_TRUE(::isnan(decodeFloat));
+	else
+	{
+		/* Use an exact equality match. The test values include the infinity values, and comparing them
+		 * for 'nearness' involves subtraction which results in a difference of NaN. The values tested here
+		 * do result in their exact same value after conversion. */
+		EXPECT_EQ(decodeFloat, rsslFloat);
+	}
+
+	ASSERT_EQ(RSSL_RET_END_OF_CONTAINER, rsslDecodeFieldEntry(&_dIter, &fieldEntry));
+}
+
+INSTANTIATE_TEST_SUITE_P(StreamIdEdgeCases, StreamIdTestFixture, ::testing::Values(
+	0,
+	1,
+	-1,
+	1000000,
+	-1000000,
+	1000000000,
+	-1000000000,
+	2000000000,
+	-2000000000,
+	INT_MAX,
+	INT_MIN
+));

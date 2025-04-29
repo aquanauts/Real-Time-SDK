@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -89,7 +89,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
         /// </summary>
         public MapEntryActions Action { get; set; }
 
-        private const string eol = "\n";
         private const string tab = "\t";
 
         private StringBuilder stringBuf = new StringBuilder();
@@ -315,34 +314,34 @@ namespace LSEG.Eta.ValueAdd.Rdm
             stringBuf.Append(tab);
             stringBuf.Append("Name: ");
             stringBuf.Append(Name);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("LinkType: ");
             stringBuf.Append(Type);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("LinkState: ");
             stringBuf.Append(LinkState);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("LinkCode: ");
             stringBuf.Append(LinkCode);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("LinkText: ");
             stringBuf.Append(Text);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             return stringBuf.ToString();
         }

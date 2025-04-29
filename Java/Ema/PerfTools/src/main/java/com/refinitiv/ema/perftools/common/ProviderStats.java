@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022 Refinitiv. All rights reserved.         	  --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022,2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -150,7 +150,7 @@ public class ProviderStats {
      * @param timePassedSec     - time passed since last stats collection, used to calculate message rates.
      */
     public void collectStats(boolean writeStats, boolean displayStats, long currentRuntimeSec, long timePassedSec) {
-        long refreshCount, updateCount, requestCount, closeCount, postCount, statusCount, genMsgSentCount, genMsgRecvCount, latencyGenMsgSentCount, latencyGenMsgRecvCount, outOfBuffersCount, msgSentCount, bufferSentCount;
+        long refreshCount, itemRefreshCount, updateCount, updatePackedMsgCount, requestCount, closeCount, postCount, statusCount, genMsgSentCount, genMsgRecvCount, latencyGenMsgSentCount, latencyGenMsgRecvCount, outOfBuffersCount, msgSentCount, bufferSentCount;
         double processCpuLoad = ResourceUsageStats.currentProcessCpuLoad();
         double memoryUsage = ResourceUsageStats.currentMemoryUsage();
         if (timePassedSec != 0) {
@@ -166,6 +166,7 @@ public class ProviderStats {
 
             requestCount = stats.requestCount().getChange();
             refreshCount = stats.refreshCount().getChange();
+            itemRefreshCount = stats.itemRefreshCount().getChange();
             updateCount = stats.updateCount().getChange();
             closeCount = stats.closeCount().getChange();
             postCount = stats.postCount().getChange();
@@ -175,7 +176,8 @@ public class ProviderStats {
             latencyGenMsgSentCount = stats.latencyGenMsgSentCount().getChange();
             latencyGenMsgRecvCount = stats.intervalGenMsgLatencyStats().count();
             outOfBuffersCount = stats.outOfBuffersCount().getChange();
-
+            updatePackedMsgCount = stats.updatePackedMsgCount().getChange();
+            
             if (writeStats) {
                 // Write stats to the stats file.
                 Calendar rightNow = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
@@ -218,6 +220,7 @@ public class ProviderStats {
             totalStats.requestCount().add(requestCount);
             totalStats.updateCount().add(updateCount);
             totalStats.refreshCount().add(refreshCount);
+            totalStats.itemRefreshCount().add(itemRefreshCount);
             totalStats.closeCount().add(closeCount);
             totalStats.postCount().add(postCount);
             totalStats.statusCount().add(statusCount);
@@ -225,6 +228,7 @@ public class ProviderStats {
             totalStats.genMsgRecvCount().add(genMsgRecvCount);
             totalStats.latencyGenMsgSentCount().add(latencyGenMsgSentCount);
             totalStats.outOfBuffersCount().add(outOfBuffersCount);
+            totalStats.updatePackedMsgCount().add(updatePackedMsgCount);
 
             if (displayStats) {
                 //Print screen stats.
@@ -247,9 +251,13 @@ public class ProviderStats {
                                 totalStats.refreshCount().getTotal()
                         );
                     } else {
-                        System.out.printf("  - Sent %d images (total: %d)\n", refreshCount, totalStats.refreshCount().getTotal());
+                        System.out.printf("  - Sent %d images (total: %d)\n", itemRefreshCount, totalStats.itemRefreshCount().getTotal());
                     }
                 }
+                
+                if (updatePackedMsgCount > 0 && ((updateCount / updatePackedMsgCount) > 1))
+                	System.out.printf("Average update messages packed per message: %8d\n", 
+                        updateCount / updatePackedMsgCount);
 
                 if (postCount > 0) {
                     System.out.printf("  Posting: received %d, reflected %d\n", postCount, postCount);
@@ -365,10 +373,12 @@ public class ProviderStats {
                     }
                 }
 
-                fileWriter.printf("  Image requests received: %d\n", stats.requestCount().getTotal());
+                if (config instanceof IProviderPerfConfig)  {
+                    fileWriter.printf("  Image requests received: %d\n", totalStats.requestCount().getTotal());
+                }
 
-                if (providerThread instanceof NIProviderThread) {
-                    fileWriter.printf("  Images sent: %d\n", stats.refreshCount().getTotal());
+                if (config instanceof NIProviderPerfConfig) {
+                	fileWriter.printf("  Images sent: %d\n", totalStats.itemRefreshCount().getTotal());
                 }
 
                 if (config.updatesPerSec() > 0) {
@@ -378,6 +388,10 @@ public class ProviderStats {
                 if (stats.postCount().getTotal() > 0) {
                     fileWriter.printf("  Posts received: %d\n", stats.postCount().getTotal());
                     fileWriter.printf("  Posts reflected: %d\n", stats.postCount().getTotal());
+                }
+                
+                if (stats.updatePackedMsgCount().getTotal() > 0) {
+                    fileWriter.printf("  Packed Update Messages Sent: %d\n", stats.updatePackedMsgCount().getTotal());
                 }
                 break;
             }
@@ -441,7 +455,13 @@ public class ProviderStats {
                     ((statsTime - totalStats.firstGenMsgRecvTime()) / 1000000000.0));
         }
 
-        fileWriter.printf("  Image requests received: %d\n", totalStats.requestCount().getTotal());
+        if (config instanceof IProviderPerfConfig)  {
+            fileWriter.printf("  Image requests received: %d\n", totalStats.requestCount().getTotal());
+        }
+
+        if (config instanceof NIProviderPerfConfig) {
+        	fileWriter.printf("  Images sent: %d\n", totalStats.itemRefreshCount().getTotal());
+        }
 
         if (config.updatesPerSec() > 0) {
             fileWriter.printf("  Updates sent: %d\n", totalStats.updateCount().getTotal());
@@ -450,6 +470,11 @@ public class ProviderStats {
         if (totalStats.postCount().getTotal() > 0) {
             fileWriter.printf("  Posts received: %d\n", totalStats.postCount().getTotal());
             fileWriter.printf("  Posts reflected: %d\n", totalStats.postCount().getTotal());
+        }
+        
+        if (totalStats.updatePackedMsgCount().getTotal() > 0) {
+            fileWriter.printf("  Packed Update Messages Sent: %d\n", totalStats.updatePackedMsgCount().getTotal());
+            fileWriter.printf("  Average Messages Packed per Packed Message Sent: %d\n", totalStats.updateCount().getTotal() / totalStats.updatePackedMsgCount().getTotal());
         }
 
         if (cpuUsageStatistics.count() > 0) {

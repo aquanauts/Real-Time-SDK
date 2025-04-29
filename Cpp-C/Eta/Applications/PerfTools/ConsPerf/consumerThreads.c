@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2020-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2020-2022 LSEG. All rights reserved.
 */
 
 #include "consumerThreads.h"
@@ -59,29 +59,12 @@ RsslPostUserInfo postUserInfo;
 RsslBool shutdownThreads = RSSL_FALSE;
 
 #ifdef _WIN32
-#define CJSON_TLS_INDEX_PTR 1
-#define CJSON_TLS_INDEX_SIZE 2
-void RTR_C_INLINE SET_CJSON_ALLOCATOR(void * ptr, size_t sz)
-{
-	TlsSetValue(CJSON_TLS_INDEX_PTR, ptr);
-	TlsSetValue(CJSON_TLS_INDEX_SIZE, (LPVOID)sz);
-}
-
-static void * cJSON_malloc_fn(size_t sz)
-{
-	void * lpvData = TlsGetValue(CJSON_TLS_INDEX_PTR);
-	size_t size = (size_t)TlsGetValue(CJSON_TLS_INDEX_SIZE);
-	if (sz > size)
-		return NULL;
-	char * new_ptr = (char*)(lpvData);
-	new_ptr += sz;
-	size -= sz;
-	SET_CJSON_ALLOCATOR(new_ptr, size);
-	return lpvData;
-}
+__declspec(thread) static void* jsonTlsPtr = NULL;
+__declspec(thread) static size_t jsonTlsSize = 0;
 #else
 static __thread void* jsonTlsPtr = NULL;
 static __thread size_t jsonTlsSize = 0;
+#endif
 void RTR_C_INLINE SET_CJSON_ALLOCATOR(void * ptr, size_t sz)
 {
 	jsonTlsPtr = ptr;
@@ -100,7 +83,6 @@ static void * cJSON_malloc_fn(size_t sz)
 	SET_CJSON_ALLOCATOR(new_ptr, size);
 	return lpvData;
 }
-#endif
 
 static void cJSON_free_fn(void *ptr)
 {
@@ -1892,11 +1874,11 @@ static RsslRet initialize(ConsumerThread* pConsumerThread, LatencyRandomArray* p
 		exit(-1);
 	}
 
-	pConsumerThread->itemRequestList = 
+	pConsumerThread->itemRequestListAllocator = 
 		(ItemRequest*)malloc(sizeof(ItemRequest)*pConsumerThread->itemListCount);
 
 	/* Shift item info list pointer so we can use streamID's for direct lookup. */
-	pConsumerThread->itemRequestList -= ITEM_STREAM_ID_START;
+	pConsumerThread->itemRequestList = pConsumerThread->itemRequestListAllocator - ITEM_STREAM_ID_START;
 
 
 	/* Should be able to store any item name that the XML parser can store. */
@@ -2824,8 +2806,15 @@ static RsslRet processDefaultMsgRespJson(ConsumerThread* pConsumerThread, RsslDo
 		}
 		else
 		{
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 			snprintf(pConsumerThread->threadErrorInfo.rsslError.text, MAX_RSSL_ERROR_TEXT,
 				"Failed to get buffer for Ping response :%s", err.text);
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic pop
+#endif
 			return RSSL_RET_FAILURE;
 		}
 		return RSSL_RET_READ_PING;
@@ -3781,7 +3770,7 @@ RsslBool consumerThreadCheckPings(ConsumerThread* pConsumerThread)
 void consumerThreadInit(ConsumerThread *pConsumerThread, RsslInt32 consThreadId)
 {
 
-	char tmpFilename[sizeof(consPerfConfig.statsFilename) + 8];
+	char tmpFilename[sizeof(consPerfConfig.statsFilename) + 24];
 
 	timeRecordQueueInit(&pConsumerThread->latencyRecords);
 	timeRecordQueueInit(&pConsumerThread->postLatencyRecords);
@@ -3874,10 +3863,9 @@ void consumerThreadCleanup(ConsumerThread *pConsumerThread)
 		free(pConsumerThread->pDictionary);
 	}
 
-	if (pConsumerThread->itemRequestList)
+	if (pConsumerThread->itemRequestListAllocator)
 	{
-		pConsumerThread->itemRequestList += ITEM_STREAM_ID_START;
-		free(pConsumerThread->itemRequestList);
+		free(pConsumerThread->itemRequestListAllocator);
 	}
 
 	if (pConsumerThread->jsonAllocatorPtr)

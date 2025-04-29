@@ -1,0 +1,12 @@
+<Project>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+	<ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	<StartupObject>LSEG.Ema.Example.Traning.IProvider.IProvider</StartupObject>
+  </PropertyGroup>
+
+  <Import Project=".\Ema.props"/>
+
+</Project>

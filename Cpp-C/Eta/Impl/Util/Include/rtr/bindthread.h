@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|         Copyright (C) 2022,2024 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -31,9 +31,6 @@ typedef struct {
     GLKTSN_T* cpu_topology_ptr;  // full CPU topology describers
 } RsslCPUTopology;
 
-RsslUInt64 rsslGetAffinityMaskByCpuArray(RsslUInt* cpuArray, RsslUInt cpuCount);
-
-RsslRet rsslBindThreadToCpuArray(const char* cpuString, RsslUInt* cpuArray, RsslUInt cpuCount, RsslInt procSet, RsslErrorInfo* pError);
 
 /* Binds the calling thread to the core with the given CPU as cpuString in P:X C:Y T:Z format. */
 /* @param cpuString the Cpu core in string format (P:X C:Y T:Z format). */
@@ -57,6 +54,32 @@ RSSL_API RsslRet rsslBindThreadInitialize(RsslError* error);
 * @return always return RSSL_RET_SUCCESS
 */
 RSSL_API RsslRet rsslBindThreadUninitialize();
+
+/**
+* @brief Dump detected Cpu topology: list of the detected Cpu cores.
+* When the initialization failed it dumps information about the error and internal details.
+*/
+RSSL_API void dumpCpuTopology();
+
+/**
+* @brief Get the physical CPU core identification in a PCT string that matched for logical core id.
+* P(Package):X C(Core):Y T(Thread):Z
+* @param (in) cpuId the logical index of Cpu core.
+* @param (in/out) pCpuPCTString RsslBuffer with allocated memory space, it will be filled by result PCT string.
+*
+* @return RSSL_RET_SUCCESS when operation was success.
+* @return RSSL_RET_FAILURE when got any error.
+*/
+RSSL_API RsslRet getPCTByProcessorCoreNumber(RsslInt32 cpuId, RsslBuffer* pCpuPCTString, RsslErrorInfo* pError);
+
+/**
+* @brief Is the logical core in online or offline.
+* @param (in) cpuId the logical index of Cpu core.
+*
+* @return RSSL_TRUE when the processor unit is in online.
+* @return RSSL_FALSE when the processor unit is in offline, or cputopology is not initialized.
+*/
+RSSL_API RsslBool isProcessorCoreOnline(RsslInt32 cpuId);
 
 #ifdef __cplusplus
 }

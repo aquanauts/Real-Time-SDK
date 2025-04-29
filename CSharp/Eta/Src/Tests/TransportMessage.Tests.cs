@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2023-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -41,7 +41,7 @@ namespace LSEG.Eta.Transports.Tests;
 /// The client/server framework for this test was based on {@link TransportLockJunit}.
 ///
 [Category("TransportMessage")]
-public class TransportMessageTests
+public class TransportMessageTests : IDisposable
 {
     #region Utilities
 
@@ -785,6 +785,7 @@ public class TransportMessageTests
     public TransportMessageTests(ITestOutputHelper output)
     {
         this.output = output;
+        Transport.Clear();
     }
 
     public BindOptions DefaultBindOptions(String portNumber)
@@ -799,12 +800,12 @@ public class TransportMessageTests
         return bindOptions;
     }
 
-    public BindOptions EncryptedBindOptions(string portNumber)
+    public BindOptions EncryptedBindOptions(string portNumber, EncryptionProtocolFlags protocol)
     {
         BindOptions bindOptions = new BindOptions();
         bindOptions.ConnectionType = ConnectionType.ENCRYPTED;
         bindOptions.ProtocolType = ProtocolType.RWF;
-        bindOptions.BindEncryptionOpts.EncryptionProtocolFlags = EncryptionProtocolFlags.ENC_TLSV1_2;
+        bindOptions.BindEncryptionOpts.EncryptionProtocolFlags = protocol;
         bindOptions.BindEncryptionOpts.ServerCertificate = "certificate.test.crt";
         bindOptions.BindEncryptionOpts.ServerPrivateKey = "certificate.test.key";
         bindOptions.ServiceName = portNumber;
@@ -831,12 +832,12 @@ public class TransportMessageTests
         return connectOptions;
     }
 
-    public ConnectOptions EncryptedConnectOptions(string portNumber)
+    public ConnectOptions EncryptedConnectOptions(string portNumber, EncryptionProtocolFlags protocol)
     {
         ConnectOptions connectOptions = new ConnectOptions();
 
         connectOptions.ConnectionType = ConnectionType.ENCRYPTED;
-        connectOptions.EncryptionOpts.EncryptionProtocolFlags = EncryptionProtocolFlags.ENC_TLSV1_2;
+        connectOptions.EncryptionOpts.EncryptionProtocolFlags = protocol;
         connectOptions.EncryptionOpts.EncryptedProtocol = ConnectionType.SOCKET;
         connectOptions.UnifiedNetworkInfo.Address = "localhost";
         connectOptions.UnifiedNetworkInfo.ServiceName = portNumber;
@@ -849,20 +850,24 @@ public class TransportMessageTests
 
     /// Start and initialize the client channels.
     public IChannel StartClientChannel(int guaranteedOutputBuffers,
-            bool blocking, bool writeLocking, CompressionType compressionType, string portNumber, bool encrypted)
+            bool blocking, bool writeLocking, CompressionType compressionType, string portNumber, int? sysBufSize, EncryptionProtocolFlags? encryption)
     {
         output.WriteLine("StartClientChannel(): entered");
 
         IChannel channel;
-        ConnectOptions connectOptions = encrypted
-            ? EncryptedConnectOptions(portNumber)
+        ConnectOptions connectOptions = encryption > EncryptionProtocolFlags.ENC_NONE
+            ? EncryptedConnectOptions(portNumber, (EncryptionProtocolFlags)encryption)
             : DefaultConnectOptions(portNumber);
 
         connectOptions.Blocking = blocking;
         connectOptions.CompressionType = compressionType;
         connectOptions.ChannelWriteLocking = writeLocking;
         connectOptions.GuaranteedOutputBuffers = guaranteedOutputBuffers;
-
+        if (sysBufSize is not null)
+        {
+            connectOptions.SysSendBufSize = sysBufSize.Value;
+            connectOptions.SysRecvBufSize = sysBufSize.Value;
+        }
         Error error = new Error();
         InProgInfo inProgInfo = new InProgInfo();
 
@@ -1111,9 +1116,9 @@ public class TransportMessageTests
 
         public override string ToString()
         {
-            return $"RunTime={RunTime}\n"
-                + $"GuaranteedOutputBuffers={GuaranteedOutputBuffers}\n"
-                + $"GlobalLocking={GlobalLocking}\twriteLocking={WriteLocking}\tblocking={Blocking}\n"
+            return $"RunTime={RunTime}{NewLine}"
+                + $"GuaranteedOutputBuffers={GuaranteedOutputBuffers}{NewLine}"
+                + $"GlobalLocking={GlobalLocking}\twriteLocking={WriteLocking}\tblocking={Blocking}{NewLine}"
                 + $"CompressionType={CompressionType}\tcompressionLevel={CompressionLevel}\tdataType={MessageContent}";
         }
 
@@ -1210,7 +1215,8 @@ public class TransportMessageTests
         internal int ExpectedTotalBytes = -1;
         internal int ExpectedUncompressedBytes = -1;
         internal bool Encrypted = false;
-
+        internal EncryptionProtocolFlags EncryptionProtocol = EncryptionProtocolFlags.ENC_NONE;
+        internal int? SysBufSize;
         private static int portNumber = 15200;
         internal string PORT_NUMBER;
 
@@ -1231,9 +1237,9 @@ public class TransportMessageTests
 
         public override string ToString()
         {
-            return $"RunTime={RunTime}\n"
-                + $"GuaranteedOutputBuffers={GuaranteedOutputBuffers}\n"
-                + $"GlobalLocking={GlobalLocking}\twriteLocking={WriteLocking}\tblocking={Blocking}\n"
+            return $"RunTime={RunTime}{NewLine}"
+                + $"GuaranteedOutputBuffers={GuaranteedOutputBuffers}{NewLine}"
+                + $"GlobalLocking={GlobalLocking}\twriteLocking={WriteLocking}\tblocking={Blocking}{NewLine}"
                 + $"CompressionType={CompressionType}\tcompressionLevel={CompressionLevel}\tdataType={MessageContent}";
         }
 
@@ -1527,6 +1533,7 @@ public class TransportMessageTests
         args.Blocking = false;
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 6;
+        args.SysBufSize = 65535 * 4;
 
         int[] sizes = { 500000 };
         args.MessageSizes = sizes;
@@ -1811,8 +1818,12 @@ public class TransportMessageTests
         TestRunnerPacked("ptest3: packing with random data and no compression ", args, output);
     }
 
-    [Fact, Category("Unit")]
-    public void test0_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test0_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1830,12 +1841,17 @@ public class TransportMessageTests
         args.Debug = false;
         args.MessageContent = MessageContentType.RANDOM;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         TestRunner("test0_encrypted: debugging", args);
     }
 
-    [Fact, Category("Unit")]
-    public void test1_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test1_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1852,13 +1868,18 @@ public class TransportMessageTests
         args.PrintReceivedData = false;
         args.MessageContent = MessageContentType.UNIFORM;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         TestRunner("test1_encrypted: basic", args);
     }
 
     // No compression: message sizes from no-frag to fragmentation
-    [Fact, Category("Unit")]
-    public void test2_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test2_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1868,6 +1889,7 @@ public class TransportMessageTests
         args.WriteLocking = true;
         args.Blocking = false;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         args.CompressionType = CompressionType.NONE;
         args.CompressionLevel = 0;
@@ -1881,8 +1903,12 @@ public class TransportMessageTests
     }
 
     // lz4 compression growth: messages sizes from no-frag to fragmentation
-    [Fact, Category("Unit")]
-    public void test3_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test3_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1894,6 +1920,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 6100, 6101, 6102, 6103, 6104, 6105, 6106, 6107, 6108, 6109, 6110 };
         args.MessageSizes = sizes;
@@ -1904,8 +1931,12 @@ public class TransportMessageTests
     }
 
     // zlib compression growth: message sizes from no-frag to fragmentation
-    [Fact, Category("Unit")]
-    public void test4_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test4_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1917,6 +1948,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.ZLIB;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 6123, 6124, 6125, 6126, 6127, 6128, 6129, 6130, 6131, 6132, 6133, 6134, 6135, 6136, 6137, 6138, 6139, 6140 };
         args.MessageSizes = sizes;
@@ -1928,8 +1960,12 @@ public class TransportMessageTests
 
     // Alternate fragments with Random and Uniform data.
     // Starting with Random forces compression fragmentation on the first fragment
-    [Fact, Category("Unit")]
-    public void test5_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test5_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1941,6 +1977,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 50000 };
         args.MessageSizes = sizes;
@@ -1950,8 +1987,12 @@ public class TransportMessageTests
         TestRunner("test5_encrypted: mixed data random start", args);
     }
 
-    [Fact, Category("Unit")]
-    public void test5z_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test5z_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1963,6 +2004,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.ZLIB;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 50000 };
         args.MessageSizes = sizes;
@@ -1974,8 +2016,12 @@ public class TransportMessageTests
 
     // Alternate fragments with Random and Uniform data.
     // Starting with Uniform forces compression fragmentation on the second fragment
-    [Fact, Category("Unit")]
-    public void test6_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test6_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -1987,6 +2033,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 50000 };
         args.MessageSizes = sizes;
@@ -1996,8 +2043,12 @@ public class TransportMessageTests
         TestRunner("test6_encrypted: mised data uniform start", args);
     }
 
-    [Fact, Category("Unit")]
-    public void test6z_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test6z_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2009,6 +2060,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.ZLIB;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 50000 };
         args.MessageSizes = sizes;
@@ -2020,8 +2072,12 @@ public class TransportMessageTests
 
     // Alternate fragments with Random and Uniform data.
     // Starting with Uniform forces compression fragmentation on the second fragment
-    [Fact, Category("Unit")]
-    public void test7_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test7_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2033,6 +2089,8 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 6;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
+        args.SysBufSize = 65535 * 4;
 
         int[] sizes = { 500000 };
         args.MessageSizes = sizes;
@@ -2042,8 +2100,12 @@ public class TransportMessageTests
         TestRunner("test7_encrypted: mixed data large message", args);
     }
 
-    [Fact, Category("Unit")]
-    public void test8_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test8_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2055,6 +2117,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.NONE;
         args.CompressionLevel = 0;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 7000 };
         args.MessageSizes = sizes;
@@ -2069,8 +2132,12 @@ public class TransportMessageTests
     }
 
     // fragment + compressed frag testing writeArgs bytes written
-    [Fact, Category("Unit")]
-    public void test8lz4_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test8lz4_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2082,6 +2149,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 0;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 7000 };
         args.MessageSizes = sizes;
@@ -2103,8 +2171,12 @@ public class TransportMessageTests
     }
 
     // fragment + compressed frag testing writeArgs bytes written
-    [Fact, Category("Unit")]
-    public void test8z_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test8z_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2117,6 +2189,7 @@ public class TransportMessageTests
         args.CompressionLevel = 0;
         args.Debug = false;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 7000 };
         args.MessageSizes = sizes;
@@ -2138,8 +2211,12 @@ public class TransportMessageTests
     }
 
     // compressed frag normal: testing writeArgs bytes written
-    [Fact, Category("Unit")]
-    public void test9lz4_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test9lz4_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2156,6 +2233,7 @@ public class TransportMessageTests
         args.PrintReceivedData = false;
         args.MessageContent = MessageContentType.RANDOM;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         // 1: 6147
         // 1b: 25
@@ -2169,8 +2247,12 @@ public class TransportMessageTests
         TestRunner("test9lz4_encrypted: compFragment normal testing write args bytes written", args);
     }
 
-    [Fact, Category("Unit")]
-    public void test10_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test10_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2182,6 +2264,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.NONE;
         args.CompressionLevel = 0;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 12300 };
         args.MessageSizes = sizes;
@@ -2192,8 +2275,12 @@ public class TransportMessageTests
     }
 
     // Designed so that the last fragment size is below the compression threshold
-    [Fact, Category("Unit")]
-    public void test10lz4_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test10lz4_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2205,6 +2292,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.LZ4;
         args.CompressionLevel = 0;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 12300 };
         args.MessageSizes = sizes;
@@ -2215,8 +2303,12 @@ public class TransportMessageTests
     }
 
     // Designed so that the last fragment size is below the compression threshold
-    [Fact, Category("Unit")]
-    public void test10z_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test10z_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2228,6 +2320,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.ZLIB;
         args.CompressionLevel = 0;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 12300 };
         args.MessageSizes = sizes;
@@ -2237,8 +2330,12 @@ public class TransportMessageTests
         TestRunner("test10z_encrypted: last fragment not compressed", args);
     }
 
-    [Fact, Category("Unit")]
-    public void test11z_encrypted()
+    [Theory, Category("Unit")]
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+    public void test11z_encrypted(EncryptionProtocolFlags encryptionProtocol)
     {
         TestArgs args = TestArgs.GetInstance();
 
@@ -2250,6 +2347,7 @@ public class TransportMessageTests
         args.CompressionType = CompressionType.ZLIB;
         args.CompressionLevel = 0;
         args.Encrypted = true;
+        args.EncryptionProtocol = encryptionProtocol;
 
         int[] sizes = { 6128, 6129 };
         args.MessageSizes = sizes;
@@ -2272,7 +2370,7 @@ public class TransportMessageTests
 
         // BindOptions
         BindOptions bindOptions = args.Encrypted
-            ? EncryptedBindOptions(args.PORT_NUMBER)
+            ? EncryptedBindOptions(args.PORT_NUMBER, args.EncryptionProtocol)
             : DefaultBindOptions(args.PORT_NUMBER);
 
         bindOptions.CompressionType = args.CompressionType;
@@ -2286,6 +2384,7 @@ public class TransportMessageTests
         EtaNetServer server = new EtaNetServer(bindOptions, acceptOptions, args.GlobalLocking, args, output);
         Thread serverThread = new Thread(server.Run);
         Thread clientThread = null;
+        EtaNetClient etaNetClient = null;
         try
         {
             serverThread.Start();
@@ -2294,7 +2393,7 @@ public class TransportMessageTests
 
             if (!WaitForStateRunning(server))
             {
-                Assert.True(false, "server terminated while waiting for RUNNING state, error="
+                Assert.Fail("server terminated while waiting for RUNNING state, error="
                             + server.ErrorMsg);
                 server.Terminate();
                 serverThread.Join();
@@ -2307,11 +2406,13 @@ public class TransportMessageTests
                                                         args.Blocking,
                                                         args.WriteLocking,
                                                         args.CompressionType,
-                                                        args.PORT_NUMBER, args.Encrypted);
+                                                        args.PORT_NUMBER,
+                                                        args.SysBufSize,
+                                                        args.EncryptionProtocol);
             // "StartClientChannel failed, check output"
             Assert.NotNull(clientChannel);
 
-            EtaNetClient etaNetClient = new EtaNetClient(1, // etaNetClientCount
+            etaNetClient = new EtaNetClient(1, // etaNetClientCount
                                                          0, // priority
                                                          clientChannel,
                                                          args.GlobalLocking,
@@ -2378,7 +2479,7 @@ public class TransportMessageTests
                                                  + (results[messageCount - 1] ? "Success" : "Failed"));
                             else
                             {
-                                Assert.True(false,
+                                Assert.Fail(
                                             $"Unexpected results count: {results.Count} while {messageCount} is expected");
                                 return;
                             }
@@ -2403,13 +2504,13 @@ public class TransportMessageTests
 
             // If a server failure occurred, fail the test.
             if (server.ErrorMsg != null)
-                Assert.True(false, server.ErrorMsg);
+                Assert.Fail(server.ErrorMsg);
 
         }
         catch (Exception)
         {
             // gracefully terminate threads if something goes wrong (like assertion failure)
-            TerminateServerAndClients(serverThread, null, clientThread, null, null);
+            TerminateServerAndClients(serverThread, server, clientThread, etaNetClient, null);
             throw;
         }
         output.WriteLine("TestRunner finished");
@@ -2445,7 +2546,7 @@ public class TransportMessageTests
 
             if (!WaitForStateRunning(server))
             {
-                Assert.True(false,
+                Assert.Fail(
                             "server terminated while waiting for RUNNING state, error=" + server.ErrorMsg);
                 server.Terminate();
                 serverThread.Join();
@@ -2455,7 +2556,7 @@ public class TransportMessageTests
             {
                 // start the channels that represent client session
                 IChannel clientChannel = StartClientChannel(args.GuaranteedOutputBuffers,
-                                                            args.Blocking, args.WriteLocking, args.CompressionType, args.PORT_NUMBER, false);
+                                                            args.Blocking, args.WriteLocking, args.CompressionType, args.PORT_NUMBER, null, null);
                 // StartClientChannel failed, check output
                 Assert.NotNull(clientChannel);
 
@@ -2526,7 +2627,7 @@ public class TransportMessageTests
 
             // If a server failure occurred, fail the test.
             if (server.ErrorMsg != null)
-                Assert.True(false, server.ErrorMsg);
+                Assert.Fail(server.ErrorMsg);
         }
         catch (Exception)
         {
@@ -2536,6 +2637,9 @@ public class TransportMessageTests
         }
 
     }
+
+    public void Dispose()
+        => Transport.Clear();
 
     #endregion
 }

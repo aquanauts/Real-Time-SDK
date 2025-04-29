@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -19,17 +19,17 @@
 ************************************************************************
 * Summary:
 * A Non-Interactive Provider (NIP) writes a provider application that
-* connects to Refinitiv Real-Time Distribution System and sends a specific
+* connects to LSEG Real-Time Distribution System and sends a specific
 * set (non-interactive) of information (services, domains, and capabilities).
 * NIPs act like clients in a client-server relationship. Multiple NIPs can
-* connect to the same Refinitiv Real-Time Distribution System and publish
+* connect to the same LSEG Real-Time Distribution System and publish
 * the same items and content.
 *
 * In this module, the OMM NIP application initializes the ETA Transport
 * and establish a connection to an ADH server. Once connected, an OMM NIP
 * can publish information into the ADH cache without needing to handle
 * requests for the information. The ADH can cache the information and
-* along with other Refinitiv Real-Time Distribution System components,
+* along with other LSEG Real-Time Distribution System components,
 * provide the information to any NIProvider applications that indicate interest.
 *
 * Detailed Descriptions:
@@ -58,7 +58,7 @@
 * In this module, after establishing a connection, ping messages might
 * need to be exchanged. The negotiated ping timeout is available via
 * the Channel. If ping heartbeats are not sent or received within
-* the expected time frame, the connection can be terminated. Refinitiv
+* the expected time frame, the connection can be terminated. LSEG
 * recommends sending ping messages at intervals one-third the
 * size of the ping timeout.
 *
@@ -195,7 +195,7 @@
 * b) Supported domain types and any item group information associated with the
 *    service.
 *
-* At a minimum, Refinitiv recommends that the NIP send the Info,
+* At a minimum, LSEG recommends that the NIP send the Info,
 * State, and Group filters for the Source Directory. Because this is provider
 * instantiated, the NIP should use a streamId with a negative value.
 *
@@ -240,7 +240,7 @@
 * dictionary typically defines type and formatting information and directs
 * the application as to how to encode or decode specific pieces of information.
 * Content that uses the FieldList type requires the use of a field dictionary
-* (usually the Refinitiv RDMFieldDictionary, though it could also be a
+* (usually the LSEG RDMFieldDictionary, though it could also be a
 * user-defined or modified field dictionary).
 *
 * Dictionaries may be available locally in a file for an OMM NIP appliation. In
@@ -300,6 +300,9 @@
 *
 */
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 
 using LSEG.Eta.Common;
@@ -332,7 +335,7 @@ namespace LSEG.Eta.Training.NiProvider
         const string ENUM_TYPE_DICTIONARY_FILE_NAME = "enumtype.def";
 
         static bool marketPriceItemInfo_isRefreshComplete;
-        static string marketPriceItemInfo_itemName = String.Empty;
+        static string marketPriceItemInfo_itemName = string.Empty;
         static MarketPriceItem marketPriceItemInfo_itemData = new();
         const int MARKETPRICE_ITEM_STREAM_ID_START = -2;
 
@@ -378,7 +381,7 @@ namespace LSEG.Eta.Training.NiProvider
             DecodeIterator decodeIter = new();
 
             /* In this app, we are only interested in using 2 dictionaries:
-             * - Refinitiv Field Dictionary (RDMFieldDictionary) and
+             * - Field Dictionary (RDMFieldDictionary) and
              * - Enumerated Types Dictionaries (enumtype.def)
              *
              * Dictionaries may be available locally in a file for an OMM NIP appliation. In
@@ -389,7 +392,7 @@ namespace LSEG.Eta.Training.NiProvider
              * dictionary typically defines type and formatting information and directs
              * the application as to how to encode or decode specific pieces of information.
              * Content that uses the FieldList type requires the use of a field dictionary
-             * (usually the Refinitiv RDMFieldDictionary, though it could also be a
+             * (usually the LSEG RDMFieldDictionary, though it could also be a
              * user-defined or modified field dictionary).
              */
 
@@ -618,10 +621,10 @@ namespace LSEG.Eta.Training.NiProvider
              * Client/NIProv Application Life Cycle Major Step 2: Connect using
              * Connect (OS connection establishment handshake) Connect call
              * Establishes an outbound connection, which can leverage standard
-             * sockets, HTTP, or HTTPS. Returns an Channel that represents the
-             * connection to the user. In the event of an error, NULL is returned
-             * and additional information can be found in the Error structure.
-             * Connection options are passed in via an ConnectOptions structure.
+             * sockets. Returns an Channel that represents the connection to the
+             * user. In the event of an error, NULL is returned and additional
+             * information can be found in the Error structure. Connection
+             * options are passed in via an ConnectOptions structure.
              *********************************************************/
 
             if ((channel = Transport.Connect(cOpts, out error)) == null)
@@ -1395,6 +1398,7 @@ namespace LSEG.Eta.Training.NiProvider
                 }
                 else /* lost contact with server */
                 {
+                    error ??= new Error();
                     /* Lost contact with remote (connection) */
                     error.Text = "Lost contact with connection...";
                     Console.WriteLine("Error ({0}) (errno: {1}) {2}", error.ErrorId, error.SysError, error.Text);
@@ -2203,7 +2207,7 @@ namespace LSEG.Eta.Training.NiProvider
             refreshFlags |= RefreshMsgFlags.CLEAR_CACHE;
 
             /* set filter flags */
-            /* At a minimum, Refinitiv recommends that the NIP send the Info, State, and Group filters for the Source Directory. */
+            /* At a minimum, LSEG recommends that the NIP send the Info, State, and Group filters for the Source Directory. */
             refreshKey.Filter = Directory.ServiceFilterFlags.INFO
                 | Directory.ServiceFilterFlags.STATE
                 | Directory.ServiceFilterFlags.LOAD
@@ -2704,7 +2708,7 @@ namespace LSEG.Eta.Training.NiProvider
                 element.Name = ElementNames.STATUS;
 
                 /* The Status element can change the state of items provided by this service.
-                 * Prior to changing a service status, Refinitiv recommends that you issue item or group
+                 * Prior to changing a service status, LSEG recommends that you issue item or group
                  * status messages to update item states.
                  */
                 status.StreamState(StreamStates.OPEN);
@@ -2929,7 +2933,7 @@ namespace LSEG.Eta.Training.NiProvider
 
                 /* Item Name */
                 msgBase.MsgKey.Name.Data(marketPriceItemInfo_itemName);
-                /* (1) Reuters Instrument Code */
+                /* (1) Instrument Code */
                 msgBase.MsgKey.NameType = InstrumentNameTypes.RIC;
 
                 /* Qos */

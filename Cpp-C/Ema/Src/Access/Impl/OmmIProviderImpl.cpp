@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2023-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
 */
 
@@ -27,6 +27,7 @@
 #include "RdmUtilities.h"
 #include "ExceptionTranslator.h"
 #include "OmmInvalidUsageException.h"
+#include "PackedMsgImpl.h"
 
 #ifdef WIN32
 #pragma warning( disable : 4355)
@@ -776,11 +777,11 @@ void OmmIProviderImpl::submit(const UpdateMsg& updateMsg, UInt64 handle)
 	_userLock.unlock();
 }
 
-void OmmIProviderImpl::submit(const StatusMsg& stausMsg, UInt64 handle)
+void OmmIProviderImpl::submit(const StatusMsg& statusMsg, UInt64 handle)
 {
 	RsslReactorSubmitMsgOptions submitMsgOpts;
 	rsslClearReactorSubmitMsgOptions(&submitMsgOpts);
-	const StatusMsgEncoder& statusMsgEncoder = static_cast<const StatusMsgEncoder&>(stausMsg.getEncoder());
+	const StatusMsgEncoder& statusMsgEncoder = static_cast<const StatusMsgEncoder&>(statusMsg.getEncoder());
 	submitMsgOpts.pRsslMsg = (RsslMsg*)statusMsgEncoder.getRsslStatusMsg();
 
 	_userLock.lock();
@@ -993,13 +994,69 @@ void OmmIProviderImpl::submit(const StatusMsg& stausMsg, UInt64 handle)
 	_userLock.unlock();
 }
 
+void OmmIProviderImpl::submit(const PackedMsg& packedMsg)
+{
+	_userLock.lock();
+
+	PackedMsgImpl* packedMsgImpl = packedMsg._pImpl;
+
+	RsslReactorChannel* reactorChannel = packedMsgImpl->getRsslReactorChannel();
+
+	if (reactorChannel == 0)
+	{
+		_userLock.unlock();
+		EmaString temp("Attempt to submit PackedMsg with non set channel");
+		handleIue(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
+	RsslBuffer*  transportBuffer = packedMsgImpl->getTransportBuffer();
+	RsslReactorSubmitOptions submitOpts;
+	RsslErrorInfo rsslErrorInfo;
+	RsslRet ret = RSSL_RET_FAILURE;
+
+	if (transportBuffer == NULL)
+	{
+		_userLock.unlock();
+		EmaString temp("Attempt to submit PackedMsg with non init transport buffer");
+		handleIue(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
+	rsslClearReactorSubmitOptions(&submitOpts);
+
+	transportBuffer->length = 0;
+
+	if (ret = rsslReactorSubmit(_pRsslReactor, reactorChannel, transportBuffer, &submitOpts, &rsslErrorInfo) < RSSL_RET_SUCCESS)
+	{
+		packedMsgImpl->clear();
+
+		EmaString temp("Internal error: rsslReactorSubmit() failed in OmmIProviderImpl::submit( const PackedMsg& ).");
+		temp.append("RsslChannel ").append(ptrToStringAsHex(rsslErrorInfo.rsslError.channel)).append(CR)
+			.append("Error Id ").append(rsslErrorInfo.rsslError.rsslErrorId).append(CR)
+			.append("Internal sysError ").append(rsslErrorInfo.rsslError.sysError).append(CR)
+			.append("Error Location ").append(rsslErrorInfo.errorLocation).append(CR)
+			.append("Error Text ").append(rsslErrorInfo.rsslError.text);
+
+		_userLock.unlock();
+		handleIue(temp, rsslErrorInfo.rsslError.rsslErrorId);
+		return;
+	}
+
+	packedMsgImpl->setTransportBuffer(NULL);
+
+	_userLock.unlock();
+}
+
 bool OmmIProviderImpl::submit(RsslReactorSubmitMsgOptions submitMsgOptions, const EmaVector< ItemInfo* >& itemList, EmaString& text, bool applyDirectoryFilter, RsslErrorInfo& rsslErrorInfo)
 {
 	RsslMsg* pRsslMsg = submitMsgOptions.pRsslMsg;
+	UInt32 itemListSize;
 
-	for (UInt32 idx = 0; idx < itemList.size(); idx++)
+	for (UInt32 idx = 0; idx < itemList.size();)
 	{
 		ItemInfo* itemInfo = itemList[idx];
+		itemListSize = itemList.size();
 
 		if (OmmLoggerClient::VerboseEnum >= _activeServerConfig.loggerConfig.minLoggerSeverity)
 		{
@@ -1134,6 +1191,8 @@ bool OmmIProviderImpl::submit(RsslReactorSubmitMsgOptions submitMsgOptions, cons
 			handleItemInfo(pRsslMsg->msgBase.domainType, itemInfo->getHandle(), pRsslMsg->statusMsg.state);
 			break;
 		}
+
+		idx += (itemList.size() == itemListSize) ? 1 : 0;
 	}
 
 	return true;
@@ -1300,7 +1359,7 @@ void OmmIProviderImpl::submit(const AckMsg& ackMsg, UInt64 handle)
 		{
 			submitMsgOpts.pRsslMsg->msgBase.msgKey.serviceId = (RsslUInt16)*pServiceId;
 			submitMsgOpts.pRsslMsg->msgBase.msgKey.flags |= RSSL_MKF_HAS_SERVICE_ID;
-			submitMsgOpts.pRsslMsg->ackMsg.flags |= RSSL_RFMF_HAS_MSG_KEY;
+			submitMsgOpts.pRsslMsg->ackMsg.flags |= RSSL_AKMF_HAS_MSG_KEY;
 		}
 	}
 	else if (ackMsgEncoder.hasServiceId())

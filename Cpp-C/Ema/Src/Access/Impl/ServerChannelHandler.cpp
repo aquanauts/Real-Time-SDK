@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019-2020,2024 LSEG. All rights reserved.            --
  *|-----------------------------------------------------------------------------
 */
 
@@ -58,6 +58,9 @@ RsslReactorCallbackRet ServerChannelHandler::channelEventCallback(RsslReactor* p
 			{
 				clientSession->setADHSession(true);
 			}
+
+			// Save the negotiated ping timeout (in milliseconds).
+			ommServerBase->saveNegotiatedPingTimeout( channelInfo.rsslChannelInfo.pingTimeout * 1000 );
 
 			if (OmmLoggerClient::SuccessEnum >= ommServerBase->getActiveConfig().loggerConfig.minLoggerSeverity)
 			{
@@ -220,6 +223,9 @@ RsslReactorCallbackRet ServerChannelHandler::channelEventCallback(RsslReactor* p
 
 				if (activeConfig.xmlTracePing)
 					traceOptions.traceFlags |= RSSL_TRACE_PING;
+
+				if (activeConfig.xmlTracePingOnly)
+					traceOptions.traceFlags |= RSSL_TRACE_PING_ONLY;
 
 				if (activeConfig.xmlTraceHex)
 					traceOptions.traceFlags |= RSSL_TRACE_HEX;

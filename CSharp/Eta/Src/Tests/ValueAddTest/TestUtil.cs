@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -43,6 +43,16 @@ namespace LSEG.Eta.ValuedAdd.Tests
             if (otherEvent.TransportBuffer != null)
             {
                 thisEvent.TransportBuffer = new CopiedTransportBuffer(otherEvent.TransportBuffer);
+            }
+
+            if(otherEvent.StreamInfo != null)
+            {
+                thisEvent.StreamInfo.UserSpec = otherEvent.StreamInfo.UserSpec;
+
+                if(otherEvent.StreamInfo.ServiceName != null)
+                {
+                    thisEvent.StreamInfo.ServiceName = otherEvent.StreamInfo.ServiceName;
+                }
             }
 
             thisEvent.ReactorChannel = otherEvent.ReactorChannel;

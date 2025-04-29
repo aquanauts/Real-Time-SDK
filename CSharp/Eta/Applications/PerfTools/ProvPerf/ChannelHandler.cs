@@ -1,16 +1,21 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
+
+using System;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Net.Sockets;
+using System.Threading;
 
 using LSEG.Eta.Common;
 using LSEG.Eta.PerfTools.Common;
 using LSEG.Eta.Transports;
-using System.Collections.Concurrent;
-using System.Net.Sockets;
+
 using ProviderSession = LSEG.Eta.PerfTools.Common.ProviderSession;
 
 namespace LSEG.Eta.PerfTools.ProvPerf

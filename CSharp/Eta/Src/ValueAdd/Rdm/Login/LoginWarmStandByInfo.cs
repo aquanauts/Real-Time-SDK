@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -24,7 +24,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
         private ElementList elementList = new();
         private ElementEntry elementEntry = new();
         private UInt tmpUInt = new();
-        private const string eol = "\n";
         private const string tab = "\t";
         private StringBuilder stringBuffer = new();
 
@@ -159,16 +158,16 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             stringBuffer.Clear();
-            stringBuffer.Insert(0, "LoginWarmStandbyInfo: \n");
+            stringBuffer.Insert(0, $"LoginWarmStandbyInfo: {NewLine}");
             stringBuffer.Append(tab);
 
             stringBuffer.Append("warmStandbyMode: ");
             stringBuffer.Append(WarmStandbyMode);
-            stringBuffer.Append(eol);
+            stringBuffer.AppendLine();
             stringBuffer.Append(tab);
             stringBuffer.Append("action: ");
             stringBuffer.Append(Action);
-            stringBuffer.Append(eol);
+            stringBuffer.AppendLine();
             return stringBuffer.ToString();
         }
     }

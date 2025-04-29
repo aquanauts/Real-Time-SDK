@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019, 2024-2025 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,8 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "RdmUtilities.h"
+#include "StaticDecoder.h"
+#include "OmmInvalidUsageException.h"
 
 using namespace refinitiv::ema::access;
 using namespace refinitiv::ema::rdm;
@@ -98,16 +100,15 @@ ReqMsg::ReqMsg(const ReqMsg& other)
 
 ReqMsg::~ReqMsg()
 {
-	if ( _pEncoder && !GlobalPool::isFinalState() )
-		g_pool._reqMsgEncoderPool.returnItem( static_cast<ReqMsgEncoder*>( _pEncoder ) );
+	if ( _pEncoder )
+		g_pool.returnItem( static_cast<ReqMsgEncoder*>( _pEncoder ) );
 
 	if ( _pDecoder )
 	{
 		// Free memory from cloning the message if any
 		MsgDecoder::deallocateCopiedBuffer(this);
 
-		if ( !GlobalPool::isFinalState() )
-			g_pool._reqMsgDecoderPool.returnItem( static_cast<ReqMsgDecoder*>( _pDecoder ) );
+		g_pool.returnItem( static_cast<ReqMsgDecoder*>( _pDecoder ) );
 	}
 }
 
@@ -166,10 +167,33 @@ const EmaString& ReqMsg::toString() const
 	return toString( 0 );
 }
 
+const EmaString& ReqMsg::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	ReqMsg reqMsg;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+	{
+		_pEncoder = g_pool.getReqMsgEncoderItem();
+		static_cast<Encoder*>(_pEncoder)->acquireEncIterator();
+	}
+	else if (!_pEncoder->ownsIterator())
+		static_cast<Encoder*>(_pEncoder)->acquireEncIterator();
+
+	RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+	StaticDecoder::setRsslData(&reqMsg, &rsslBuffer, RSSL_DT_MSG, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+	_toString.clear().append(reqMsg.toString());
+
+	return _toString;
+}
+
 const EmaString& ReqMsg::toString(  UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );
+	if (!_pDecoder)
+		return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
 
 	const ReqMsgDecoder* pTempDecoder = static_cast<const ReqMsgDecoder*>( _pDecoder );
 
@@ -356,7 +380,7 @@ const EmaString& ReqMsg::getServiceName() const
 Decoder& ReqMsg::getDecoder()
 {
 	if ( !_pDecoder )
-		setDecoder( g_pool._reqMsgDecoderPool.getItem() );
+		setDecoder( g_pool.getReqMsgDecoderItem() );
 
 	return *_pDecoder;
 }
@@ -364,7 +388,7 @@ Decoder& ReqMsg::getDecoder()
 ReqMsg& ReqMsg::name( const EmaString& name )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->name( name );
 	return *this;
@@ -373,7 +397,7 @@ ReqMsg& ReqMsg::name( const EmaString& name )
 ReqMsg& ReqMsg::nameType( UInt8 nameType )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->nameType( nameType );
 	return *this;
@@ -382,16 +406,25 @@ ReqMsg& ReqMsg::nameType( UInt8 nameType )
 ReqMsg& ReqMsg::serviceName( const EmaString& serviceName )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->serviceName( serviceName );
+	return *this;
+}
+
+ReqMsg& ReqMsg::serviceListName(const EmaString& serviceListName)
+{
+	if (!_pEncoder)
+		_pEncoder = g_pool.getReqMsgEncoderItem();
+
+	_pEncoder->serviceListName(serviceListName);
 	return *this;
 }
 
 ReqMsg& ReqMsg::serviceId( UInt32 serviceId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->serviceId( serviceId );
 	return *this;
@@ -400,7 +433,7 @@ ReqMsg& ReqMsg::serviceId( UInt32 serviceId )
 ReqMsg& ReqMsg::id( Int32 id )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->identifier( id );
 	return *this;
@@ -409,7 +442,7 @@ ReqMsg& ReqMsg::id( Int32 id )
 ReqMsg& ReqMsg::filter( UInt32 filter )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->filter( filter );
 	return *this;
@@ -418,7 +451,7 @@ ReqMsg& ReqMsg::filter( UInt32 filter )
 ReqMsg& ReqMsg::streamId( Int32 streamId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->streamId( streamId );
 	return *this;
@@ -434,7 +467,7 @@ ReqMsg& ReqMsg::domainType( UInt16 domainType )
 	}
 
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->domainType( (UInt8)domainType );
 	return *this;
@@ -443,7 +476,7 @@ ReqMsg& ReqMsg::domainType( UInt16 domainType )
 ReqMsg& ReqMsg::priority( UInt8 priorityClass, UInt16 priorityCount )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->priority( priorityClass, priorityCount );
 	return *this;
@@ -452,7 +485,7 @@ ReqMsg& ReqMsg::priority( UInt8 priorityClass, UInt16 priorityCount )
 ReqMsg& ReqMsg::qos( UInt32 timeliness, UInt32 rate )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->qos( timeliness, rate );
 	return *this;
@@ -461,7 +494,7 @@ ReqMsg& ReqMsg::qos( UInt32 timeliness, UInt32 rate )
 ReqMsg& ReqMsg::attrib( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->attrib( data );
 	return *this;
@@ -470,7 +503,7 @@ ReqMsg& ReqMsg::attrib( const ComplexType& data )
 ReqMsg& ReqMsg::payload( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	_pEncoder->payload( data );
 	return *this;
@@ -479,7 +512,7 @@ ReqMsg& ReqMsg::payload( const ComplexType& data )
 ReqMsg& ReqMsg::extendedHeader( const EmaBuffer& Buffer )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->extendedHeader( Buffer );
 	return *this;
@@ -488,7 +521,7 @@ ReqMsg& ReqMsg::extendedHeader( const EmaBuffer& Buffer )
 ReqMsg& ReqMsg::initialImage( bool initialImage )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->initialImage( initialImage );
 	return *this;
@@ -497,7 +530,7 @@ ReqMsg& ReqMsg::initialImage( bool initialImage )
 ReqMsg& ReqMsg::interestAfterRefresh( bool interestAfterRefresh )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->interestAfterRefresh( interestAfterRefresh );
 	return *this;
@@ -506,7 +539,7 @@ ReqMsg& ReqMsg::interestAfterRefresh( bool interestAfterRefresh )
 ReqMsg& ReqMsg::pause( bool pause )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->pause( pause );
 	return *this;
@@ -515,7 +548,7 @@ ReqMsg& ReqMsg::pause( bool pause )
 ReqMsg& ReqMsg::conflatedInUpdates( bool conflatedInUpdates )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->conflatedInUpdates( conflatedInUpdates );
 	return *this;
@@ -524,7 +557,7 @@ ReqMsg& ReqMsg::conflatedInUpdates( bool conflatedInUpdates )
 ReqMsg& ReqMsg::privateStream( bool privateStream )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._reqMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getReqMsgEncoderItem();
 
 	static_cast<ReqMsgEncoder*>(_pEncoder)->privateStream( privateStream );
 	return *this;

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
 */
 
@@ -73,7 +73,9 @@ OmmServerBaseImpl::OmmServerBaseImpl(ActiveServerConfig& activeServerConfig, Omm
 	_pRsslServer(0),
 	_pClosure(closure),
 	_bApiDispatchThreadStarted(false),
-	_bUninitializeInvoked(false)
+	_bUninitializeInvoked(false),
+	_negotiatedPingTimeout(0),
+	ommProviderEvent(*this)
 {
 #ifdef USING_SELECT
 	FD_ZERO(&_readFds);
@@ -113,7 +115,9 @@ OmmServerBaseImpl::OmmServerBaseImpl(ActiveServerConfig& activeServerConfig, Omm
 	_pRsslServer(0),
 	_pClosure(closure),
 	_bApiDispatchThreadStarted(false),
-	_bUninitializeInvoked(false)
+	_bUninitializeInvoked(false),
+	_negotiatedPingTimeout(0),
+	ommProviderEvent(*this)
 {
 #ifdef USING_SELECT
 	FD_ZERO(&_readFds);
@@ -176,7 +180,17 @@ void OmmServerBaseImpl::readConfig(EmaConfigServerImpl* pConfigServerImpl)
 
 	if (pConfigServerImpl->get<UInt64>(instanceNodeName + "SendJsonConvError", tmp))
 		_activeServerConfig.sendJsonConvError = tmp > 0 ? true : false;
-	
+
+	if (pConfigServerImpl->isUserSetShouldInitializeCPUIDlib())
+	{
+		_activeServerConfig.shouldInitializeCPUIDlib = pConfigServerImpl->getShouldInitializeCPUIDlib();
+	}
+	else
+	{
+		if (pConfigServerImpl->get<UInt64>(instanceNodeName + "ShouldInitializeCPUIDlib", tmp))
+			_activeServerConfig.shouldInitializeCPUIDlib = tmp > 0 ? true : false;
+	}
+
 	Int64 tmp1;
 	
 	if (pConfigServerImpl->get<Int64>(instanceNodeName + "MaxEventsInPool", tmp1))
@@ -219,6 +233,11 @@ void OmmServerBaseImpl::readConfig(EmaConfigServerImpl* pConfigServerImpl)
 		_activeServerConfig.xmlTracePing = tmp > 0 ? true : false;
 	}
 
+	if (pConfigServerImpl->get<UInt64>(instanceNodeName + "XmlTracePingOnly", tmp))
+	{
+		_activeServerConfig.xmlTracePingOnly = tmp > 0 ? true : false;
+	}
+
 	if (pConfigServerImpl->get<UInt64>(instanceNodeName + "XmlTraceHex", tmp))
 	{
 		_activeServerConfig.xmlTraceHex = tmp > 0 ? true : false;
@@ -259,7 +278,10 @@ void OmmServerBaseImpl::readConfig(EmaConfigServerImpl* pConfigServerImpl)
 		_activeServerConfig.outputBufferSize = tmp <= 0xFFFFFFFF ? (UInt32)tmp : 0xFFFFFFFF;
 	}
 
-	pConfigServerImpl->get<Int64>(instanceNodeName + "PipePort", _activeServerConfig.pipePort);
+	if (pConfigServerImpl->get<UInt64>(instanceNodeName + "JsonTokenIncrementSize", tmp))
+	{
+		_activeServerConfig.jsonTokenIncrementSize = tmp <= 0xFFFFFFFF ? (UInt32)tmp : 0xFFFFFFFF;
+	}
 
 	pConfigServerImpl->getLoggerName(_activeServerConfig.configuredName, _activeServerConfig.loggerConfig.loggerName);
 
@@ -305,7 +327,7 @@ void OmmServerBaseImpl::readConfig(EmaConfigServerImpl* pConfigServerImpl)
 
 	if (ProgrammaticConfigure* ppc = pConfigServerImpl->getProgrammaticConfigure())
 	{
-		ppc->retrieveLoggerConfig(_activeServerConfig.loggerConfig.loggerName, _activeServerConfig);
+		ppc->retrieveLoggerConfig(_activeServerConfig.loggerConfig.loggerName, _activeServerConfig.loggerConfig);
 	}
 
 	EmaString serverName;
@@ -454,6 +476,17 @@ ServerConfig* OmmServerBaseImpl::readServerConfig( EmaConfigServerImpl* pConfigS
 			}
 			else
 				pConfigServerImpl->get<EmaString>(serverNodeName + "CipherSuite", socketServerConfig->cipherSuite);
+
+			if (pConfigServerImpl->getUserSpecifiedSecurityProtocol() > 0)
+			{
+				socketServerConfig->securityProtocol = pConfigServerImpl->getUserSpecifiedSecurityProtocol();
+			}
+			else
+			{
+				UInt64 tempUInt = 0;
+				if ( pConfigServerImpl->get<UInt64>(serverNodeName + "SecurityProtocol", tempUInt) )
+					socketServerConfig->securityProtocol = (int)tempUInt;
+			}
 		}
 		/* Socket's a superset of Encrypted for servers */
 		case RSSL_CONN_TYPE_SOCKET:
@@ -653,6 +686,14 @@ ServerConfig* OmmServerBaseImpl::readServerConfig( EmaConfigServerImpl* pConfigS
 			pConfigServerImpl->appendConfigError(errorMsg, OmmLoggerClient::WarningEnum);
 		}
 
+		if (pConfigServerImpl->get<UInt64>(serverNodeName + "XmlTracePingOnly", tempUInt))
+		{
+			_activeServerConfig.xmlTracePingOnly = tempUInt == 0 ? false : true;
+
+			EmaString errorMsg("XmlTracePingOnly is no longer configured on a per-server basis; configure it instead in the IProvider instance.");
+			pConfigServerImpl->appendConfigError(errorMsg, OmmLoggerClient::WarningEnum);
+		}
+
 		if (pConfigServerImpl->get<UInt64>(serverNodeName + "XmlTraceHex", tempUInt))
 		{
 			_activeServerConfig.xmlTraceHex = tempUInt == 0 ? false : true;
@@ -714,6 +755,8 @@ void OmmServerBaseImpl::initialize(EmaConfigServerImpl* serverConfigImpl)
 			rsslInitOpts.jitOpts.libcryptoName = (char*)_activeServerConfig.libCryptoName.c_str();
 		if (_activeServerConfig.libcurlName.length() > 0)
 			rsslInitOpts.jitOpts.libcurlName = (char*)_activeServerConfig.libcurlName.c_str();
+		if (_activeServerConfig.shouldInitializeCPUIDlib != DEFAULT_SHOULD_INIT_CPUID_LIB)
+			rsslInitOpts.shouldInitializeCPUIDlib = _activeServerConfig.shouldInitializeCPUIDlib;
 
 		RsslRet retCode = rsslInitializeEx(&rsslInitOpts, &rsslError);
 		if (retCode != RSSL_RET_SUCCESS)
@@ -829,6 +872,7 @@ void OmmServerBaseImpl::initialize(EmaConfigServerImpl* serverConfigImpl)
 		jsonConverterOptions.catchUnknownJsonFids = (RsslBool)_activeServerConfig.catchUnknownJsonFids;
 		jsonConverterOptions.closeChannelFromFailure = (RsslBool)_activeServerConfig.closeChannelFromFailure;
 		jsonConverterOptions.outputBufferSize = _activeServerConfig.outputBufferSize;
+		jsonConverterOptions.jsonTokenIncrementSize = _activeServerConfig.jsonTokenIncrementSize;
 		jsonConverterOptions.sendJsonConvError = _activeServerConfig.sendJsonConvError;
 
 		if (rsslReactorInitJsonConverter(_pRsslReactor, &jsonConverterOptions, &rsslErrorInfo) != RSSL_RET_SUCCESS)
@@ -1002,6 +1046,7 @@ void OmmServerBaseImpl::bindServerOptions(RsslBindOptions& bindOptions, const Em
 			bindOptions.encryptionOpts.serverPrivateKey = const_cast<char *>(socketServerConfig->serverPrivateKey.c_str());
 			bindOptions.encryptionOpts.dhParams = const_cast<char *>(socketServerConfig->dhParams.c_str());
 			bindOptions.encryptionOpts.cipherSuite = const_cast<char *>(socketServerConfig->cipherSuite.c_str());
+			bindOptions.encryptionOpts.encryptionProtocolFlags = (RsslUInt32)socketServerConfig->securityProtocol;
 			bindOptions.maxFragmentSize = (RsslUInt32)socketServerConfig->maxFragmentSize;
 
 		}
@@ -1329,6 +1374,10 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 			timeOut = nextTimer;
 	}
 
+	// Get the negotiated ping timeout
+	Int64 pingTimeout = (_negotiatedPingTimeout > 0) ? _negotiatedPingTimeout : DEFAULT_CONNECTION_PINGTIMEOUT;
+	Int64 pingTimeoutInMicroSeconds = pingTimeout * 1000 / 2;
+
 	RsslReactorDispatchOptions dispatchOpts;
 	dispatchOpts.pReactorChannel = NULL;
 	dispatchOpts.maxMessages = count;
@@ -1357,6 +1406,13 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 
 		Int64 selectRetCode = 1;
 
+		// to account ping timeout
+		Int64 selectTimeOut = timeOut;
+		if ( timeOut < 0 || pingTimeoutInMicroSeconds < timeOut )
+		{
+			selectTimeOut = pingTimeoutInMicroSeconds;
+		}
+
 #if defined( USING_SELECT )
 
 		fd_set useReadFds = _readFds;
@@ -1364,21 +1420,21 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 
 		struct timeval selectTime;
 
-		if (timeOut > 0)
+		if (selectTimeOut > 0)
 		{
-			selectTime.tv_sec = static_cast<long>(timeOut / 1000000);
-			selectTime.tv_usec = timeOut % 1000000;
+			selectTime.tv_sec = static_cast<long>(selectTimeOut / 1000000);
+			selectTime.tv_usec = selectTimeOut % 1000000;
 
 			selectRetCode = select(FD_SETSIZE, &useReadFds, NULL, &useExceptFds, &selectTime);
 		}
-		else if (timeOut == 0)
+		else if (selectTimeOut == 0)
 		{
 			selectTime.tv_sec = 0;
 			selectTime.tv_usec = 0;
 
 			selectRetCode = select(FD_SETSIZE, &useReadFds, NULL, &useExceptFds, &selectTime);
 		}
-		else if (timeOut < 0)
+		else if (selectTimeOut < 0)
 			selectRetCode = select(FD_SETSIZE, &useReadFds, NULL, &useExceptFds, NULL);
 
 		if (selectRetCode > 0 && FD_ISSET(_pRsslServer->socketId, &useReadFds))
@@ -1422,20 +1478,20 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 
 		struct timespec ppollTime;
 
-		if (timeOut > 0)
+		if (selectTimeOut > 0)
 		{
-			ppollTime.tv_sec = timeOut / static_cast<long long>(1e6);
-			ppollTime.tv_nsec = timeOut % static_cast<long long>(1e6) * static_cast<long long>(1e3);
+			ppollTime.tv_sec = selectTimeOut / static_cast<long long>(1e6);
+			ppollTime.tv_nsec = selectTimeOut % static_cast<long long>(1e6) * static_cast<long long>(1e3);
 			selectRetCode = ppoll(_eventFds, _eventFdsCount, &ppollTime, 0);
 		}
-		else if (timeOut == 0)
+		else if (selectTimeOut == 0)
 		{
 			ppollTime.tv_sec = 0;
 			ppollTime.tv_nsec = 0;
 
 			selectRetCode = ppoll(_eventFds, _eventFdsCount, &ppollTime, 0);
 		}
-		else if (timeOut < 0)
+		else if (selectTimeOut < 0)
 			selectRetCode = ppoll(_eventFds, _eventFdsCount, 0, 0);
 
 		if (selectRetCode > 0)
@@ -1505,7 +1561,7 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 
 			if (reactorRetCode < RSSL_RET_SUCCESS)
 			{
-				if (OmmLoggerClient::ErrorEnum >= _activeServerConfig.loggerConfig.minLoggerSeverity)
+				if ( OmmLoggerClient::ErrorEnum >= _activeServerConfig.loggerConfig.minLoggerSeverity || hasErrorClientHandler() )
 				{
 					EmaString temp("Call to rsslReactorDispatch() failed. Internal sysError='");
 					temp.append(_reactorDispatchErrorInfo.rsslError.sysError)
@@ -1514,7 +1570,17 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 						.append("' Error text='").append(_reactorDispatchErrorInfo.rsslError.text).append("'. ");
 
 					_userLock.lock();
-					if (_pLoggerClient) _pLoggerClient->log(_activeServerConfig.instanceName, OmmLoggerClient::ErrorEnum, temp);
+
+					if (hasErrorClientHandler())
+					{
+						getErrorClientHandler().onDispatchError(temp, _reactorDispatchErrorInfo.rsslErrorInfoCode);
+					}
+
+					if (OmmLoggerClient::ErrorEnum >= _activeServerConfig.loggerConfig.minLoggerSeverity)
+					{
+						if (_pLoggerClient) _pLoggerClient->log(_activeServerConfig.instanceName, OmmLoggerClient::ErrorEnum, temp);
+					}
+
 					_userLock.unlock();
 				}
 
@@ -1538,6 +1604,39 @@ Int64 OmmServerBaseImpl::rsslReactorDispatchLoop(Int64 timeOut, UInt32 count, bo
 		}
 		else if (selectRetCode == 0)
 		{
+			// if select/ppoll breaks by timeout, it calls rsslReactorDispatch to allow check the channel Ping timeout
+			_userLock.lock();
+			reactorRetCode = _pRsslReactor ? rsslReactorDispatch(_pRsslReactor, &dispatchOpts, &_reactorDispatchErrorInfo) : RSSL_RET_SUCCESS;
+			_userLock.unlock();
+
+			if (reactorRetCode < RSSL_RET_SUCCESS)
+			{
+				if ( OmmLoggerClient::ErrorEnum >= _activeServerConfig.loggerConfig.minLoggerSeverity || hasErrorClientHandler() )
+				{
+					EmaString temp("Call to rsslReactorDispatch() failed. Internal sysError='");
+					temp.append(_reactorDispatchErrorInfo.rsslError.sysError)
+						.append("' Error Id ").append(_reactorDispatchErrorInfo.rsslError.rsslErrorId).append("' ")
+						.append("' Error Location='").append(_reactorDispatchErrorInfo.errorLocation).append("' ")
+						.append("' Error text='").append(_reactorDispatchErrorInfo.rsslError.text).append("'. ");
+
+					_userLock.lock();
+
+					if (hasErrorClientHandler())
+					{
+						getErrorClientHandler().onDispatchError(temp, _reactorDispatchErrorInfo.rsslErrorInfoCode);
+					}
+
+					if (OmmLoggerClient::ErrorEnum >= _activeServerConfig.loggerConfig.minLoggerSeverity)
+					{
+						if (_pLoggerClient) _pLoggerClient->log(_activeServerConfig.instanceName, OmmLoggerClient::ErrorEnum, temp);
+					}
+
+					_userLock.unlock();
+				}
+
+				return -2;
+			}
+
 			TimeOut::execute(*this);
 
 			if (bMsgDispRcvd) return 0;
@@ -1726,7 +1825,7 @@ void OmmServerBaseImpl::handleJce(const char* text, Int32 errorCode, RsslReactor
 	{
 		getErrorClientHandler().onJsonConverter(text, errorCode, reactorChannel, clientSession, provider);
 	}
-	else
+	else if (!isApiDispatching())
 		throwJConverterException(text, errorCode, reactorChannel, clientSession, provider);
 }
 
@@ -2290,4 +2389,13 @@ RsslRet OmmServerBaseImpl::serviceNameToIdCallback(RsslReactor *pReactor, RsslBu
 	}
 
 	return RSSL_RET_FAILURE;
+}
+
+void OmmServerBaseImpl::saveNegotiatedPingTimeout(UInt32 timeoutMs)
+{
+	if ( timeoutMs > 0 )
+	{
+		if ( _negotiatedPingTimeout == 0 || timeoutMs < _negotiatedPingTimeout )
+			_negotiatedPingTimeout = timeoutMs;
+	}
 }

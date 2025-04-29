@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -462,10 +462,10 @@ namespace LSEG.Eta.Codec
 		{
 			int result = SEED;
 
-			result = PRIME * result * (_timeliness + 1);
-			result = PRIME * result * (_rate + 2);
-			result = PRIME * result * (_timeInfo + 3);
-			result = PRIME * result * (_rateInfo + 4);
+			result = PRIME * result ^ (_timeliness + 1);
+			result = PRIME * result ^ (_rate + 2);
+			result = PRIME * result ^ (_timeInfo + 3);
+			result = PRIME * result ^ (_rateInfo + 4);
 
 			return result;
 		}

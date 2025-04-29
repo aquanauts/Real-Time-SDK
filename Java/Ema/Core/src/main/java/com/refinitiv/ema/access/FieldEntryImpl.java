@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -97,8 +97,8 @@ class FieldEntryImpl extends EntryImpl implements FieldEntry
 	public String toString()
 	{
 		if ( _load == null )
-			return "\nDecoding of just encoded object in the same application is not supported\n";
-		
+			return "\nEntity is not encoded yet. Complete encoding to use this method.\n";
+
 		_toString.setLength(0);
 		_toString.append("FieldEntry ")
 				.append(" fid=\"").append(fieldId()).append("\"")
@@ -204,6 +204,12 @@ class FieldEntryImpl extends EntryImpl implements FieldEntry
 	public FieldEntry xml(int fieldId, OmmXml value)
 	{
 		return entryValue(fieldId, com.refinitiv.eta.codec.DataTypes.XML, (DataImpl) value);
+	}
+
+	@Override
+	public FieldEntry json(int fieldId, OmmJson value)
+	{
+		return entryValue(fieldId, com.refinitiv.eta.codec.DataTypes.JSON, (DataImpl) value);
 	}
 
 	@Override

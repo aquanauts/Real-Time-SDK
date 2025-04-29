@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -49,7 +49,7 @@ public class NIProviderRole extends ReactorRole
     static final int FIELD_DICTIONARY_STREAM_ID = -2;
     static final int ENUM_DICTIONARY_STREAM_ID = -3;
     static final int OPEN_LIMIT = 5;
-    static final String VENDOR = "Refinitiv";
+    static final String VENDOR = "LSEG";
     static final String LINK_NAME = "NI_PUB";
     static final String FIELD_DICTIONARY_NAME = "RWFFld";
     static final String ENUM_TYPE_DICTIONARY_NAME = "RWFEnum";

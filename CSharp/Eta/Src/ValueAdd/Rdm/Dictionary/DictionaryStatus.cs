@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -138,7 +138,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         }
 
         /// <summary>
-        /// Encodes this Directory Status message using the provided <c>encodeIter</c>.
+        /// Encodes this Dictionary Status message using the provided <c>encodeIter</c>.
         /// </summary>
         /// <param name="encodeIter">Encode iterator that has a buffer set to encode into.</param>
         /// <returns><see cref="CodecReturnCode"/> indicating success or failure.</returns>
@@ -158,10 +158,10 @@ namespace LSEG.Eta.ValueAdd.Rdm
         }
 
         /// <summary>
-        /// Decodes this Directory Status using the provided <c>decodeIter</c> and the incoming <c>msg</c>.
+        /// Decodes this Dictionary Status using the provided <c>decodeIter</c> and the incoming <c>msg</c>.
         /// </summary>
         /// <param name="decodeIter">Decode iterator that has already decoded the initial message.</param>
-        /// <param name="msg">Decoded Msg object for this Directory Status message.</param>
+        /// <param name="msg">Decoded Msg object for this Dictionary Status message.</param>
         /// <returns><see cref="CodecReturnCode"/> indicating success or failure.</returns>
         public override CodecReturnCode Decode(DecodeIterator decodeIter, Msg msg)
         {
@@ -191,14 +191,14 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             StringBuilder stringBuf = PrepareStringBuilder();
-            stringBuf.Insert(0, "DictionaryStatus: \n");
+            stringBuf.Insert(0, $"DictionaryStatus: {NewLine}");
 
             if (HasState)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("state: ");
                 stringBuf.Append(State);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             return stringBuf.ToString();

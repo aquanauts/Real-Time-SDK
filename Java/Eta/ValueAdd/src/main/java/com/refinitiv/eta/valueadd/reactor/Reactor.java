@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022,2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -86,6 +86,7 @@ import com.refinitiv.eta.transport.WriteArgs;
 import com.refinitiv.eta.transport.WriteArgsImpl;
 import com.refinitiv.eta.valueadd.common.SelectableBiDirectionalQueue;
 import com.refinitiv.eta.valueadd.common.VaDoubleLinkList;
+import com.refinitiv.eta.valueadd.common.VaPool;
 import com.refinitiv.eta.valueadd.common.VaQueue;
 import com.refinitiv.eta.valueadd.domainrep.rdm.MsgBase;
 import com.refinitiv.eta.valueadd.domainrep.rdm.dictionary.DictionaryClose;
@@ -150,6 +151,9 @@ public class Reactor
 	ReactorOptions _reactorOptions = ReactorFactory.createReactorOptions();
 	ReactorChannel _reactorChannel = null;
 	ReactorChannelInfo _reactorChannelInfo = ReactorFactory.createReactorChannelInfo();
+	FileDumper _fileDumper;
+	
+	VaPool _reactorChannelPool = new VaPool(true);
 
 	// queue between reactor and worker
 	SelectableBiDirectionalQueue _workerQueue = null;
@@ -286,6 +290,11 @@ public class Reactor
 			_reactorOptions.copy(options);
 			debugger = ReactorFactory.createReactorDebugger(_reactorOptions.debuggerOptions().outputStream(),
 					_reactorOptions.debuggerOptions().capacity());
+
+			if (options.xmlTraceToFile()){
+			_fileDumper = new FileDumper(options.xmlTraceFileName(), options.xmlTraceToMultipleFiles(), options.xmlTraceMaxFileSize());
+		}
+
 		} else
 		{
 			populateErrorInfo(errorInfo, ReactorReturnCodes.FAILURE, "Reactor.constructor",
@@ -351,7 +360,7 @@ public class Reactor
 
 			// create a new ReactorChannel and populate with the readChannel
 			// side of our _workerQueue.
-			_reactorChannel = ReactorFactory.createReactorChannel();
+			_reactorChannel = ReactorFactory.createReactorChannel(this);
 			_reactorChannel.reactor(this);
 			_reactorChannel.userSpecObj(this);
 
@@ -579,7 +588,7 @@ public class Reactor
 			}
 
 			// create a ReactorChannel and add it to the initChannelQueue.
-			ReactorChannel reactorChannel = ReactorFactory.createReactorChannel();
+			ReactorChannel reactorChannel = ReactorFactory.createReactorChannel(this);
 			reactorChannel.state(State.INITIALIZING);
 			reactorChannel.role(role);
 			reactorChannel.reactor(this);
@@ -722,7 +731,7 @@ public class Reactor
 			}
 
 			// create a ReactorChannel
-			ReactorChannel reactorChannel = ReactorFactory.createReactorChannel();
+			ReactorChannel reactorChannel = ReactorFactory.createReactorChannel(this);
 			reactorChannel.reactor(this);
 
 			reactorChannel.reactorConnectOptions(reactorConnectOptions);
@@ -755,7 +764,7 @@ public class Reactor
 					for (int i = 0; i < reactorChannel.getReactorConnectOptions().reactorWarmStandbyGroupList()
 							.size(); i++)
 					{
-						ReactorWarmStandbyGroupImpl reactorWarmStandbyGroupImpl = (ReactorWarmStandbyGroupImpl) reactorConnectOptions
+						ReactorWarmStandbyGroupImpl reactorWarmStandbyGroupImpl = (ReactorWarmStandbyGroupImpl) warmStandbyHandlerImpl.getConnectionOptions()
 								.reactorWarmStandbyGroupList().get(i);
 
 						if (reactorWarmStandbyGroupImpl.warmStandbyMode() == ReactorWarmStandbyMode.SERVICE_BASED)
@@ -765,14 +774,20 @@ public class Reactor
 									.startingActiveServer().perServiceBasedOptions();
 							for (int j = 0; j < serviceOpts.serviceNameList().size(); j++)
 							{
-								ReactorWSBService service = ReactorFactory.createWsbService();
 								Buffer serviceName = serviceOpts.serviceNameList().get(j);
-								ByteBuffer nameBytes = ByteBuffer.allocate(serviceName.length());
-								service.serviceName.data(nameBytes);
-
-								serviceName.copy(service.serviceName);
-								service.standbyListIndex = ReactorWarmStandbyGroupImpl.REACTOR_WSB_STARTING_SERVER_INDEX;
-								reactorWarmStandbyGroupImpl._startupServiceNameList.put(service.serviceName, service);
+								
+								if(serviceName.length() > 0)
+								{
+									ReactorWSBService service = ReactorFactory.createWsbService();	
+									service.serviceName.data(serviceName.toString().trim());
+									
+									/* Don't add to the service name list with the existing service name */
+									if(reactorWarmStandbyGroupImpl._startupServiceNameList.containsKey(service.serviceName) == false)
+									{
+										service.standbyListIndex = ReactorWarmStandbyGroupImpl.REACTOR_WSB_STARTING_SERVER_INDEX;
+										reactorWarmStandbyGroupImpl._startupServiceNameList.put(service.serviceName, service);
+									}
+								}
 							}
 
 							// Now copy the Standby service Opts for the standbys
@@ -782,16 +797,20 @@ public class Reactor
 										.standbyServerList().get(j);
 								for (int k = 0; k < serverInfo.perServiceBasedOptions().serviceNameList().size(); k++)
 								{
-									ReactorWSBService service = ReactorFactory.createWsbService();
-									
 									Buffer serviceName = serverInfo.perServiceBasedOptions().serviceNameList().get(k);
-									ByteBuffer nameBytes = ByteBuffer.allocate(serviceName.length());
-									service.serviceName.data(nameBytes);
 
-									serviceName.copy(service.serviceName);
-									service.standbyListIndex = k;
-									reactorWarmStandbyGroupImpl._startupServiceNameList.put(service.serviceName,
-											service);
+									if(serviceName.length() > 0)
+									{
+										ReactorWSBService service = ReactorFactory.createWsbService();
+										service.serviceName.data(serviceName.toString().trim());
+										
+										/* Don't add to the service name list with the existing service name */
+										if(reactorWarmStandbyGroupImpl._startupServiceNameList.containsKey(service.serviceName) == false)
+										{
+											service.standbyListIndex = j;
+											reactorWarmStandbyGroupImpl._startupServiceNameList.put(service.serviceName, service);
+										}
+									}
 								}
 							}
 						} else if (reactorWarmStandbyGroupImpl.warmStandbyMode() != ReactorWarmStandbyMode.LOGIN_BASED)
@@ -849,7 +868,7 @@ public class Reactor
 
 					reactorChannel.standByServerListIndex = ReactorWarmStandbyGroupImpl.REACTOR_WSB_STARTING_SERVER_INDEX;
 
-					warmStandbyHandlerImpl.mainReactorChannelImpl(ReactorFactory.createReactorChannel());
+					warmStandbyHandlerImpl.mainReactorChannelImpl(ReactorFactory.createReactorChannel(this));
 					warmStandbyHandlerImpl.mainReactorChannelImpl().warmStandByHandlerImpl = warmStandbyHandlerImpl;
 					warmStandbyHandlerImpl.mainReactorChannelImpl().role(reactorChannel.role());
 					warmStandbyHandlerImpl.setConnectingToStartingServerState();
@@ -928,12 +947,17 @@ public class Reactor
 				tokenSession.originalExpiresIn(tokenSession.authTokenInfo().expiresIn());
 
 				sendAuthTokenEvent = true;
+				
+				/* Sets the session state of token session */
+				tokenSession.receivedAuthToken();
 
 				/* Clears OAuth sensitive information if the callback is specified */
 				if (tokenSession.oAuthCredential().reactorOAuthCredentialEventCallback() != null)
 				{
 					tokenSession.oAuthCredential().password().clear();
 					tokenSession.oAuthCredential().clientSecret().clear();
+					tokenSession.oAuthCredential().clientJwk().clear();
+					tokenSession.authOptoins().clearSensitiveInfo();
 				}
 			}
 
@@ -957,6 +981,23 @@ public class Reactor
 			ConnectOptions connectOptions = reactorChannel.getCurrentReactorConnectInfo().connectOptions();
 			connectOptions.channelReadLocking(true);
 			connectOptions.channelWriteLocking(true);
+			
+			// If warm standby enabled, set read/write locking for standby servers
+			if (reactorConnectOptions.reactorWarmStandbyGroupList() != null
+					&& reactorConnectOptions.reactorWarmStandbyGroupList().size() > 0)
+			{
+				for (int i = 0; i < reactorChannel.getReactorConnectOptions().reactorWarmStandbyGroupList()
+						.size(); i++)
+				{
+					ReactorWarmStandbyGroupImpl reactorWarmStandbyGroupImpl = (ReactorWarmStandbyGroupImpl) reactorChannel.getReactorConnectOptions()
+							.reactorWarmStandbyGroupList().get(i);
+					for (int j = 0; j < reactorWarmStandbyGroupImpl.standbyServerList().size(); j++)
+					{
+						reactorWarmStandbyGroupImpl.standbyServerList().get(j).reactorConnectInfo().connectOptions().channelReadLocking(true);
+						reactorWarmStandbyGroupImpl.standbyServerList().get(j).reactorConnectInfo().connectOptions().channelWriteLocking(true);					
+					}
+				}
+			}
 
 			// call Transport.connect to create a new Channel
 			Channel channel = Transport.connect(connectOptions, errorInfo.error());
@@ -1452,7 +1493,7 @@ public class Reactor
 				populateErrorInfo(errorInfo, ReactorReturnCodes.PARAMETER_INVALID, "Reactor.connect",
 						"Reactor.connect(): Invalid connection type: "
 								+ ConnectionTypes.toString(reactorConnectInfo.connectOptions().connectionType())
-								+ " for requesting EDP-RT service discovery.");
+								+ " for requesting Delivery Platform service discovery.");
 				return ReactorReturnCodes.PARAMETER_INVALID;
 			}
 		}
@@ -1460,14 +1501,15 @@ public class Reactor
 		tokenSession.lock();
 
 		reactorChannel.state(State.EDP_RT);
-		tokenSession.setProxyInfo(reactorConnectInfo);
+		tokenSession.setProxyInfo(reactorConnectInfo, _reactorOptions.restProxyOptions());
 
 		try
 		{
 			if (tokenSession.sessionMgntState() == SessionState.REQUEST_TOKEN_FAILURE
 					|| tokenSession.sessionMgntState() == SessionState.STOP_TOKEN_REQUEST
 					|| tokenSession.sessionMgntState() == SessionState.REQ_AUTH_TOKEN_USING_PASSWORD
-					|| tokenSession.sessionMgntState() == SessionState.REQ_AUTH_TOKEN_USING_REFRESH_TOKEN)
+					|| tokenSession.sessionMgntState() == SessionState.REQ_AUTH_TOKEN_USING_REFRESH_TOKEN
+					|| tokenSession.sessionMgntState() == SessionState.REQ_AUTH_TOKEN_USING_V2_CREDENTIAL)
 			{
 				return ReactorReturnCodes.SUCCESS;
 			}
@@ -1523,7 +1565,7 @@ public class Reactor
 
 	static boolean requestServiceDiscovery(ReactorConnectInfo reactorConnectInfo)
 	{
-		// only use the EDP-RT connection information if not specified by the user
+		// only use the Delivery Platform (formerly EDP) connection information if not specified by the user
 		if ((reactorConnectInfo.connectOptions().unifiedNetworkInfo().address() == null
 				&& reactorConnectInfo.connectOptions().unifiedNetworkInfo().serviceName() == null)
 				|| (reactorConnectInfo.connectOptions().unifiedNetworkInfo().address() != null
@@ -1568,7 +1610,7 @@ public class Reactor
 	}
 
 	/**
-	 * Queries EDP-RT service discovery to get service endpoint information.
+	 * Queries Delivery Platform service discovery to get service endpoint information.
 	 *
 	 * @param options   The {@link ReactorServiceDiscoveryOptions} to configure
 	 *                  options and specify the ReactorServiceEndpointEventCallback
@@ -1699,7 +1741,7 @@ public class Reactor
 				authOptions.audience(options.audience().toString());
 				authOptions.tokenScope(options.tokenScope().toString());
 
-				connOptions.applyServiceDiscoveryOptions(options);
+				connOptions.applyServiceDiscoveryOptions(options, _reactorOptions.restProxyOptions());
 
 				if (_restClient.getAuthAccessTokenInfo(authOptions, connOptions, authTokenInfo, true,
 						errorInfo) != ReactorReturnCodes.SUCCESS)
@@ -1785,9 +1827,9 @@ public class Reactor
 
 			if (tokenSession == null)
 			{
-				if (oAuthCredentialRenewal.userName() == null || oAuthCredentialRenewal.userName().isBlank())
+				if (oAuthCredentialRenewal.userName() == null || oAuthCredentialRenewal.userName().length() == 0)
 				{
-					if (oAuthCredentialRenewal.clientId() == null || oAuthCredentialRenewal.clientId().isBlank())
+					if (oAuthCredentialRenewal.clientId() == null || oAuthCredentialRenewal.clientId().length() == 0)
 					{
 						return populateErrorInfo(errorInfo, ReactorReturnCodes.PARAMETER_INVALID,
 								"Reactor.submitOAuthCredentialRenewal",
@@ -1795,7 +1837,7 @@ public class Reactor
 					}
 				}
 
-				if (oAuthCredentialRenewal.clientId() == null || oAuthCredentialRenewal.clientId().isBlank())
+				if (oAuthCredentialRenewal.clientId() == null || oAuthCredentialRenewal.clientId().length() == 0)
 				{
 					return populateErrorInfo(errorInfo, ReactorReturnCodes.PARAMETER_INVALID,
 							"Reactor.submitOAuthCredentialRenewal",
@@ -1810,13 +1852,16 @@ public class Reactor
 				}
 			}
 
-			if ((oAuthCredentialRenewal.password() == null || oAuthCredentialRenewal.password().isBlank())
+			if ((oAuthCredentialRenewal.password() == null || oAuthCredentialRenewal.password().length() == 0)
 					&& (oAuthCredentialRenewal.clientSecret() == null
-							|| oAuthCredentialRenewal.clientSecret().isBlank()))
+							|| oAuthCredentialRenewal.clientSecret().length() == 0)
+					&& (oAuthCredentialRenewal.clientJWK() == null
+					|| oAuthCredentialRenewal.clientJWK().length() == 0)
+					)
 			{
 				return populateErrorInfo(errorInfo, ReactorReturnCodes.PARAMETER_INVALID,
 						"Reactor.submitOAuthCredentialRenewal",
-						"ReactorOAuthCredentialRenewal.password() or clientSecret not provided, aborting.");
+						"ReactorOAuthCredentialRenewal.password(), clientSecret() or clientJWK() not provided, aborting.");
 			}
 
 			try
@@ -2461,24 +2506,35 @@ public class Reactor
 							warmStandbyHandler.warmStandbyHandlerState(state);
 							incrementWsbGroupIndex = true;
 							
-							if ((warmStandbyHandler.warmStandbyHandlerState()
-									& ReactorWarmStandbyHandlerState.MOVE_TO_NEXT_WSB_GROUP) != 0)
+							/* Checks whether this channel is recoverable before moving to a WSB group or channel list */
+							if(eventType != ReactorChannelEventTypes.CHANNEL_DOWN)
 							{
-								warmStandbyHandler.warmStandbyHandlerState(
-										ReactorWarmStandbyHandlerState.CONNECTING_TO_A_STARTING_SERVER);
-
-								warmStandbyHandler.startingReactorChannel()
-										.reactorChannelType(ReactorChannelType.WARM_STANDBY);
-								warmStandbyHandler.startingReactorChannel().resetReconnectTimers();
-								
-								queueRequestsForWSBGroupRecovery(warmStandbyHandler, errorInfo);
-							} else
-							{
-								warmStandbyHandler
-										.warmStandbyHandlerState(ReactorWarmStandbyHandlerState.MOVE_TO_CHANNEL_LIST);
-								warmStandbyHandler.startingReactorChannel()
-										.reactorChannelType(ReactorChannelType.NORMAL);
-								warmStandbyHandler.startingReactorChannel().resetReconnectTimers();
+								if ((warmStandbyHandler.warmStandbyHandlerState()
+										& ReactorWarmStandbyHandlerState.MOVE_TO_NEXT_WSB_GROUP) != 0)
+								{
+									warmStandbyHandler.warmStandbyHandlerState(
+											ReactorWarmStandbyHandlerState.CONNECTING_TO_A_STARTING_SERVER);
+	
+									warmStandbyHandler.startingReactorChannel()
+											.reactorChannelType(ReactorChannelType.WARM_STANDBY);
+									warmStandbyHandler.startingReactorChannel().resetReconnectTimers();
+									
+									queueRequestsForWSBGroupRecovery(warmStandbyHandler, errorInfo);
+									
+									/* Reset this flag for the submitWSBRequestQueue() method*/
+									warmStandbyHandler.startingReactorChannel().sendReqFromQueue = false;
+									
+									/* Submit the recovered queue message only for the standby servers */
+									warmStandbyHandler.startingReactorChannel().lastSubmitOptionsTime = System.nanoTime();
+								} 
+								else if (warmStandbyHandler.getConnectionOptions().connectionList().size() > 0)
+								{ /* Ensure that there is ChannelSet before changing to the MOVE_TO_CHANNEL_LIST state */
+									warmStandbyHandler
+											.warmStandbyHandlerState(ReactorWarmStandbyHandlerState.MOVE_TO_CHANNEL_LIST);
+									warmStandbyHandler.startingReactorChannel()
+											.reactorChannelType(ReactorChannelType.NORMAL);
+									warmStandbyHandler.startingReactorChannel().resetReconnectTimers();
+								}
 							}
 						}
 						
@@ -3486,7 +3542,7 @@ public class Reactor
 							if(reactorChannel.warmStandByHandlerImpl.rdmLoginRefresh().checkHasFeatures())
 							{
 								if (refreshRdmMsg.features().checkHasSupportPost())
-								{
+								{								
 									if(reactorChannel.warmStandByHandlerImpl.rdmLoginRefresh().features().checkHasSupportPost())
 									{
 										if(refreshRdmMsg.features().supportOMMPost() != reactorChannel.warmStandByHandlerImpl
@@ -3865,6 +3921,11 @@ public class Reactor
 							ReactorWSBService service = wsbGroup._updateServiceList.get(i);
 							service.serviceInfo.flags(service.updateServiceFilter);
 							service.serviceInfo.action(service.serviceAction);
+							
+							if((service.updateServiceFilter & ServiceFlags.HAS_STATE) != 0)
+							{
+								service.serviceState.copy(service.serviceInfo.state());
+							}
 	
 							updateMsg.serviceList().add(service.serviceInfo);
 	
@@ -4344,7 +4405,7 @@ public class Reactor
 					}
 				}
 
-				if (_reactorOptions.xmlTracing())
+				if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceWrite())
 				{
 					xmlString.setLength(0);
 					xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -4352,7 +4413,14 @@ public class Reactor
 							.append(new java.util.Date()).append(" -->\n");
 					xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(),
 							writeBuffer, null, xmlString, errorInfo.error());
-					System.out.println(xmlString);
+					if (_reactorOptions.xmlTracing()){
+						System.out.println(xmlString);
+					}
+					if (_reactorOptions.xmlTraceToFile()) {
+
+						_fileDumper.dump(xmlString.toString());
+
+					}
 				}
 
 				ret = reactorChannel.channel().write(writeBuffer, submitOptions.writeArgs(), errorInfo.error());
@@ -4776,7 +4844,7 @@ public class Reactor
 
 		if (msgBuf != null)
 		{
-			if (_reactorOptions.xmlTracing())
+			if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceRead())
 			{
 				xmlString.setLength(0);
 				xmlString.append("\n<!-- Incoming Reactor message -->\n").append("<!-- ")
@@ -4784,7 +4852,12 @@ public class Reactor
 						.append(new java.util.Date()).append(" -->\n");
 				xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(), msgBuf, null,
 						xmlString, errorInfo.error());
-				System.out.println(xmlString);
+				if (_reactorOptions.xmlTracing()){
+					System.out.println(xmlString);
+				}
+				if (_reactorOptions.xmlTraceToFile()) {
+					_fileDumper.dump(xmlString.toString());
+				}
 			}
 
 			// update ping handler
@@ -4842,7 +4915,7 @@ public class Reactor
 						{
 							failedToConvertJSONMsg = false;
 
-							if (_reactorOptions.xmlTracing())
+							if (_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile())
 							{
 								xmlString.setLength(0);
 								xmlString.append("\n<!-- Dump Reactor message -->\n").append("<!-- ")
@@ -4851,7 +4924,12 @@ public class Reactor
 								xmlDumpTrace.dumpBuffer(reactorChannel.majorVersion(), reactorChannel.minorVersion(),
 										Codec.RWF_PROTOCOL_TYPE, jsonMsg.rwfMsg().encodedMsgBuffer(), null, xmlString,
 										errorInfo.error());
-								System.out.println(xmlString);
+								if (_reactorOptions.xmlTracing()){
+									System.out.println(xmlString);
+								}
+								if (_reactorOptions.xmlTraceToFile()) {
+									_fileDumper.dump(xmlString.toString());
+								}
 							}
 
 							// inspect the converted message and dispatch it to the application.
@@ -4875,7 +4953,7 @@ public class Reactor
 							{
 								msgBuffer.data().put(JSON_PONG_MESSAGE.getBytes());
 
-								if (_reactorOptions.xmlTracing())
+								if (_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile())
 								{
 									xmlString.setLength(0);
 									xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -4883,7 +4961,12 @@ public class Reactor
 											.append("<!-- ").append(new java.util.Date()).append(" -->\n");
 									xmlDumpTrace.dumpBuffer(reactorChannel.channel(), Codec.JSON_PROTOCOL_TYPE,
 											msgBuffer, null, xmlString, errorInfo.error());
-									System.out.println(xmlString);
+									if (_reactorOptions.xmlTracing()){
+										System.out.println(xmlString);
+									}
+									if (_reactorOptions.xmlTraceToFile()) {
+										_fileDumper.dump(xmlString.toString());
+									}
 								}
 
 								/* Reply with JSON PONG message to the sender */
@@ -5105,6 +5188,21 @@ public class Reactor
 				}
 			} else if (readArgs.readRetVal() == TransportReturnCodes.READ_PING)
 			{
+				if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTracePing())
+				{
+					xmlString.setLength(0);
+					xmlString.append("\n<!-- Incoming Ping message -->\n").append("<!-- ")
+							.append(reactorChannel.selectableChannel().toString()).append(" -->\n").append("<!-- ")
+							.append(new java.util.Date()).append(" -->\n");
+					if (_reactorOptions.xmlTracing()){
+						System.out.println(xmlString);
+					}
+					if (_reactorOptions.xmlTraceToFile()) {
+
+						_fileDumper.dump(xmlString.toString());
+
+					}
+				}
 				reactorChannel.pingHandler().receivedMsg();
 			}
 		}
@@ -5737,7 +5835,7 @@ public class Reactor
 							tokenSession = null;
 							warmStandbyServerInfo = warmStandbyGroup.standbyServerList().get(index);
 
-							standbyReactorChannel = ReactorFactory.createReactorChannel();
+							standbyReactorChannel = ReactorFactory.createReactorChannel(this);
 
 							/* just need to store the reference here */
 							standbyReactorChannel._reactorConnectOptions = startingReactorChannel
@@ -5745,7 +5843,7 @@ public class Reactor
 
 							standbyReactorChannel
 									.initializationTimeout(warmStandbyServerInfo.reactorConnectInfo().initTimeout());
-							standbyReactorChannel.userSpecObj(startingReactorChannel.userSpecObj());
+							standbyReactorChannel.userSpecObj(warmStandbyServerInfo.reactorConnectInfo().connectOptions().userSpecObject());
 							standbyReactorChannel.flags(startingReactorChannel.flags);
 							standbyReactorChannel.reconnectAttemptLimit(startingReactorChannel.reconnectAttemptLimit());
 							standbyReactorChannel.reconnectMinDelay(startingReactorChannel.reconnectMinDelay());
@@ -5826,6 +5924,8 @@ public class Reactor
 									}
 
 									standbyReactorChannel.applyAccessToken();
+									
+									tokenSession.receivedAuthToken();
 
 									/* Set original expires in when sending request using password grant type */
 									tokenSession.originalExpiresIn(tokenSession.authTokenInfo().expiresIn());
@@ -5860,6 +5960,7 @@ public class Reactor
 									{
 										tokenSession.oAuthCredential().password().clear();
 										tokenSession.oAuthCredential().clientSecret().clear();
+										tokenSession.authOptoins().clearSensitiveInfo();
 									}
 
 								}
@@ -6407,7 +6508,7 @@ public class Reactor
 			}
 		}
 
-		if (_reactorOptions.xmlTracing())
+		if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceWrite())
 		{
 			xmlString.setLength(0);
 			xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -6415,7 +6516,12 @@ public class Reactor
 					.append(new java.util.Date()).append(" -->\n");
 			xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(), msgBuf, null,
 					xmlString, errorInfo.error());
-			System.out.println(xmlString);
+			if (_reactorOptions.xmlTracing()){
+				System.out.println(xmlString);
+			}
+			if (_reactorOptions.xmlTraceToFile()) {
+				_fileDumper.dump(xmlString.toString());
+			}
 		}
 		retval = channel.write(msgBuf, _writeArgs, errorInfo.error());
 
@@ -6615,7 +6721,7 @@ public class Reactor
 			}
 		}
 
-		if (_reactorOptions.xmlTracing())
+		if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceWrite())
 		{
 			xmlString.setLength(0);
 			xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -6623,7 +6729,12 @@ public class Reactor
 					.append(new java.util.Date()).append(" -->\n");
 			xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(), msgBuf, null,
 					xmlString, errorInfo.error());
-			System.out.println(xmlString);
+			if (_reactorOptions.xmlTracing()){
+				System.out.println(xmlString);
+			}
+			if (_reactorOptions.xmlTraceToFile()) {
+				_fileDumper.dump(xmlString.toString());
+			}
 		}
 
 		retval = channel.write(msgBuf, _writeArgs, errorInfo.error());
@@ -6762,7 +6873,7 @@ public class Reactor
 			}
 		}
 
-		if (_reactorOptions.xmlTracing())
+		if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceWrite())
 		{
 			xmlString.setLength(0);
 			xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -6770,7 +6881,12 @@ public class Reactor
 					.append(new java.util.Date()).append(" -->\n");
 			xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(), msgBuf, null,
 					xmlString, errorInfo.error());
-			System.out.println(xmlString);
+			if (_reactorOptions.xmlTracing()){
+				System.out.println(xmlString);
+			}
+			if (_reactorOptions.xmlTraceToFile()) {
+				_fileDumper.dump(xmlString.toString());
+			}
 		}
 		retval = channel.write(msgBuf, _writeArgs, errorInfo.error());
 
@@ -6907,7 +7023,7 @@ public class Reactor
 			}
 		}
 
-		if (_reactorOptions.xmlTracing())
+		if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceWrite())
 		{
 			xmlString.setLength(0);
 			xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -6915,7 +7031,12 @@ public class Reactor
 					.append(new java.util.Date()).append(" -->\n");
 			xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(), msgBuf, null,
 					xmlString, errorInfo.error());
-			System.out.println(xmlString);
+			if (_reactorOptions.xmlTracing()){
+				System.out.println(xmlString);
+			}
+			if (_reactorOptions.xmlTraceToFile()) {
+				_fileDumper.dump(xmlString.toString());
+			}
 		}
 		retval = channel.write(msgBuf, _writeArgs, errorInfo.error());
 
@@ -7055,7 +7176,7 @@ public class Reactor
 			}
 		}
 
-		if (_reactorOptions.xmlTracing())
+		if ((_reactorOptions.xmlTracing() || _reactorOptions.xmlTraceToFile()) && _reactorOptions.xmlTraceWrite())
 		{
 			xmlString.setLength(0);
 			xmlString.append("\n<!-- Outgoing Reactor message -->\n").append("<!-- ")
@@ -7063,7 +7184,12 @@ public class Reactor
 					.append(new java.util.Date()).append(" -->\n");
 			xmlDumpTrace.dumpBuffer(reactorChannel.channel(), reactorChannel.channel().protocolType(), msgBuf, null,
 					xmlString, errorInfo.error());
-			System.out.println(xmlString);
+			if (_reactorOptions.xmlTracing()){
+				System.out.println(xmlString);
+			}
+			if (_reactorOptions.xmlTraceToFile()) {
+				_fileDumper.dump(xmlString.toString());
+			}
 		}
 		retval = channel.write(msgBuf, _writeArgs, errorInfo.error());
 
@@ -7881,10 +8007,6 @@ public class Reactor
 						converterError.getText());
 			}
 
-			jsonConverterUserSpec = jsonConverterOptions.userSpec();
-			serviceNameToIdCallback = jsonConverterOptions.serviceNameToIdCallback();
-			JsonConversionEventCallback = jsonConverterOptions.jsonConversionEventCallback();
-			closeChannelFromFailure = jsonConverterOptions.closeChannelFromFailure();
 			sendJsonConvError = jsonConverterOptions.sendJsonConvError();
 		} finally
 		{
@@ -8600,7 +8722,53 @@ public class Reactor
 			submitChannel = wsbHandler.channelList().get(i);
 			
 			if(submitChannel.watchlist().directoryHandler()._serviceCache.initDirectory == false)
-				continue;
+			{
+				if (msg.domainType() != DomainTypes.LOGIN && 
+						msg.msgClass() == MsgClasses.REQUEST)
+				{
+					if(wsbGroup.sendQueueReqForAll)
+					{
+						if(submitChannel.sendReqFromQueue)
+						{
+							wsbGroup.sendQueueReqForAll = false; // Reset this flag to get message from the queue later once the service is available
+							wsbGroup.sendReqQueueCount--; // Reduce the counter for this channel
+							submitChannel.sendReqFromQueue = false; // Reset to send from the queue again
+							
+							if (wsbHandler.freeSubmitMsgQueue().size() > 0)
+								submitOpts = wsbHandler.freeSubmitMsgQueue().remove(0);
+							else
+								submitOpts = new ReactorWLSubmitMsgOptions();
+	
+							if (msg.copy(submitOpts.msg, CopyMsgFlags.ALL_FLAGS) == CodecReturnCodes.FAILURE)
+							{
+								return populateErrorInfo(errorInfo, ReactorReturnCodes.FAILURE, "reactor.submitWSBMsg",
+										"Cannot copy submit message options");
+							}
+	
+							submitOpts.submitOptions.serviceName(submitOptions.serviceName());
+							submitOpts.submitOptions.requestMsgOptions()
+									.userSpecObj(submitOptions.requestMsgOptions().userSpecObj());
+	
+							addMsgToQueue = true;
+							submitOpts.submitTime = System.nanoTime();
+						}
+					}
+					else
+					{
+						if(submitChannel.sendReqFromQueue)
+						{
+							wsbGroup.sendReqQueueCount--; // Reduce the counter for this channel
+							submitChannel.sendReqFromQueue = false; // Reset to send from the queue again
+						}
+					}
+					
+					continue;
+				}
+				else if(msg.msgClass() != MsgClasses.CLOSE)
+				{
+					continue;
+				}
+			}
 
 			switch (msg.msgClass())
 			{
@@ -8780,13 +8948,18 @@ public class Reactor
 				}
 			}
 
-			if (ret != ReactorReturnCodes.SUCCESS || stopSubmitLoop)
+			if (ret != ReactorReturnCodes.SUCCESS)
 			{
 				break;
 			}
+			else
+			{
+				submitChannel.lastSubmitOptionsTime = System.nanoTime();
+				
+				if(stopSubmitLoop)
+					break;
+			}
 		}
-		
-		this._reactorChannel.lastSubmitOptionsTime = System.nanoTime();
 
 		if (addMsgToQueue)
 		{
@@ -9036,9 +9209,9 @@ public class Reactor
 
 	void cleanUpWSBRequestQueue(ReactorWarmStandbyHandler wsbHandler, ReactorWarmStandbyGroupImpl wsbGroup)
 	{
-		if (wsbGroup.sendReqQueueCount <= wsbGroup.standbyServerList().size())
+		if (wsbGroup.sendReqQueueCount < wsbGroup.standbyServerList().size())
 		{
-			if ((wsbGroup.sendReqQueueCount) == wsbGroup.standbyServerList().size())
+			if ((wsbGroup.sendReqQueueCount + 1) == wsbGroup.standbyServerList().size())
 			{
 				wsbGroup.sendQueueReqForAll = true;
 				wsbGroup.sendReqQueueCount = wsbGroup.standbyServerList().size() + 1;
@@ -9065,9 +9238,14 @@ public class Reactor
 			ReactorChannel reactorChannel, ReactorErrorInfo errorInfo)
 	{
 		int retVal = ReactorReturnCodes.SUCCESS;
-		if (wsbGroup.sendReqQueueCount <= wsbGroup.standbyServerList().size())
+		
+		if(reactorChannel.sendReqFromQueue)
+			return retVal;
+		
+		/* Include the count for the starting server as well */
+		if (wsbGroup.sendReqQueueCount < wsbGroup.standbyServerList().size() + 1)
 		{
-			if ((wsbGroup.sendReqQueueCount) == wsbGroup.standbyServerList().size())
+			if ((wsbGroup.sendReqQueueCount + 1) == (wsbGroup.standbyServerList().size() + 1))
 			{
 				wsbGroup.sendQueueReqForAll = true;
 				wsbGroup.sendReqQueueCount = wsbGroup.standbyServerList().size() + 1;
@@ -9144,6 +9322,7 @@ public class Reactor
 		}
 		
 		reactorChannel.lastSubmitOptionsTime = System.nanoTime();
+		reactorChannel.sendReqFromQueue = true;
 
 		return retVal;
 	}

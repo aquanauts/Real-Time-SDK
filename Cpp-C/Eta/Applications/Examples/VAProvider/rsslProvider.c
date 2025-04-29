@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2020 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2020 LSEG. All rights reserved.
 */
 
 
@@ -65,6 +65,8 @@ static time_t debugInfoIntervalMS = 50;
 static time_t nextDebugTimeMS = 0;
 static RsslUInt32 reactorDebugLevel = RSSL_RC_DEBUG_LEVEL_NONE;
 
+static RsslEncryptionProtocolTypes tlsProtocol = RSSL_ENC_NONE;
+
 static RsslClientSessionInfo clientSessions[MAX_CLIENT_SESSIONS];
 
 static RsslVACacheInfo cacheInfo;
@@ -95,6 +97,8 @@ void exitWithUsage()
 	printf("\t-keyfile <required filename of the server private key file> -cert <required filname of the server certificate> -cipher <optional OpenSSL formatted list of ciphers>\n");
 	printf(" -libsslName specifies the name of libssl shared object\n");
 	printf(" -libcryptoName specifies the name of libcrypto shared object\n");
+	printf(" -spTLSv1.2 enable use of cryptographic protocol TLSv1.2 used with linux encrypted connections\n");
+	printf(" -spTLSv1.3 enable use of cryptographic protocol TLSv1.3 used with linux encrypted connections\n");
 	printf(" -maxEventsInPool size of event pool\n");
 	printf(" -debugConn set 'connection' rector debug info level");
 	printf(" -debugEventQ set 'eventqueue' rector debug info level");
@@ -128,6 +132,22 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 			RsslErrorInfo rsslErrorInfo;
 #endif
 			printf("Connection up!\n");
+
+			RsslChannelInfo rsslChannelInfo;
+			RsslError rsslError;
+			rsslGetChannelInfo(pReactorChannel->pRsslChannel, &rsslChannelInfo, &rsslError);
+			switch (rsslChannelInfo.encryptionProtocol)
+			{
+			case RSSL_ENC_TLSV1_2:
+				printf("Encryption protocol: TLSv1.2\n\n");
+				break;
+			case RSSL_ENC_TLSV1_3:
+				printf("Encryption protocol: TLSv1.3\n\n");
+				break;
+			default:
+				printf("Encryption protocol: unknown\n\n");
+			}
+
 			pClientSessionInfo->clientChannel = pReactorChannel;
 			printf("\nServer fd="SOCKET_PRINT_TYPE": New client on Channel fd="SOCKET_PRINT_TYPE"\n",
 					pReactorChannel->pRsslServer->socketId, pReactorChannel->socketId);
@@ -192,7 +212,7 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 			closeDirectoryStreamForChannel(pReactorChannel);
 			closeLoginStreamForChannel(pReactorChannel);
 
-			if(pClientSessionInfo->clientChannel == NULL)
+			if(pClientSessionInfo != NULL && pClientSessionInfo->clientChannel == NULL)
 			{
 				pClientSessionInfo->clientChannel = pReactorChannel;
 			}
@@ -267,9 +287,9 @@ int main(int argc, char **argv)
 	snprintf(portNo, 128, "%s", defaultPortNo);
 	snprintf(serviceName, 128, "%s", defaultServiceName);
 	snprintf(protocolList, 128, "%s", defaultProtocols);
-	snprintf(certFile, 128, "\0");
-	snprintf(keyFile, 128, "\0");
-	snprintf(cipherSuite, 128, "\0");
+	snprintf(certFile, 128, "%s", "");
+	snprintf(keyFile, 128, "%s", "");
+	snprintf(cipherSuite, 128, "%s", "");
 	connType = RSSL_CONN_TYPE_SOCKET;
 	setServiceId(1);
 	for (iargs = 1; iargs < argc; ++iargs)
@@ -328,7 +348,7 @@ int main(int argc, char **argv)
 		else if (0 == strcmp("-x", argv[iargs]))
 		{
 			xmlTrace = RSSL_TRUE;
-			snprintf(traceOutputFile, 128, "RsslVAProvider\0");
+			snprintf(traceOutputFile, 128, "RsslVAProvider");
 		}
 		else if (0 == strcmp("-maxFragmentSize", argv[iargs]))
 		{
@@ -403,6 +423,14 @@ int main(int argc, char **argv)
 		else if (0 == strcmp("-sendJsonConvError", argv[iargs]))
 		{
 			sendJsonConvError = RSSL_TRUE;
+		}
+		else if (0 == strcmp("-spTLSv1.2", argv[iargs]))
+		{
+			tlsProtocol |= RSSL_ENC_TLSV1_2;
+		}
+		else if (0 == strcmp("-spTLSv1.3", argv[iargs]))
+		{
+			tlsProtocol |= RSSL_ENC_TLSV1_3;
 		}
 		else
 		{
@@ -526,6 +554,9 @@ int main(int argc, char **argv)
 	sopts.connectionType = connType;
 	sopts.encryptionOpts.serverCert = certFile;
 	sopts.encryptionOpts.serverPrivateKey = keyFile;
+
+	if (tlsProtocol != RSSL_ENC_NONE)
+		sopts.encryptionOpts.encryptionProtocolFlags = tlsProtocol;
 
 	if (userSpecCipher == RSSL_TRUE)
 		sopts.encryptionOpts.cipherSuite = cipherSuite;
@@ -1050,7 +1081,7 @@ void cleanUpAndExit()
 		}
 
 		if (rsslDestroyReactor(pReactor, &rsslErrorInfo) != RSSL_RET_SUCCESS)
-			printf("Error cleaning up reactor: %s\n", &rsslErrorInfo.rsslError.text);
+			printf("Error cleaning up reactor: %s\n", rsslErrorInfo.rsslError.text);
 
 		/* clean up server */
 		FD_CLR(rsslSrvr->socketId, &readFds);

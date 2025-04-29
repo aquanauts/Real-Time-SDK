@@ -3,7 +3,7 @@ Summary
 
 112_MP_TunnelingConnection is an OMM Consumer application example
 that demonstrates basic usage of the EMA library in accessing
-and parsing OMM MarketPrice data from Refinitiv Data Feed Direct,
+and parsing OMM MarketPrice data from Data Feed Direct,
 directly from an OMM Provider application, or from an Advanced
 Distribution Server, on specifically a Linux based operating system.
 
@@ -22,6 +22,7 @@ including:
 -ph Proxy host name
 -pp Proxy port number
 -spTLSv1.2 enable use of cryptopgrahic protocol TLSv1.2 used with linux encrypted connections
+-spTLSv1.3 enable use of cryptopgrahic protocol TLSv1.3 used with linux encrypted connections
 -libsslName name of the libssl.so shared library
 -libcryptoName name of the libcrypto.so shared library
 

@@ -1,9 +1,9 @@
-﻿/*
+/*
  *|-------------------------------------------------------------------------------
- *| This source code is provided under the Apache 2.0 license and is provided   --
- *| AS IS with no warranty or guarantee of fit for purpose.  See the project's  --
- *| LICENSE.md for details.                                                     --
- *| Copyright (C) 2022-2023 Refinitiv. All rights reserved.                          --
+ *| This source code is provided under the Apache 2.0 license
+ *| AS IS with no warranty or guarantee of fit for purpose.
+ *| See LICENSE.md for details.
+ *| Copyright (C) 2022-2024 LSEG. All rights reserved.                     --
  *|-------------------------------------------------------------------------------
  */
 
@@ -24,8 +24,8 @@
  * In this module, the application initializes the ETA Transport and
  * connects the client. An OMM consumer application can establish a
  * connection to other OMM Interactive Provider applications, including
- * Refinitiv Real-Time Distribution Systems, Refinitiv Data Feed Direct,
- * and Refinitiv Real-Time.
+ * Real-Time Distribution Systems, Data Feed Direct,
+ * and LSEG Real-Time.
  *
  * Detailed Descriptions:
  *
@@ -294,6 +294,9 @@
  *
  *********************************************************************************/
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 
 using LSEG.Eta.Transports;
@@ -573,7 +576,7 @@ namespace LSEG.Eta.Training.Consumer
             /*********************************************************
              * Client/Consumer Application life cycle Major Step 2: Connect using Connect
              * (OS connection establishment handshake) Connect call Establishes an
-             * outbound connection, which can leverage standard sockets, HTTP, or HTTPS.
+             * outbound connection, which can leverage standard sockets.
              *
              * Returns an Channel that represents the connection to the user. In the event
              * of an error, NULL is returned and additional information can be found in
@@ -627,9 +630,8 @@ namespace LSEG.Eta.Training.Consumer
                          * Internally, the ETA initialization process includes several actions.
                          *
                          * The initialization includes any necessary ETA connection handshake
-                         * exchanges, including any HTTP or HTTPS negotiation.  Compression, ping
-                         * timeout, and versioning related negotiations also take place during the
-                         * initialization process.
+                         * exchanges.  Compression, ping timeout, and versioning related negotiations
+                         * also take place during the initialization process.
                          *
                          * This process involves exchanging several messages across the connection,
                          * and once all message exchanges have completed the Channel.State will
@@ -1045,7 +1047,7 @@ namespace LSEG.Eta.Training.Consumer
                                              */
                                             dictionary.Clear();
 
-                                            /* Will attempt to download the Refinitiv Field Dictionary (RDMFieldDictionary) from provider. */
+                                            /* Will attempt to download the Field Dictionary (RDMFieldDictionary) from provider. */
                                             if (!dictionariesLoadedInfo_fieldDictionaryLoaded)
                                             {
                                                 /* check if Dictionary Domain Type is supported */
@@ -1549,6 +1551,7 @@ namespace LSEG.Eta.Training.Consumer
                 }
                 else /* lost contact with server */
                 {
+                    error ??= new Error();
                     /* Lost contact with remote (connection) */
                     error.Text = "Lost contact with connection...\n";
                     Console.Write("Error ({0}) (errno: {1}) {2}\n", error.ErrorId, error.SysError, error.Text);
@@ -2349,7 +2352,7 @@ namespace LSEG.Eta.Training.Consumer
              * via a msgKey.filter. Each bit-value represented in the filter corresponds
              * to an information set that can be provided in response messages.
              *
-             * Refinitiv recommends that a consumer application minimally request Info,
+             * LSEG recommends that a consumer application minimally request Info,
              * State, and Group filters for the
              *
              * Source Directory:
@@ -2526,14 +2529,6 @@ namespace LSEG.Eta.Training.Consumer
                                     Console.Write("\nReceived Source Directory Update for Decoded Service Id: {0}",
                                         serviceId.ToLong());
 
-                                /* if this is the current serviceId we are interested in */
-                                if ((serviceId.Equals(serviceDiscoveryInfo_serviceId))
-                                    && (serviceDiscoveryInfo_serviceNameFound == true))
-                                {
-                                    /* this is the current serviceId we are interested in and requested by the ETA Consumer application */
-                                    Console.Write(" ({0})\n", serviceDiscoveryInfo_serviceName);
-                                }
-
                                 /* decode contents into the filter list structure */
                                 if ((retval = filterList.Decode(dIter)) < CodecReturnCode.SUCCESS)
                                 {
@@ -2656,7 +2651,7 @@ namespace LSEG.Eta.Training.Consumer
 
                                                                     Console.Write("\tService name: {0} ({1}) is discovered by the OMM consumer. \n",
                                                                         serviceName, serviceId.ToLong());
-                                                                    serviceDiscoveryInfo_serviceId = serviceId;
+                                                                    serviceId.Copy(serviceDiscoveryInfo_serviceId);
                                                                     serviceDiscoveryInfo_serviceNameFound = true;
                                                                 }
                                                             }
@@ -3283,7 +3278,7 @@ namespace LSEG.Eta.Training.Consumer
         /// information.</para>
         ///
         /// <para>Content that uses the FieldList type requires the use of a field
-        /// dictionary (usually the Refinitiv RDMFieldDictionary, though it could also be
+        /// dictionary (usually the RDMFieldDictionary, though it could also be
         /// a user-defined or modified field dictionary).</para>
         ///
         /// <remarks>
@@ -3486,7 +3481,7 @@ namespace LSEG.Eta.Training.Consumer
             requestMsg.MsgKey.ApplyHasServiceId();
             requestMsg.MsgKey.ApplyHasNameType();
             requestMsg.MsgKey.ApplyHasName();
-            /* msgKey.NameType Optional. When consuming from Refinitiv sources, typically set to
+            /* msgKey.NameType Optional. When consuming from LSEG sources, typically set to
              * InstrumentNameTypes.RIC (the "Reuters Instrument Code"). If this is not specified,
              * msgKey.NameType defaults to RDM_INSTRUMENT_NAME_TYPE_RIC.
              */

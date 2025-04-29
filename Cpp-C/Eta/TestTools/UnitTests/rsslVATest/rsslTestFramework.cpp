@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020, 2025 LSEG. All rights reserved.         --
  *|-----------------------------------------------------------------------------
  */
 
@@ -36,7 +36,7 @@ static RsslConnectionTypes rsslTestConnectionType;
 static RsslBool rsslTestInitialized = RSSL_FALSE;
 static RsslServer *pServer = NULL;
 
-static RsslBuffer applicationName = { 16, (char*)"rsslVATest" } ;
+static RsslBuffer applicationName = { 11, (char*)"rsslVATest" } ;
 static RsslBuffer applicationId = { 3, (char*)"256" };
 static RsslBuffer loginConfigPosition = {9, (char*)"localhost"};
 static const RsslBuffer cookiesData[3] = { {105, (char*)"lu=Rg3vHJZnehYLjVg7qi3bZjzg; Expires=Tue, 15 Jan 2013 21:47:38 GMT; Path=/; Domain=.example.com; HttpOnly"},
@@ -136,7 +136,7 @@ static void HttpCallbackFunctionProv(RsslHttpMessage* httpMess, RsslError* error
 		for (pLink = rsslQueuePeekFront(cookeis), n = 0; pLink; pLink = rsslQueuePeekNext(cookeis, pLink), n++)
 		{
 			data = RSSL_QUEUE_LINK_TO_OBJECT(RsslHttpHdrData, link, pLink);
-			snprintf(cookiesValue[n], strlen(data->value.data) + 1, data->value.data);
+			snprintf(cookiesValue[n], strlen(data->value.data) + 1, "%s", data->value.data);
 			ASSERT_STREQ(cookiesValue[n], cookiesData[n].data);
 			ASSERT_EQ(strlen(data->value.data), cookiesData[n].length);
 		}
@@ -214,7 +214,7 @@ static void HttpCallbackFunctionCons(RsslHttpMessage* httpMess, RsslError* error
 		for (pLink = rsslQueuePeekFront(cookeis), n = 0; pLink; pLink = rsslQueuePeekNext(cookeis, pLink), n++)
 		{
 			data = RSSL_QUEUE_LINK_TO_OBJECT(RsslHttpHdrData, link, pLink);
-			snprintf(cookiesValue[n], strlen(data->value.data) + 1, data->value.data);
+			snprintf(cookiesValue[n], strlen(data->value.data) + 1, "%s", data->value.data);
 			ASSERT_STREQ(cookiesValue[n], cookiesData[n].data);
 			ASSERT_EQ(strlen(data->value.data), cookiesData[n].length);
 		}

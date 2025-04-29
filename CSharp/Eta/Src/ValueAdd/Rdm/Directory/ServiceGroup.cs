@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -26,7 +26,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
         private State _status;
         private FilterEntryActions _action;
 
-        private const string eol = "\n";
         private const string tab = "\t";
 
         private StringBuilder stringBuf = new StringBuilder();
@@ -244,14 +243,14 @@ namespace LSEG.Eta.ValueAdd.Rdm
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("GroupFilter:");
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("group: ");
             stringBuf.Append(Group.ToHexString());
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             if (HasMergedToGroup)
             {
@@ -260,7 +259,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append(tab);
                 stringBuf.Append("mergedToGroup: ");
                 stringBuf.Append(MergedToGroup.ToHexString());
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasStatus)
             {
@@ -269,7 +268,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append(tab);
                 stringBuf.Append("status: ");
                 stringBuf.Append(Status);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             return stringBuf.ToString();

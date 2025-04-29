@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|          Copyright (C) 2019-2022 LSEG. All rights reserved.               --
 ///*|-----------------------------------------------------------------------------
 
 #include "ConsumerThread.h"
@@ -252,7 +252,7 @@ void ConsumerThread::dumpConsumerItemList()
 void ConsumerThread::consumerThreadInit( ConsPerfConfig& consPerfConfig, Int32 consThreadId)
 {
 	consumerThreadIndex = consThreadId;
-	char tmpFilename[sizeof(consPerfConfig.statsFilename) + 8];
+	char tmpFilename[sizeof(consPerfConfig.statsFilename) + 24];
 
 	snprintf(tmpFilename, sizeof(tmpFilename), "%s%d.csv", 
 		consPerfConfig.statsFilename.c_str(), consThreadId);
@@ -335,6 +335,9 @@ void ConsumerThread::run()
 			consumerConfig.apiThreadBind(apiThreadCpuId);
 		if ( !workerThreadCpuId.empty() && !workerThreadCpuId.caseInsensitiveCompare("-1") )
 			consumerConfig.workerThreadBind(workerThreadCpuId);
+
+		if (pConsPerfCfg->securityProtocol != OmmConsumerConfig::ENC_NONE)
+			consumerConfig.tunnelingSecurityProtocol(pConsPerfCfg->securityProtocol);
 
 		//if (!pConsPerfCfg->useUserDispatch)
 		//	firstThreadSnapshot();

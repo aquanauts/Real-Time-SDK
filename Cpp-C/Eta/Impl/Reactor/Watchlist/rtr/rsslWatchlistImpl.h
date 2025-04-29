@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #ifndef RSSL_WATCHLIST_IMPL_H
@@ -38,16 +38,16 @@ struct RsslWatchlistImpl
 };
 
 /* Callback used to process service cache updates. */
-static RsslRet wlServiceUpdateCallback(WlServiceCache *pServiceCache,
+RsslRet wlServiceUpdateCallback(WlServiceCache *pServiceCache,
 		WlServiceCacheUpdateEvent *pEvent, RsslErrorInfo *pErrorInfo);
 
-static RsslRet wlServiceStateChangeCallback(WlServiceCache *pServiceCache, 
+RsslRet wlServiceStateChangeCallback(WlServiceCache *pServiceCache, 
 	RDMCachedService *pCachedService, RsslErrorInfo *pErrorInfo);
 
-static RsslRet wlServiceCacheInitCallback(WlServiceCache *pServiceCache,
+RsslRet wlServiceCacheInitCallback(WlServiceCache *pServiceCache,
 	WlServiceCacheUpdateEvent *pEvent, RsslErrorInfo *pErrorInfo);
 
-static RsslRet wlServiceCacheUpdateCallback(WlServiceCache *pServiceCache,
+RsslRet wlServiceCacheUpdateCallback(WlServiceCache *pServiceCache,
 	WlServiceCacheUpdateEvent *pEvent, RsslErrorInfo *pErrorInfo);
 
 /* Reads a message from the provider. */

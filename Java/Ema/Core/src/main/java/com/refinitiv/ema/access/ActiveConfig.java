@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019,2024-2025 LSEG. All rights reserved.
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -26,7 +26,7 @@ abstract class ActiveConfig extends BaseConfig
 	final static int DEFAULT_COMPRESSION_THRESHOLD_LZ4          = 300;
 	final static int DEFAULT_COMPRESSION_TYPE					= CompressionTypes.NONE;
 	final static int DEFAULT_CONNECTION_TYPE					= ConnectionTypes.SOCKET;
-	final static int DEFAULT_ENCRYPTED_PROTOCOL_TYPE			= ConnectionTypes.HTTP;
+	final static int DEFAULT_ENCRYPTED_PROTOCOL_TYPE			= ConnectionTypes.SOCKET;
 	final static int DEFAULT_CONNECTION_PINGTIMEOUT				= 30000;
 	final static int DEFAULT_INITIALIZATION_TIMEOUT				= 5;
 	final static int DEFAULT_INITIALIZATION_ACCEPT_TIMEOUT		= 60;
@@ -35,7 +35,7 @@ abstract class ActiveConfig extends BaseConfig
 	final static boolean DEFAULT_ENABLE_SESSION_MGNT			= false;
 	final static int DEFAULT_GUARANTEED_OUTPUT_BUFFERS			= 100;
 	final static String DEFAULT_REGION_LOCATION					= "us-east-1";
-	final static int DEFAULT_NUM_INPUT_BUFFERS					= 10;
+	final static int DEFAULT_NUM_INPUT_BUFFERS					= 100;
 	final static int DEFAULT_SYS_SEND_BUFFER_SIZE				= 65535;
 	final static int DEFAULT_SYS_RECEIVE_BUFFER_SIZE			= 65535;
 	final static int DEFAULT_HIGH_WATER_MARK					= 0;
@@ -48,7 +48,6 @@ abstract class ActiveConfig extends BaseConfig
 	final static int DEFAULT_MAX_OUTSTANDING_POSTS				= 100000;
 	final static boolean DEFAULT_MSGKEYINUPDATES				= true;
 	final static int DEFAULT_OBEY_OPEN_WINDOW					= 1;
-	final static int DEFAULT_PIPE_PORT							= 9001;
 	final static int DEFAULT_POST_ACK_TIMEOUT					= 15000;
 	final static int DEFAULT_REACTOR_EVENTFD_PORT				= 55000;
 	final static int DEFAULT_RECONNECT_ATTEMPT_LIMIT			= -1;
@@ -74,6 +73,13 @@ abstract class ActiveConfig extends BaseConfig
 	final static int DEFAULT_REISSUE_TOKEN_ATTEMPT_INTERVAL		= 5000;
 	final static double DEFAULT_TOKEN_REISSUE_RATIO				= 0.8;
 	final static boolean DEFAULT_XML_TRACE_ENABLE				= false;
+	final static boolean DEFAULT_XML_TRACE_TO_FILE_ENABLE		= false;
+	final static long DEFAULT_XML_TRACE_MAX_FILE_SIZE			= 100000000;
+	final static String DEFAULT_XML_TRACE_FILE_NAME				= "EmaTrace";
+	final static boolean DEFAULT_XML_TRACE_TO_MULTIPLE_FILES	= false;
+	final static boolean DEFAULT_XML_TRACE_WRITE				= true;
+	final static boolean DEFAULT_XML_TRACE_READ					= true;
+	final static boolean DEFAULT_XML_TRACE_PING					= false;
 	final static boolean DEFAULT_DIRECT_SOCKET_WRITE			= false;
 	final static boolean DEFAULT_HTTP_PROXY					    = false;
 	final static String DEFAULT_CONS_NAME						= "EmaConsumer";
@@ -85,13 +91,16 @@ abstract class ActiveConfig extends BaseConfig
 	final static int DEFAULT_SERVICE_DISCOVERY_RETRY_COUNT		= 3;
 	final static boolean DEFAULT_WSB_DOWNLOAD_CONNECTION_CONFIG = true;
 	final static int DEFAULT_WSB_MODE							= ReactorWarmStandbyMode.LOGIN_BASED;
+	final static boolean DEFAULT_SESSION_ENHANCED_ITEM_RECOVERY = true;
 	
 	final static int SOCKET_CONN_HOST_CONFIG_BY_FUNCTION_CALL   = 0x01;  /*!< Indicates that host set though EMA interface function calls for RSSL_SOCKET connection type */
 	final static int SOCKET_SERVER_PORT_CONFIG_BY_FUNCTION_CALL = 0x02;  /*!< Indicates that server listen port set though EMA interface function call from server client*/
 	final static int TUNNELING_PROXY_HOST_CONFIG_BY_FUNCTION_CALL = 0x04;  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
 	final static int TUNNELING_PROXY_PORT_CONFIG_BY_FUNCTION_CALL = 0x08;  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
 	final static int TUNNELING_OBJNAME_CONFIG_BY_FUNCTION_CALL = 0x10;  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
-
+	final static int PROXY_USERNAME_CONFIG_BY_FUNCTION_CALL 	= 0x20; /*!< Indicates that tunneling proxy user name set though EMA interface function calls */
+	final static int PROXY_PASSWD_CONFIG_BY_FUNCTION_CALL 		= 0x40; /*!< Indicates that tunneling proxy password set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
+	final static int PROXY_DOMAIN_CONFIG_BY_FUNCTION_CALL 		= 0x80; /*!< Indicates that tunneling proxy domain set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
 	
 	int						obeyOpenWindow;
 	int						postAckTimeout;
@@ -122,6 +131,10 @@ abstract class ActiveConfig extends BaseConfig
 	int						maxFragmentSize;
 	List<ChannelConfig>		configChannelSetForWSB;
 	List<WarmStandbyChannelConfig> configWarmStandbySet;
+	List<SessionChannelConfig> configSessionChannelSet;
+	String					restProxyHostName;
+	String					restProxyPort;
+	boolean					sessionEnhancedItemRecovery;
 	
 	ActiveConfig(String defaultServiceName)
 	{
@@ -149,6 +162,8 @@ abstract class ActiveConfig extends BaseConfig
 		 channelConfigSet = new ArrayList<>();
 		 configChannelSetForWSB = new ArrayList<>();
 		 configWarmStandbySet = new ArrayList<>();
+		 configSessionChannelSet = new ArrayList<>();
+		 sessionEnhancedItemRecovery = DEFAULT_SESSION_ENHANCED_ITEM_RECOVERY;
 	}
 
 	void clear()
@@ -173,12 +188,16 @@ abstract class ActiveConfig extends BaseConfig
 		wsProtocols = DEFAULT_WS_PROTOCOLS;
 		wsMaxMsgSize = DEFAULT_WS_MAX_MSG_SIZE;
 		maxFragmentSize = DEFAULT_MAX_FRAGMENT_SIZE;
+		sessionEnhancedItemRecovery = DEFAULT_SESSION_ENHANCED_ITEM_RECOVERY;
 		dictionaryConfig.clear();
 
 		rsslRDMLoginRequest = null;
 		rsslDirectoryRequest = null;
 		rsslFldDictRequest = null;
 		rsslEnumDictRequest = null;
+		
+		restProxyHostName = null;
+		restProxyPort = null;
 	}
 	
 	StringBuilder configTrace()
@@ -202,7 +221,10 @@ abstract class ActiveConfig extends BaseConfig
 		.append("\n\t wsProtocols: ").append(wsProtocols)
 		.append("\n\t wsMaxMsgSize: ").append(wsMaxMsgSize)
 		.append("\n\t maxFragmentSize: ").append(maxFragmentSize)
-		.append("\n\t serviceDiscoveryRetryCount: ");
+		.append("\n\t serviceDiscoveryRetryCount: ")
+		.append("\n\t restProxyHostName: ").append(restProxyHostName)
+		.append("\n\t restProxyPort: ").append(restProxyPort)
+		.append("\n\t sessionEnhancedItemRecovery: ").append(sessionEnhancedItemRecovery);
 
 		return traceStr;
 	}
@@ -259,6 +281,11 @@ abstract class ActiveConfig extends BaseConfig
 	void clearChannelSetForWSB()
 	{
 		configChannelSetForWSB.clear();
+	}
+	
+	void clearSessionChannelSet()
+	{
+		configSessionChannelSet.clear();
 	}
 
 	public static boolean findChannelConfig(List<ChannelConfig> configChannelSetForWSB, String queryName, int pos)

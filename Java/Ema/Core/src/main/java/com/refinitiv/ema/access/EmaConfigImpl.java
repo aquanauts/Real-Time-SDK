@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019-2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -36,6 +36,7 @@ import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginMsgFactory;
 import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginMsgType;
 import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginRequest;
 import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginRequestFlags;
+import com.refinitiv.eta.transport.ConnectionTypes;
 
 abstract class  EmaConfigBaseImpl
 {	
@@ -119,6 +120,8 @@ abstract class EmaConfigImpl extends EmaConfigBaseImpl
 	private DecodeIterator    					_rsslDecIter;
 	private String              				_hostnameSetViaFunctionCall;
 	private String              				_portSetViaFunctionCall;
+	private int									_channelTypeSetViaFunctionCall = -1;
+	private int									_encProtocolTypeSetViaFunctionCall = -1;
 	private String								_fidDictReqServiceName;
 	private String								_enumDictReqServiceName;
 	private boolean 							_fidDictReqServiceIdSet;
@@ -138,6 +141,14 @@ abstract class EmaConfigImpl extends EmaConfigBaseImpl
     private Buffer								_tokenScope = CodecFactory.createBuffer();
     private Buffer 								_clientJwk = CodecFactory.createBuffer();
     private Buffer								_audience = CodecFactory.createBuffer();
+    
+    private Buffer								_restProxyHostName = CodecFactory.createBuffer();
+    private Buffer								_restProxyPort = CodecFactory.createBuffer();
+    private Buffer								_restProxyUserName = CodecFactory.createBuffer();
+    private Buffer								_restProxyPasswd = CodecFactory.createBuffer();
+    private Buffer								_restProxyDomain = CodecFactory.createBuffer();
+    private Buffer								_restProxyLocalHostName = CodecFactory.createBuffer();
+    private Buffer								_restProxyKrb5ConfigFile = CodecFactory.createBuffer();
 
 	EmaConfigImpl()
 	{
@@ -333,7 +344,14 @@ abstract class EmaConfigImpl extends EmaConfigBaseImpl
 				_portSetViaFunctionCall = defaultService;
 		}
 	}
-	
+	protected void channelTypeInt(int channelType)
+	{
+		_channelTypeSetViaFunctionCall = channelType;
+	}
+	protected void encProtocolTypeInt(int encProtocolType)
+	{
+		_encProtocolTypeSetViaFunctionCall = encProtocolType;
+	}
 	protected void addAdminMsgInt(ReqMsg reqMsg)
 	{
 		RequestMsg rsslRequestMsg = ((ReqMsgImpl)reqMsg).rsslMsg();
@@ -406,6 +424,8 @@ abstract class EmaConfigImpl extends EmaConfigBaseImpl
 	abstract String channelName(String instanceName);
 	
 	abstract String warmStandbyChannelSet(String instanceName);
+	
+	abstract String sessionChannel(String instanceName);
 
 	int setLoginRequest(RequestMsg rsslRequestMsg)
 	{
@@ -875,11 +895,16 @@ abstract class EmaConfigImpl extends EmaConfigBaseImpl
 	{
 		return _portSetViaFunctionCall; 
 	}
-	
+	public int getUserSpecifiedChannelType() { return _channelTypeSetViaFunctionCall; }
+	public int getUserSpecifiedEncryptedProtocolType() { return _encProtocolTypeSetViaFunctionCall; }
+
 	public HttpChannelConfig tunnelingChannelCfg()
 	{
 		if (_tunnelingChannelCfg == null)
-			_tunnelingChannelCfg = new HttpChannelConfig() ;
+		{
+			_tunnelingChannelCfg = new EncryptedChannelConfig() ;
+			_tunnelingChannelCfg.rsslConnectionType = ConnectionTypes.HTTP;
+		}
 		
 		return _tunnelingChannelCfg;
 	}
@@ -941,6 +966,76 @@ abstract class EmaConfigImpl extends EmaConfigBaseImpl
 	boolean takeExclusiveSignOnControl()
 	{
 		return _takeExclusiveSignOnControl;
+	}
+	
+	void restProxyHostNameInt(String restProxyHostName)
+	{
+		_restProxyHostName.data(restProxyHostName);
+	}
+	
+	Buffer restProxyHostName()
+	{
+		return _restProxyHostName;
+	}
+	
+	void restProxyPortInt(String restProxyPort)
+	{
+		_restProxyPort.data(restProxyPort);
+	}
+	
+	Buffer restProxyPort()
+	{
+		return _restProxyPort;
+	}
+	
+	void restProxyUserNameInt(String restProxyUserName)
+	{
+		_restProxyUserName.data(restProxyUserName);
+	}
+	
+	Buffer restProxyUserName()
+	{
+		return _restProxyUserName;
+	}
+	
+	void restProxyPasswdInt(String restProxyPasswd)
+	{
+		_restProxyPasswd.data(restProxyPasswd);
+	}
+	
+	Buffer restProxyPasswd()
+	{
+		return _restProxyPasswd;
+	}
+	
+	void restProxyDomainInt(String restProxyDomain)
+	{
+		_restProxyDomain.data(restProxyDomain);
+	}
+	
+	Buffer restProxyDomain()
+	{
+		return _restProxyDomain;
+	}
+	
+	void restProxyLocalHostNameInt(String restProxyLocalHostName)
+	{
+		_restProxyLocalHostName.data(restProxyLocalHostName);
+	}
+	
+	Buffer restProxyLocalHostName()
+	{
+		return _restProxyLocalHostName;
+	}
+	
+	void restProxyKrb5ConfigFileInt(String restProxyKrb5ConfigFile)
+	{
+		_restProxyKrb5ConfigFile.data(restProxyKrb5ConfigFile);
+	}
+	
+	Buffer restProxyKrb5ConfigFile()
+	{
+		return _restProxyKrb5ConfigFile;
 	}
 }
 

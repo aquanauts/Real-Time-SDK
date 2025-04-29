@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2025 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -17,7 +17,9 @@
 #include <windows.h>
 
 #ifndef snprintf
+#if _MSC_VER < 1900
 #define snprintf	_snprintf
+#endif
 #endif
 
 #else
@@ -36,7 +38,7 @@ extern "C" {
 #endif
 
 #define __MY_MAX_ADDR 256
-
+#define __ERROR_LEN 512
 
 #define RTR_4BYTE_ALIGN_SHIFT	2
 #define RTR_4BYTE_ALIGN_SIZE	(1UL << RTR_4BYTE_ALIGN_SHIFT)	/* 4 */

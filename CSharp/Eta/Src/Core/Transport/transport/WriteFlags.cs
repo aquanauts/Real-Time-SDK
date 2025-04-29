@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -20,7 +20,6 @@ namespace LSEG.Eta.Transports
     [Flags]
     public enum WriteFlags
     {
-
         /// <summary>
         /// No modification will be performed to this <see cref="IChannel.Write(ITransportBuffer, WriteArgs, out Error)"/> operation.
         /// </summary>
@@ -41,6 +40,6 @@ namespace LSEG.Eta.Transports
         /// <summary>
         /// This is the max combined value of the bits mask that is allowed.
         /// </summary>
-        MAX_VALUE = 0x02
+        MAX_VALUE = DO_NOT_COMPRESS | DIRECT_SOCKET_WRITE
     }
 }

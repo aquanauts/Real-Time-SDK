@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2020 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2020 LSEG. All rights reserved.     
 */
 
 /*
@@ -608,7 +608,14 @@ static RsslRet sendDictionaryRequestReject(RsslReactor *pReactor, RsslReactorCha
 				break;
 			case DICTIONARY_RDM_DECODER_FAILED:
 				dictionaryStatus.state.code = RSSL_SC_USAGE_ERROR;
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 				snprintf(stateText, sizeof(stateText), "Dictionary request rejected for stream id %d - decoding failure: %s", streamId, pError->rsslError.text);
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic pop
+#endif
 				dictionaryStatus.state.text.data = stateText;
 				dictionaryStatus.state.text.length = (RsslUInt32)strlen(stateText) + 1;
 				break;

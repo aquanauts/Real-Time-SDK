@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2020 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2020, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -29,7 +29,7 @@
 */
 
 #define MAX_SIZE 2048
-#define PADDING 256
+#define PADDING 264
 #define MAX_SIZE_PLUS_PADDING  MAX_SIZE + PADDING  
 
 #include "Access/Include/Common.h"
@@ -110,6 +110,7 @@ protected :
 	const EmaString& toStringInt() const;
 
 	UInt32						_errorTextLength;
+	UInt32						_errorTextPadding; // _errorText buffer is used for placement new and needs to be 64-bit aligned
 	mutable char				_errorText[MAX_SIZE];
 	mutable char				_space[MAX_SIZE_PLUS_PADDING];
 

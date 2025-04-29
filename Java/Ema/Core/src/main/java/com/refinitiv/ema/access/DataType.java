@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019,2024 LSEG. All rights reserved.
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -40,6 +40,7 @@ public class DataType
 	private final static String FILTERLIST_STRING = "FilterList";
 	private final static String OPAQUE_STRING = "Opaque";
 	private final static String XML_STRING = "Xml";
+	private final static String JSON_STRING = "Json";
 	private final static String ANSIPAGE_STRING = "AnsiPage";
 	private final static String OMMARRAY_STRING = "OmmArray";
 	private final static String INT_STRING = "Int";
@@ -150,7 +151,7 @@ public class DataType
 		public final static int BUFFER = 16;
 
 		/**
-		 * An 8-bit characters encoding using the Refinitiv Basic Character Set (RBCS).<br>
+		 * An 8-bit characters encoding using the Reuters Basic Character Set (RBCS).<br>
 		 * The first 128 characters are equivalent to the ASCII character set (ANSI X3.4-1968).
 		 */
 		public final static int ASCII = 17;
@@ -164,7 +165,7 @@ public class DataType
 		/**
 		 * An encoding with a multilingual text encoding standard.<br>
 		 * RMTES uses ISO 2022 escape sequences to select the character sets used.<br>
-		 * RMTES provides support for the Refinitiv Basic Character Set, UTF-8,<br>
+		 * RMTES provides support for the Reuters Basic Character Set, UTF-8,<br>
 		 * Japanese Latin and Katakana (JIS C 6220 - 1969),
 		 * Japanese Kanji (JIS X 0208 - 1990),<br>
 		 * and Chinese National Standard (CNS 11643-1986).<br>
@@ -265,6 +266,11 @@ public class DataType
 		public final static int MSG = 141;
 
 		/**
+		 * An JSON buffer.
+		 */
+		public final static int JSON = 142;
+
+		/**
 		 * A message to specify item interest.<br>
 		 * A consumer sends this message.
 		 */
@@ -350,6 +356,8 @@ public class DataType
 				return OPAQUE_STRING;
 			case DataTypes.XML :
 				return XML_STRING;
+			case DataTypes.JSON :
+				return JSON_STRING;
 			case DataTypes.ANSI_PAGE :
 				return ANSIPAGE_STRING;
 			case DataTypes.ARRAY :

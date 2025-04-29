@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2025 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -11,14 +11,19 @@
 
 #include "ItemCallbackClient.h"
 #include "OmmBaseImplMap.h"
+#include "EmaVector.h"
 
 namespace refinitiv {
 namespace ema {
 namespace access {
 
-  void getChannelInformation(const RsslReactorChannel*, const RsslChannel*, ChannelInformation&);
-  void getChannelInformationImpl(const RsslReactorChannel*, OmmCommonImpl::ImplementationType,
+class ChannelInfoImpl
+{
+public:
+  static void getChannelInformation(const RsslReactorChannel*, const RsslChannel*, ChannelInformation&, OmmCommonImpl::ImplementationType);
+  static void getChannelInformationImpl(const RsslReactorChannel*, OmmCommonImpl::ImplementationType,
 								 ChannelInformation&);
+};
 }
 }
 }

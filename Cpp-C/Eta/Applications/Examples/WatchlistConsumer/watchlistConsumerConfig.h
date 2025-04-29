@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2020-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2020-2024 LSEG. All rights reserved.
 */
 
 #ifndef WATCHLIST_CONSUMER_CONFIG_H
@@ -51,6 +51,7 @@ typedef struct
 {
 	RsslConnectionTypes	connectionType;					/* Type of RSSL transport to use. */
 	RsslConnectionTypes encryptedConnectionType;		/* Encrypted protocol when connectionType is RSSL_CONN_TYPE_ENCRYPTED */
+	RsslEncryptionProtocolTypes tlsProtocol;			/* Bitmap flag set defining the TLS version(s) to be used by this connection. See RsslEncryptionProtocolTypes */
 	char				interface[255];					/* Address of network interface to use. */
 
 	/* Socket configuration settings, when using a socket connection. */
@@ -134,8 +135,12 @@ typedef struct
 	RsslBool			takeExclusiveSignOnControl;		/* The exclusive sign on control to force sign-out for the same credentials.*/
 
 	RsslBool			restEnableLog;					/* Enable Rest request/response logging.*/
+	RsslBool			restVerboseMode;				/* Enable verbose Rest request/response logging.*/
 	FILE				*restOutputStreamName;			/* Set output stream for Rest request/response logging.*/
 	RsslUInt			restEnableLogViaCallback;		/* Enable Rest request/response logging via callback. 0 - disabled, 1 - enabled from the start, 2 - enabled after initialization stage. */
+
+	RsslUInt32			jsonOutputBufferSize;			/* JSON Converter output buffer size. */
+	RsslUInt32			jsonTokenIncrementSize;			/* JSON Converter number of json token increment size for parsing JSON messages. */
 
 	char			_userNameMem[255];
 	char			_passwordMem[255];
@@ -153,7 +158,14 @@ typedef struct
 	char			_tokenUrlV2[255];
 	char			_serviceDiscoveryUrl[255];
 	char			_tokenScope[255];
-	
+
+	/* Proxy configuration settings for Rest requests */
+	char			restProxyHost[255];					/* Proxy host name */
+	char			restProxyPort[255];					/* Proxy port */
+	char			restProxyUserName[255];				/* Proxy user name */
+	char			restProxyPasswd[255];				/* Proxy password */
+	char			restProxyDomain[255];				/* Proxy domain */
+
 } WatchlistConsumerConfig;
 extern WatchlistConsumerConfig watchlistConsumerConfig;
 
@@ -197,6 +209,7 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslRe
  static RsslRet serviceNameToIdCallback(RsslReactor *pReactor, RsslBuffer* pServiceName, RsslUInt16* pServiceId, RsslReactorServiceNameToIdEvent* pEvent);
 
  static RsslReactorCallbackRet restLoggingCallback(RsslReactor* pReactor, RsslReactorRestLoggingEvent* pLogEvent);
+ static RsslReactorCallbackRet oAuthCredentialEventCallback(RsslReactor* pReactor, RsslReactorOAuthCredentialEvent* pOAuthCredentialEvent);
 #ifdef __cplusplus
 }
 #endif

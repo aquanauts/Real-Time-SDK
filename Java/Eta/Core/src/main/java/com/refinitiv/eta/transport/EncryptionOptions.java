@@ -30,8 +30,7 @@ public interface EncryptionOptions
 
     /**
      * Type of keystore for certificate file.
-     * Defaults to the property keystore.type in the JDK security properties file (java.security).
-     * Sun JDK default = JKS
+     * RTSDK Default = JKS
      *
      * @param KeystoreType the keystore type
      */
@@ -39,8 +38,7 @@ public interface EncryptionOptions
 
     /**
      * Type of keystore for certificate file.
-     * Defaults to the property keystore.type in the JDK security properties file (java.security).
-     * Sun JDK default = JKS
+     * RTSDK Default = JKS
      * 
      * @return the KeystoreType
      */
@@ -75,18 +73,33 @@ public interface EncryptionOptions
     public String KeystorePasswd();
 
     /**
-     * Cryptographic protocol used. Sun JDK default is TLS.
+     * Cryptographic protocol used. RTSDK default is set to TLS.
      *
      * @param SecurityProtocol the security protocol
      */
     public void SecurityProtocol(String SecurityProtocol);
 
     /**
-     * Cryptographic protocol used. Sun JDK default is TLS.
+     * Cryptographic protocol used. RTSDK default is set to TLS.
      * 
      * @return the SecurityProtocol
      */
     public String SecurityProtocol();
+    
+    /**
+     * Cryptographic protocol versions used. Array of Strings
+     * should designate what versions to use. RTSDK default is {"1.3", "1.2"}.
+     *
+     * @param SecurityProtocolVersions the array list of security protocol versions to use
+     */
+    public void SecurityProtocolVersions(String[] SecurityProtocolVersions);
+    
+    /**
+     * Cryptographic protocol versions used. RTSDK default is {"1.3", "1.2"}..
+     * 
+     * @return the SecurityProtocolVersions designated to use
+     */
+    public String[] SecurityProtocolVersions();
 
     /**
      * Java Cryptography Package provider.

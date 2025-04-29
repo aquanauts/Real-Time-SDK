@@ -1,10 +1,10 @@
 # Enterprise Message API (EMA) - C++ Edition
 
-The Enterprise Message API: This is an easy-to-use, performant, open source message layer API. The Enterprise Message API helps developers by allowing them to develop applications with significantly less code. It is new and will be enhanced by collaboration with customers (through GitHub) and Refinitiv based on customer feedback.
+The Enterprise Message API: This is an easy-to-use, performant, open source message layer API. The Enterprise Message API helps developers by allowing them to develop applications with significantly less code. It is new and will be enhanced by collaboration with customers (through GitHub) and LSEG based on customer feedback.
 
 EMA is written on top of the Enterprise Transport API (ETA) utilizing the Value Added Reactor and Watchlist.  
 
-Copyright (C) 2018-2023 Refinitiv. All rights reserved.
+Copyright (C) 2018-2025 LSEG. All rights reserved.
   
 # EMA C++ Documentation
 
@@ -24,6 +24,8 @@ In addition, HTML documentation is available in Cpp-C/Ema/Docs. For addtional do
 
 - TCP/IP Connectivity
 
+- Component Versioning: This feature sends information about itself to the connected component.
+
 - RMTES Decoder: EMA provides a built in RMTES decoder. If desired, application may cache RmtesBuffer objects and apply all the received changes to them.
 
 - Data::toString(): All OMM containers, primitives and messages may simply be printed out to screen in a standardized output format.
@@ -31,6 +33,12 @@ In addition, HTML documentation is available in Cpp-C/Ema/Docs. For addtional do
 - Data::getAsHex(): Applications may obtain binary representations of all OMM containers, primitives and messages.
 
 - File Config: Enables applications to specify EMA configuration in an EmaConfig.xml file
+
+- Programmatic Config: Enables application to programmatically specify and overwrite EMA configuration
+
+- Direct Write setting on socket channel
+
+- High Water Mark setting on socket channel
 
 - Parameters, reconnectAttemptLimit, reconnectMinDelay, reconnectMaxDelay, xmlTrace, MsgKeyInUpdates only can be configured on Consumer/IProvider/NiProvider instance level.
 
@@ -54,25 +62,17 @@ In addition, HTML documentation is available in Cpp-C/Ema/Docs. For addtional do
 
 - Single Open: EMA supports application selected single open functionality
 
-- Programmatic Config: Enables application to programmatically specify and overwrite EMA configuration
-
-
 ## Non-Interactive Provider Features:
 
 - Default Admin Domains: EMA uses default login and directory messages while connecting to server. This provides minimum configuration for applications to get up and running.
  
 - Configurable Admin Domains: EMA provides means for modifying the default admin domain messages. 
 
-- Programmatic Config: Enables application to programmatically specify and overwrite EMA configuration
-
-
 ## Interactive Provider Features:
 
 - Default Admin Domains: EMA uses default directory messages while sending to the connected client. This provides minimum configuration for applications to get up and running.
  
 - Configurable Admin Domains: EMA provides means for modifying the default admin domain messages. 
-
-- Programmatic Config: Enables application to programmatically specify and overwrite EMA configuration
 
 # EMA C++ Library and Version Information
 
@@ -98,14 +98,14 @@ Shared library use is similar to static library use, however there are several k
 
     Library Name              Package Version
     ------------              ---------------
-    libema.lib                ema3.7.0.L1
+    libema.lib                ema3.9.0.L1
 
 ##### Shared Library Manifest
 
     Library Name              Package Version
     -------------             ---------------
-    libema.lib                ema3.7.0.L1
-    libema.dll                ema3.7.0.L1
+    libema.lib                ema3.9.0.L1
+    libema.dll                ema3.9.0.L1
 
 #### Linux
     
@@ -125,59 +125,54 @@ This will create all necessary soft links for example makefiles to link. It is s
 
     Library Name                Package Version  
     -------------               -------------- 
-    libema.a                    ema3.7.0.L1
+    libema.a                    ema3.9.0.L1
     
 ##### Shared Library Manifest
 
     Library Name                Binary Version       Package Version
     -------------               --------------       ----------------
-    libema.so.3.7.0.L1          libema.so.16          ema3.7.0.L1
+    libema.so.3.9.0.L1          libema.so.23          ema3.9.0.L1
     
   
 # EMA C++ Issues and Workarounds
 
-- ESDK-421 need infinite timeout support for PostAckTimeout and RequestTimeout in EMA
+- RTSDK-421 need infinite timeout support for PostAckTimeout and RequestTimeout in EMA
 
-- ESDK-385 ChannelSet with two multicast channels userQLimit set incorrectly 
+- RTSDK-385 ChannelSet with two multicast channels userQLimit set incorrectly 
 
-- ESDK-395 NiProvider360 application uses 100% CPU when CTRL-C pressed while publishing data
+- RTSDK-395 NiProvider360 application uses 100% CPU when CTRL-C pressed while publishing data
 
 - RTSDK-5119 EMACPP NIProvPerf has a limitation of 50000 watchlist size. RFA CPP used message packing to push the typical watchlist size of 100000 to ADH. Message packing is unavailable with EMA CPP.
 
-- ESDK-361 When overriding admin messages using addAdminMessage and if the service is down at start-up, the dictionary will not be downloaded properly.
-
-- EMA can not download dictionary from a Refinitiv Real-Time Distribution System over a Websocket connection using the tr_json2/rssl.json.v2 protocol. This is a limitation of the simplied JSON protocol.
+- RTSDK-361 When overriding admin messages using addAdminMessage and if the service is down at start-up, the dictionary will not be downloaded properly.
 
 - The RWF/JSON Converter library does not support groupID property of RWF message when using Websocket Transport with JSON data format.
-
-- The ServerSharedSocket feature which permits multiple provider applications to reuse a port for load balancing is available only with certain patch levels on Linux 6. So, applications that intend to use this feature on Linux 6 must rebuild the RTSDK library (librssl) natively on a Linux 6 platform with the appropriate patch level that supports this feature. 
-
 
 # Reference Information
 
     I-COS Questionnaire: 6212
-    Refinitiv Item Number: N/A
+    LSEG Item Number: N/A
     Product Name: Enterprise Message API - C++ Edition
-    Release Number: 3.7.0
+    Release Number: 3.9.0
     Load Number: 1
-    Windows Load ID: ema3.7.0.L1.win
-        Supersedes: ema3.6.8.L1.win
-    Linux Load ID: ema3.7.0.L1.linux
-        Supersedes: ema3.6.8.L1.linux
+    Windows Load ID: ema3.9.0.L1.win
+        Supersedes: ema3.8.3.L1.win
+    Linux Load ID: ema3.9.0.L1.linux
+        Supersedes: ema3.8.3.L1.linux
     Release Status: RRG
     Release Type: RRG
     US ECCN: EAR99
     EU ECCN: None
     Export Code: NL
-    Security Compliance: Refinitiv Security Compliant
-    Template Version Supported: v4.20.56_RealTimeDistributionSystem_23.21 for RWF and Marketfeed Record Templates
+    Security Compliance: LSEG Security Compliant
+    Template Version Supported: v4.20.66_RealTimeDistributionSystem_25.21 for RWF and Marketfeed Record Templates
 
 # Security
 
     The components in this package have been scanned using the below software and security scanning products:
 
-    Black Duck by Synopsis, 2022.10.1.1048, https://www.blackducksoftware.com/
-    SemGrep 1.2.1, https://semgrep.dev/
+    Black Duck by Synopsis, 2023.10.2, https://www.blackducksoftware.com/
+    Coverity, 2023.12.2, https://scan.coverity.com/
 
 # Notes:
 - This package contains APIs that are subject to proprietary and open source licenses. Please make sure to read the top level README.md files for clarification.

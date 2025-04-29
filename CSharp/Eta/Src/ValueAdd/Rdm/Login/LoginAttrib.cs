@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -256,7 +256,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
             }
         }
 
-        private const string eol = "\n";
         private const string tab = "\t";
         private StringBuilder stringBuf = new StringBuilder();
 
@@ -428,63 +427,63 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append(tab);
                 stringBuf.Append("applicationId: ");
                 stringBuf.Append(ApplicationId.ToString());
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasApplicationName)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("applicationName: ");
                 stringBuf.Append(ApplicationName.ToString());
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasPosition)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("position: ");
                 stringBuf.Append(Position);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasProvidePermissionProfile)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("providePermissionProfile: ");
                 stringBuf.Append(ProvidePermissionProfile);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasProvidePermissionExpressions)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("providePermissionExpressions: ");
                 stringBuf.Append(ProvidePermissionExpressions);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSingleOpen)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("singleOpen: ");
                 stringBuf.Append(SingleOpen);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasAllowSuspectData)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("allowSuspectData: ");
                 stringBuf.Append(AllowSuspectData);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasProviderSupportDictDownload)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("providerSupportDictionaryDownload: ");
                 stringBuf.Append(SupportProviderDictionaryDownload);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportRoundTripLatencyMonitoring)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("RoundTripLatency: ");
                 stringBuf.Append(SupportConsumerRTTMonitoring);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             return stringBuf.ToString();

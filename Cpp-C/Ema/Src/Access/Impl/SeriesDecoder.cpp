@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -36,22 +36,11 @@ SeriesDecoder::SeriesDecoder() :
 
 SeriesDecoder::~SeriesDecoder()
 {
-	if ( _atExit || GlobalPool::isFinalState() )
-	{
-		if ( _elementListSetDef ) 
-			delete _elementListSetDef;
+	if ( _elementListSetDef ) 
+		g_pool.returnItem( _elementListSetDef );
 
-		if ( _fieldListSetDef )
-			delete _fieldListSetDef;
-	}
-	else
-	{
-		if ( _elementListSetDef ) 
-			g_pool._elementListSetDefPool.returnItem( _elementListSetDef );
-
-		if ( _fieldListSetDef )
-			g_pool._fieldListSetDefPool.returnItem( _fieldListSetDef );
-	}
+	if ( _fieldListSetDef )
+		g_pool.returnItem( _fieldListSetDef );
 
 	StaticDecoder::morph( &_load, DataType::NoDataEnum );
 	StaticDecoder::morph( &_summary, DataType::NoDataEnum );
@@ -120,12 +109,12 @@ void SeriesDecoder::clone( const SeriesDecoder& other )
 			switch ( _rsslSeries.containerType )
 			{
 			case RSSL_DT_FIELD_LIST :
-				_fieldListSetDef = g_pool._fieldListSetDefPool.getItem();
+				_fieldListSetDef = g_pool.getFieldListSetDefItem();
 				rsslDecodeLocalFieldSetDefDb( &_decodeIter, _fieldListSetDef->getSetDefDb() );
 				_localSetDefDb = _fieldListSetDef->getSetDefDb();
 				break;
 			case RSSL_DT_ELEMENT_LIST :
-				_elementListSetDef = g_pool._elementListSetDefPool.getItem();
+				_elementListSetDef = g_pool.getElementListSetDefItem();
 				rsslDecodeLocalElementSetDefDb( &_decodeIter, _elementListSetDef->getSetDefDb() );
 				_localSetDefDb = _elementListSetDef->getSetDefDb();
 				break;
@@ -271,12 +260,12 @@ bool SeriesDecoder::setRsslData( UInt8 majVer, UInt8 minVer, RsslBuffer* rsslBuf
 		switch ( _rsslSeries.containerType )
 		{
 		case RSSL_DT_FIELD_LIST :
-			_fieldListSetDef = g_pool._fieldListSetDefPool.getItem();
+			_fieldListSetDef = g_pool.getFieldListSetDefItem();
 			rsslDecodeLocalFieldSetDefDb( &_decodeIter, _fieldListSetDef->getSetDefDb() );
 			_localSetDefDb = _fieldListSetDef->getSetDefDb();
 			break;
 		case RSSL_DT_ELEMENT_LIST :
-			_elementListSetDef = g_pool._elementListSetDefPool.getItem();
+			_elementListSetDef = g_pool.getElementListSetDefItem();
 			rsslDecodeLocalElementSetDefDb( &_decodeIter, _elementListSetDef->getSetDefDb() );
 			_localSetDefDb = _elementListSetDef->getSetDefDb();
 			break;

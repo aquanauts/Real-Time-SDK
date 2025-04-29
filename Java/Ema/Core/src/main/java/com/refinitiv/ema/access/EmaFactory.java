@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|          Copyright (C) 2019-2022,2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -731,7 +731,16 @@ public class EmaFactory
 	{
 		return new OmmXmlImpl();
 	}
-	
+
+	/**
+	 * Creates a {@link com.refinitiv.ema.access.OmmJson}.
+	 * @return {@link com.refinitiv.ema.access.OmmJson}
+	 */
+	public static OmmJson createOmmJson()
+	{
+		return new OmmJsonImpl();
+	}
+
 	/**
 	 * Creates a {@link com.refinitiv.ema.access.ClassOfService}.
 	 * @return {@link com.refinitiv.ema.access.ClassOfService}
@@ -973,5 +982,23 @@ public class EmaFactory
 	 */
 	public static DictionaryEntry createDictionaryEntry() {
 		return new DictionaryEntryImpl(true);
+	}
+	
+	/**
+	 * Creates a {@link com.refinitiv.ema.access.PackedMsg}.
+	 * @param provider OmmProvider providing provider
+	 * @return {@link com.refinitiv.ema.access.PackedMsg}
+	 */
+	public static PackedMsg createPackedMsg(OmmProvider provider) {
+		return new PackedMsgImpl(provider);
+	}
+	
+	/**
+	 * Create an instance of {@link ServiceList}
+	 * @param name specifies a virtual service list name
+	 * @return {@link ServiceList}
+	 */
+	public static ServiceList createServiceList(String name) {
+		return new ServiceListImpl(name);
 	}
 }

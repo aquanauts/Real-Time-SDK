@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.unittest;
@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import com.refinitiv.ema.access.*;
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.ema.rdm.EmaRdm;
 import com.refinitiv.ema.unittest.TestUtilities.EncodingTypeFlags;
 import com.refinitiv.eta.codec.Buffer;
@@ -317,7 +318,7 @@ public class RefreshMsgTests extends TestCase
 
 		System.out.println(emaRefreshMsg);
 		// check that we can still get the toString on encoded/decoded msg.
-		TestUtilities.checkResult("RefreshMsg.toString() != toString() not supported", !(emaRefreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));			
+		TestUtilities.checkResult("RefreshMsg.toString() != toString()", !(emaRefreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
 		
 		System.out.println("End EMA RefreshMsg toString");
 		System.out.println();
@@ -326,7 +327,53 @@ public class RefreshMsgTests extends TestCase
 	public void testRefreshMsg_EncodeDecode()
 	{
 		TestUtilities.printTestHead("testRefreshMsg_EncodeDecode", "ema encoding ema decoding");
-		
+
+		String refreshMsgString = "RefreshMsg\n" +
+				"    streamId=\"15\"\n" +
+				"    domain=\"MarketPrice Domain\"\n" +
+				"    solicited\n" +
+				"    state=\"Open / Ok / None / 'Refresh Complete'\"\n" +
+				"    itemGroup=\"00 00\"\n" +
+				"    name=\"ABCDEF\"\n" +
+				"    nameType=\"1\"\n" +
+				"    serviceId=\"5\"\n" +
+				"    filter=\"12\"\n" +
+				"    id=\"21\"\n" +
+				"    Attrib dataType=\"FieldList\"\n" +
+				"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n" +
+				"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n" +
+				"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n" +
+				"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n" +
+				"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n" +
+				"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n" +
+				"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n" +
+				"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n" +
+				"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n" +
+				"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n" +
+				"        FieldListEnd\n" +
+				"    AttribEnd\n" +
+				"    Payload dataType=\"FieldList\"\n" +
+				"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n" +
+				"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n" +
+				"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n" +
+				"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n" +
+				"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n" +
+				"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n" +
+				"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n" +
+				"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n" +
+				"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n" +
+				"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n" +
+				"        FieldListEnd\n" +
+				"    PayloadEnd\n" +
+				"RefreshMsgEnd\n";
+
+		String refreshMsgEmptyString = "RefreshMsg\n" +
+				"    streamId=\"0\"\n" +
+				"    domain=\"MarketPrice Domain\"\n" +
+				"    state=\"Open / Ok / None / ''\"\n" +
+				"    itemGroup=\"00 00\"\n" +
+				"RefreshMsgEnd\n";
+
 		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory.createDataDictionary();
 		TestUtilities.eta_encodeDictionaryMsg(dictionary);
 
@@ -335,7 +382,8 @@ public class RefreshMsgTests extends TestCase
 	    TestUtilities.EmaEncodeFieldListAll(fl);
 	    
 	    com.refinitiv.ema.access.RefreshMsg refreshMsg = EmaFactory.createRefreshMsg();
-	    
+	    com.refinitiv.ema.access.RefreshMsg refreshMsgEmpty = EmaFactory.createRefreshMsg();
+
 		System.out.println("Begin EMA RefreshMsg test after constructor");
 
 		TestUtilities.checkResult(refreshMsg.domainType() == com.refinitiv.ema.rdm.EmaRdm.MMT_MARKET_PRICE, "RefreshMsg.domainType()");
@@ -384,65 +432,80 @@ public class RefreshMsgTests extends TestCase
 		System.out.println();		
 		
 	    System.out.println("Begin EMA RefreshMsg Set");
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
     	refreshMsg.domainType( com.refinitiv.ema.rdm.EmaRdm.MMT_MARKET_PRICE );
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.streamId( 15 );
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.partNum( 10 );
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.seqNum( 22 );
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 		refreshMsg.qos(OmmQos.Timeliness.REALTIME, OmmQos.Rate.TICK_BY_TICK);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 		refreshMsg.name("ABCDEF");
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.nameType( com.refinitiv.eta.rdm.InstrumentNameTypes.RIC );
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 		refreshMsg.serviceId(5);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.filter( 12 );
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 	
 		refreshMsg.id(21);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.attrib(fl);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 	
 		refreshMsg.state(OmmState.StreamState.OPEN, OmmState.DataState.OK, OmmState.StatusCode.NONE, "Refresh Complete");
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 	    refreshMsg.clearCache(true);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		refreshMsg.doNotCache(true);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		refreshMsg.solicited(true);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.publisherId(30,  15);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 		
 		refreshMsg.payload(fl);
-		TestUtilities.checkResult("RefreshMsg.toString() == toString() not supported", refreshMsg.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+		TestUtilities.checkResult("RefreshMsg.toString() == toString()", refreshMsg.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 		System.out.println("End EMA RefreshMsg Set");
 		System.out.println();
 
 		System.out.println("Begin EMA RefreshMsg Decoding");
 
+		DataDictionary emaDataDictionary = EmaFactory.createDataDictionary();
+
+		TestUtilities.checkResult("RefreshMsg.toString(dictionary) == toString(dictionary)", refreshMsg.toString(emaDataDictionary).equals("\nDictionary is not loaded.\n"));
+
+		emaDataDictionary.loadFieldDictionary(TestUtilities.getFieldDictionaryFileName());
+		emaDataDictionary.loadEnumTypeDictionary(TestUtilities.getEnumTableFileName());
+
+		TestUtilities.checkResult("RefreshMsg.toString(dictionary) == toString(dictionary)", refreshMsgEmpty.toString(emaDataDictionary).equals(refreshMsgEmptyString));
+
+		TestUtilities.checkResult("RefreshMsg.toString(dictionary) == toString(dictionary)", refreshMsg.toString(emaDataDictionary).equals(refreshMsgString));
+
 		com.refinitiv.ema.access.RefreshMsg emaRefreshMsg = JUnitTestConnect.createRefreshMsg();
 
 		JUnitTestConnect.setRsslData(emaRefreshMsg, refreshMsg, 14, 0, dictionary, null);
+
+		com.refinitiv.ema.access.RefreshMsg refreshMsgClone = EmaFactory.createRefreshMsg(refreshMsg);
+		refreshMsgClone.clear();
+		TestUtilities.checkResult("RefreshMsg.toString(dictionary) == toString(dictionary)", refreshMsgClone.toString(emaDataDictionary).equals(refreshMsgEmptyString));
 
 		TestUtilities.checkResult(emaRefreshMsg.domainType() == com.refinitiv.ema.rdm.EmaRdm.MMT_MARKET_PRICE, "RefreshMsg.domainType()");
 		
@@ -1383,4 +1446,359 @@ public class RefreshMsgTests extends TestCase
 		TestUtilities.checkResult(expected.clearCache() == actual.clearCache(), checkPrefix + "clearCache");
 	}
 
+	public void testRefreshMsg_EncodeETA_XmlPayload_DecodeEMA()
+	{
+		final String XML_STRING = "<consumerList><consumer><name dataType=\"Ascii\" value=\"Consumer_1\"/></consumer></consumerList>";
+
+		TestUtilities.printTestHead("testRefreshMsg_EncodeETA_XmlPayload_DecodeEMA", "Encode RefreshMsg with ETA for XML payload, decode it with EMA");
+
+		com.refinitiv.eta.codec.Buffer dataBuf = com.refinitiv.eta.codec.CodecFactory.createBuffer();
+		dataBuf.data(ByteBuffer.allocate(1024));
+
+		com.refinitiv.eta.codec.Buffer xmlBuf = com.refinitiv.eta.codec.CodecFactory.createBuffer();
+		xmlBuf.data(ByteBuffer.allocate(1024));
+		xmlBuf.data(XML_STRING);
+
+		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory.createDataDictionary();
+		TestUtilities.eta_encodeDictionaryMsg(dictionary);
+
+		int retVal;
+		System.out.println("Begin ETA XML Encoding");
+		if ((retVal = TestUtilities.eta_EncodeNonRWFData(dataBuf, xmlBuf)) < CodecReturnCodes.SUCCESS)
+		{
+			System.out.println("Error encoding Xml.");
+			System.out.println("Error " + CodecReturnCodes.toString(retVal) + "(" + retVal
+					+ ") encountered with TestUtilities.eta_EncodeNonRWFData.  " + "Error Text: "
+					+ CodecReturnCodes.info(retVal));
+			return;
+		}
+		System.out.println("End ETA XML Encoding");
+		System.out.println();
+
+		System.out.println("Begin ETA RefreshMsg Set");
+		com.refinitiv.eta.codec.RefreshMsg refreshMsg = (com.refinitiv.eta.codec.RefreshMsg)com.refinitiv.eta.codec.CodecFactory.createMsg();
+		refreshMsg.msgClass(com.refinitiv.eta.codec.MsgClasses.REFRESH);
+
+		refreshMsg.domainType( com.refinitiv.eta.rdm.DomainTypes.MARKET_PRICE );
+
+		refreshMsg.streamId( 15 );
+
+		refreshMsg.applyHasPartNum();
+		refreshMsg.partNum( 10 );
+
+		refreshMsg.applyHasSeqNum();
+		refreshMsg.seqNum( 22 );
+
+		refreshMsg.applyHasQos();
+		refreshMsg.qos().timeliness( com.refinitiv.eta.codec.QosTimeliness.REALTIME );
+		refreshMsg.qos().rate( com.refinitiv.eta.codec.QosRates.TICK_BY_TICK );
+
+		refreshMsg.applyHasMsgKey();
+
+		refreshMsg.msgKey().applyHasName();
+		refreshMsg.msgKey().name().data( "ABCDEF" );
+
+		refreshMsg.msgKey().applyHasNameType();
+		refreshMsg.msgKey().nameType( com.refinitiv.eta.rdm.InstrumentNameTypes.RIC );
+
+		refreshMsg.msgKey().applyHasServiceId();
+		refreshMsg.msgKey().serviceId(5);
+
+		refreshMsg.msgKey().applyHasFilter();
+		refreshMsg.msgKey().filter( 12 );
+
+		refreshMsg.msgKey().applyHasIdentifier();
+		refreshMsg.msgKey().identifier(21);
+
+		refreshMsg.state().code( com.refinitiv.eta.codec.StateCodes.NONE);
+		refreshMsg.state().streamState(com.refinitiv.eta.codec.StreamStates.OPEN);
+		refreshMsg.state().dataState(com.refinitiv.eta.codec.DataStates.OK);
+		refreshMsg.state().text().data("refresh complete");
+
+		refreshMsg.applyClearCache();
+		refreshMsg.applyDoNotCache();
+		refreshMsg.applySolicited();
+
+		refreshMsg.applyHasPostUserInfo();
+		refreshMsg.postUserInfo().userAddr(15);
+		refreshMsg.postUserInfo().userId(30);
+
+		refreshMsg.containerType(com.refinitiv.eta.codec.DataTypes.XML);
+		refreshMsg.encodedDataBody(xmlBuf);
+
+		System.out.println("End ETA RefreshMsg Set");
+		System.out.println();
+
+		System.out.println("Begin ETA RefreshMsg Buffer Encoding");
+
+		com.refinitiv.eta.codec.Buffer msgBuf = com.refinitiv.eta.codec.CodecFactory.createBuffer();
+		msgBuf.data(ByteBuffer.allocate(2048));
+
+		com.refinitiv.eta.codec.EncodeIterator encIter = com.refinitiv.eta.codec.CodecFactory.createEncodeIterator();
+		encIter.clear();
+		int majorVersion = Codec.majorVersion();
+		int minorVersion = Codec.minorVersion();
+		if ((retVal = encIter.setBufferAndRWFVersion(msgBuf, majorVersion, minorVersion)) < CodecReturnCodes.SUCCESS)
+		{
+			System.out.println("Error " + CodecReturnCodes.toString(retVal) + "(" + retVal + " encountered with setBufferAndRWFVersion. "
+					+ " Error Text: " + CodecReturnCodes.info(retVal));
+			return;
+		}
+
+		refreshMsg.encode(encIter);
+
+		System.out.println("End ETA RefreshMsg Buffer Encoding");
+		System.out.println();
+
+		System.out.println("Begin EMA RefreshMsg Decoding");
+
+		com.refinitiv.ema.access.RefreshMsg emaRefreshMsg = JUnitTestConnect.createRefreshMsg();
+
+		JUnitTestConnect.setRsslData(emaRefreshMsg, msgBuf, majorVersion, minorVersion, dictionary, null);
+
+		TestUtilities.checkResult(emaRefreshMsg.domainType() == com.refinitiv.ema.rdm.EmaRdm.MMT_MARKET_PRICE, "RefreshMsg.domainType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.streamId() == 15, "RefreshMsg.streamId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasPartNum(), "RefreshMsg.hasPartNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.partNum() == 10, "RefreshMsg.partNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasSeqNum(), "RefreshMsg.hasSeqNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.seqNum() == 22, "RefreshMsg.seqNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasQos(), "RefreshMsg.hasQos()");
+
+		TestUtilities.checkResult(emaRefreshMsg.qos().timeliness() == OmmQos.Timeliness.REALTIME, "RefreshMsg.qos().timeliness()");
+
+		TestUtilities.checkResult(emaRefreshMsg.qos().rate() == OmmQos.Rate.TICK_BY_TICK, "RefreshMsg.qos().rate()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasMsgKey(), "RefreshMsg.hasMsgKey()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasId(), "RefreshMsg.hasId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.id() == 21, "RefreshMsg.id()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasFilter(), "RefreshMsg.hasFilter()");
+
+		TestUtilities.checkResult(emaRefreshMsg.filter() == 12 , "RefreshMsg.hasFilter()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasServiceId(), "RefreshMsg.hasServiceId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.serviceId() == 5 , "RefreshMsg.serviceId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasNameType(), "RefreshMsg.hasNameType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.nameType() == com.refinitiv.ema.rdm.EmaRdm.INSTRUMENT_NAME_RIC , "RefreshMsg.nameType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasName(), "RefreshMsg.hasName()");
+
+		TestUtilities.checkResult(emaRefreshMsg.name().compareTo("ABCDEF") == 0, "RefreshMsg.name()");
+
+		TestUtilities.checkResult(emaRefreshMsg.clearCache(), "RefreshMsg.clearCache()");
+
+		TestUtilities.checkResult(emaRefreshMsg.doNotCache(), "RefreshMsg.doNotCache()");
+
+		TestUtilities.checkResult(emaRefreshMsg.solicited(), "RefreshMsg.solicited()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasPublisherId(), "RefreshMsg.hasPublisherId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.publisherIdUserAddress() == 15, "RefreshMsg.publisherIdUserAddress()");
+
+		TestUtilities.checkResult(emaRefreshMsg.publisherIdUserId() == 30, "RefreshMsg.publisherIdUserId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.payload().dataType() == com.refinitiv.ema.access.DataType.DataTypes.XML, "RefreshMsg.payload().dataType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.payload().xml().string().equals(XML_STRING), "RefreshMsg.payload().xml().string()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().code() == OmmState.StatusCode.NONE, "RefreshMsg.state().code()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().streamState() == OmmState.StreamState.OPEN, "RefreshMsg.state().streamState()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().dataState() == OmmState.DataState.OK, "RefreshMsg.state().dataState()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().statusText().equals("refresh complete"), "RefreshMsg.state().statusText()");
+
+		System.out.println("End EMA RefreshMsg Decoding");
+		System.out.println();
+	}
+
+	public void testRefreshMsg_EncodeETA_JsonPayload_DecodeEMA()
+	{
+		final String JSON_STRING = "{\"consumerList\" : {\"consumer\" : {\"name\" : \"Consumer_1\"} } }";
+
+		TestUtilities.printTestHead("testRefreshMsg_EncodeETA_JsonPayload_DecodeEMA", "Encode RefreshMsg with ETA for Json payload, decode it with EMA");
+
+		com.refinitiv.eta.codec.Buffer dataBuf = com.refinitiv.eta.codec.CodecFactory.createBuffer();
+		dataBuf.data(ByteBuffer.allocate(1024));
+
+		com.refinitiv.eta.codec.Buffer jsonBuf = com.refinitiv.eta.codec.CodecFactory.createBuffer();
+		jsonBuf.data(ByteBuffer.allocate(1024));
+		jsonBuf.data(JSON_STRING);
+
+		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory.createDataDictionary();
+		TestUtilities.eta_encodeDictionaryMsg(dictionary);
+
+		int retVal;
+		System.out.println("Begin ETA Json Encoding");
+		if ((retVal = TestUtilities.eta_EncodeNonRWFData(dataBuf, jsonBuf)) < CodecReturnCodes.SUCCESS)
+		{
+			System.out.println("Error encoding Json.");
+			System.out.println("Error " + CodecReturnCodes.toString(retVal) + "(" + retVal
+					+ ") encountered with TestUtilities.eta_EncodeNonRWFData.  " + "Error Text: "
+					+ CodecReturnCodes.info(retVal));
+			return;
+		}
+		System.out.println("End ETA Json Encoding");
+		System.out.println();
+
+		System.out.println("Begin ETA RefreshMsg Set");
+		com.refinitiv.eta.codec.RefreshMsg refreshMsg = (com.refinitiv.eta.codec.RefreshMsg)com.refinitiv.eta.codec.CodecFactory.createMsg();
+		refreshMsg.msgClass(com.refinitiv.eta.codec.MsgClasses.REFRESH);
+
+		refreshMsg.domainType( com.refinitiv.eta.rdm.DomainTypes.MARKET_PRICE );
+
+		refreshMsg.streamId( 15 );
+
+		refreshMsg.applyHasPartNum();
+		refreshMsg.partNum( 10 );
+
+		refreshMsg.applyHasSeqNum();
+		refreshMsg.seqNum( 22 );
+
+		refreshMsg.applyHasQos();
+		refreshMsg.qos().timeliness( com.refinitiv.eta.codec.QosTimeliness.REALTIME );
+		refreshMsg.qos().rate( com.refinitiv.eta.codec.QosRates.TICK_BY_TICK );
+
+		refreshMsg.applyHasMsgKey();
+
+		refreshMsg.msgKey().applyHasName();
+		refreshMsg.msgKey().name().data( "ABCDEF" );
+
+		refreshMsg.msgKey().applyHasNameType();
+		refreshMsg.msgKey().nameType( com.refinitiv.eta.rdm.InstrumentNameTypes.RIC );
+
+		refreshMsg.msgKey().applyHasServiceId();
+		refreshMsg.msgKey().serviceId(5);
+
+		refreshMsg.msgKey().applyHasFilter();
+		refreshMsg.msgKey().filter( 12 );
+
+		refreshMsg.msgKey().applyHasIdentifier();
+		refreshMsg.msgKey().identifier(21);
+
+		refreshMsg.state().code( com.refinitiv.eta.codec.StateCodes.NONE);
+		refreshMsg.state().streamState(com.refinitiv.eta.codec.StreamStates.OPEN);
+		refreshMsg.state().dataState(com.refinitiv.eta.codec.DataStates.OK);
+		refreshMsg.state().text().data("refresh complete");
+
+		refreshMsg.applyClearCache();
+		refreshMsg.applyDoNotCache();
+		refreshMsg.applySolicited();
+
+		refreshMsg.applyHasPostUserInfo();
+		refreshMsg.postUserInfo().userAddr(15);
+		refreshMsg.postUserInfo().userId(30);
+
+		refreshMsg.containerType(com.refinitiv.eta.codec.DataTypes.JSON);
+		refreshMsg.encodedDataBody(jsonBuf);
+
+		System.out.println("End ETA RefreshMsg Set");
+		System.out.println();
+
+		System.out.println("Begin ETA RefreshMsg Buffer Encoding");
+
+		com.refinitiv.eta.codec.Buffer msgBuf = com.refinitiv.eta.codec.CodecFactory.createBuffer();
+		msgBuf.data(ByteBuffer.allocate(2048));
+
+		com.refinitiv.eta.codec.EncodeIterator encIter = com.refinitiv.eta.codec.CodecFactory.createEncodeIterator();
+		encIter.clear();
+		int majorVersion = Codec.majorVersion();
+		int minorVersion = Codec.minorVersion();
+		if ((retVal = encIter.setBufferAndRWFVersion(msgBuf, majorVersion, minorVersion)) < CodecReturnCodes.SUCCESS)
+		{
+			System.out.println("Error " + CodecReturnCodes.toString(retVal) + "(" + retVal + " encountered with setBufferAndRWFVersion. "
+					+ " Error Text: " + CodecReturnCodes.info(retVal));
+			return;
+		}
+
+		refreshMsg.encode(encIter);
+
+		System.out.println("End ETA RefreshMsg Buffer Encoding");
+		System.out.println();
+
+		System.out.println("Begin EMA RefreshMsg Decoding");
+
+		com.refinitiv.ema.access.RefreshMsg emaRefreshMsg = JUnitTestConnect.createRefreshMsg();
+
+		JUnitTestConnect.setRsslData(emaRefreshMsg, msgBuf, majorVersion, minorVersion, dictionary, null);
+
+		TestUtilities.checkResult(emaRefreshMsg.domainType() == com.refinitiv.ema.rdm.EmaRdm.MMT_MARKET_PRICE, "RefreshMsg.domainType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.streamId() == 15, "RefreshMsg.streamId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasPartNum(), "RefreshMsg.hasPartNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.partNum() == 10, "RefreshMsg.partNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasSeqNum(), "RefreshMsg.hasSeqNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.seqNum() == 22, "RefreshMsg.seqNum()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasQos(), "RefreshMsg.hasQos()");
+
+		TestUtilities.checkResult(emaRefreshMsg.qos().timeliness() == OmmQos.Timeliness.REALTIME, "RefreshMsg.qos().timeliness()");
+
+		TestUtilities.checkResult(emaRefreshMsg.qos().rate() == OmmQos.Rate.TICK_BY_TICK, "RefreshMsg.qos().rate()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasMsgKey(), "RefreshMsg.hasMsgKey()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasId(), "RefreshMsg.hasId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.id() == 21, "RefreshMsg.id()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasFilter(), "RefreshMsg.hasFilter()");
+
+		TestUtilities.checkResult(emaRefreshMsg.filter() == 12 , "RefreshMsg.hasFilter()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasServiceId(), "RefreshMsg.hasServiceId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.serviceId() == 5 , "RefreshMsg.serviceId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasNameType(), "RefreshMsg.hasNameType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.nameType() == com.refinitiv.ema.rdm.EmaRdm.INSTRUMENT_NAME_RIC , "RefreshMsg.nameType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasName(), "RefreshMsg.hasName()");
+
+		TestUtilities.checkResult(emaRefreshMsg.name().compareTo("ABCDEF") == 0, "RefreshMsg.name()");
+
+		TestUtilities.checkResult(emaRefreshMsg.clearCache(), "RefreshMsg.clearCache()");
+
+		TestUtilities.checkResult(emaRefreshMsg.doNotCache(), "RefreshMsg.doNotCache()");
+
+		TestUtilities.checkResult(emaRefreshMsg.solicited(), "RefreshMsg.solicited()");
+
+		TestUtilities.checkResult(emaRefreshMsg.hasPublisherId(), "RefreshMsg.hasPublisherId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.publisherIdUserAddress() == 15, "RefreshMsg.publisherIdUserAddress()");
+
+		TestUtilities.checkResult(emaRefreshMsg.publisherIdUserId() == 30, "RefreshMsg.publisherIdUserId()");
+
+		TestUtilities.checkResult(emaRefreshMsg.payload().dataType() == com.refinitiv.ema.access.DataType.DataTypes.JSON, "RefreshMsg.payload().dataType()");
+
+		TestUtilities.checkResult(emaRefreshMsg.payload().json().string().equals(JSON_STRING), "RefreshMsg.payload().json().string()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().code() == OmmState.StatusCode.NONE, "RefreshMsg.state().code()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().streamState() == OmmState.StreamState.OPEN, "RefreshMsg.state().streamState()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().dataState() == OmmState.DataState.OK, "RefreshMsg.state().dataState()");
+
+		TestUtilities.checkResult(emaRefreshMsg.state().statusText().equals("refresh complete"), "RefreshMsg.state().statusText()");
+
+		System.out.println("End EMA RefreshMsg Decoding");
+		System.out.println();
+	}
 }

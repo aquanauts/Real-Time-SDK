@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.eta.codec;
@@ -3535,9 +3535,9 @@ public class PrimitiveDataJunit
     	State testState  = CodecFactory.createState();
     	Enum testEnum  = CodecFactory.createEnum(), testEnumOut  = CodecFactory.createEnum();
     	ByteBuffer buffer1;
-    	buffer1 = putString("Refinitiv");
+    	buffer1 = putString("LSEG");
     	Buffer testBuffer = CodecFactory.createBuffer();
-    	testBuffer.data(buffer1, 0, "Refinitiv".length());
+    	testBuffer.data(buffer1, 0, "LSEG".length());
     	
     	/* Int conversion test */
     	testInt.value(987654321);

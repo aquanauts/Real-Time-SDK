@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -285,7 +285,7 @@ public abstract class TestReactorComponent
     /// <summary>
     /// Closes the component's channel.
     /// </summary>
-    void CloseChannel()
+    internal void CloseChannel()
     {
         if (ReactorChannelState.CLOSED != m_ReactorChannel.State)
         {
@@ -314,5 +314,17 @@ public abstract class TestReactorComponent
 
         TestReactor.RemoveComponent(this);
         TestReactor = null;
+    }
+
+    public ReactorReturnCode GetChannelInfo(ReactorChannelInfo reactorChannelInfo)
+    {
+        if(m_ReactorChannelIsUp && m_ReactorChannel != null)
+        {
+            return m_ReactorChannel.Info(reactorChannelInfo, out _);
+        }
+        else
+        {
+            return ReactorReturnCode.FAILURE;
+        }
     }
 }

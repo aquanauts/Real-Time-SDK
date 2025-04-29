@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #ifndef WL_ITEM_H
@@ -93,6 +93,7 @@ struct WlItemStream
 	WlMsgReorderQueue	bufferedMsgQueue;           /* Multicast message synch queue. */
 	WlItemRequest		*pRequestWithExtraInfo;		/* If present, use the extendedHeader and
 													 * encDataBody, if any, from this request. */
+	RsslBool			itemIsClosedForAllStandby; /* This is used by the active server whether the item is closed for all standby servers. */
 };
 
 /* Initializes an item stream. */

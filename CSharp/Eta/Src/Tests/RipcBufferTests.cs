@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -32,17 +32,6 @@ namespace LSEG.Eta.Transports.Tests
 
         public void Dispose()
         {
-        }
-
-        private static void AssertEqual(byte[] expected, byte[] actual)
-        {
-            int i = 0;
-            for (; i < expected.Length && expected[i] == actual[i]; i++)
-                ;
-            if (i < expected.Length)
-            {
-                throw new Xunit.Sdk.TrueException($"expected({expected[i]}) == actual({actual[i]}) at [{i}]", i == expected.Length);
-            }
         }
 
         [Fact, Category("Unit")]
@@ -139,7 +128,7 @@ namespace LSEG.Eta.Transports.Tests
 
             ByteBuffer actual = new ByteBuffer(request.MessageLength);
             actual.Write(request);
-            AssertEqual(expected, actual.Contents);
+            Assert.Equal(expected, actual.Contents);
         }
 
         [Fact, Category("Unit")]
@@ -233,14 +222,7 @@ namespace LSEG.Eta.Transports.Tests
 
             byte[] actual = buffer.Contents;
 
-            try
-            {
-                Assert.Equal(expected, actual);
-            }
-            catch(Exception)
-            {
-                throw;
-            }
+            Assert.Equal(expected, actual);
         }
 
         [Fact, Category("Unit")]
@@ -329,7 +311,7 @@ namespace LSEG.Eta.Transports.Tests
             buffer.Write(reply);
 
             byte[] actual = buffer.Contents;
-            AssertEqual(expected, actual);
+            Assert.Equal(expected, actual);
         }
 
         [Fact, Category("Unit")]

@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2022 LSEG. All rights reserved.
 */
 
 #ifndef _RTR_RSSL_LOGIN_HANDLER_H
@@ -16,7 +16,7 @@ extern "C" {
 #include "rtr/rsslReactor.h"
 
 #define MAX_LOGIN_INFO_STRLEN 128
-#define LOGIN_REQ_MEM_BUF_SIZE 256
+#define LOGIN_REQ_MEM_BUF_SIZE 4096
 
 /* reasons a login request is rejected */
 typedef enum {

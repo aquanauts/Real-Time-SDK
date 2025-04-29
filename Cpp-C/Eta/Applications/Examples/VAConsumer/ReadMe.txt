@@ -1,0 +1,254 @@
+rsslVAConsumer Application Description
+
+--------
+Summary:
+--------
+
+The purpose of this application is to demonstrate consuming data from
+an OMM Provider, ADS device, OMM Provider application or Real-Time - Optimized 
+using ValueAdd components. It is a single-threaded client application.
+
+The consumer application implements callbacks that process information
+received by the provider.  It creates the RsslReactor, creates the
+desired connections, then dispatches from the RsslReactor for events and
+messages.  Once it has received the event indicating that the channel is 
+ready, it will make the desired item requests (snapshot or streaming) to 
+a provider and appropriately processes the responses. The resulting decoded 
+responses from the provider are displayed on the console.
+
+If the dictionary is found in the directory of execution, then it is loaded
+directly from the file.  However, the default configuration for this application
+is to request the dictionary from the provider.  Hence, no link to the dictionary
+is made in the execution directory by the build script.  The user can change this
+behavior by manually creating a link to the dictionary in the execution directory.
+
+This application supports consuming Level I Market Price, Level II Market By
+Order, Level II Market By Price and Yield Curve. This application optionally performs
+on-stream posting for Level I Market Price content.  
+
+This application can optionally perform on-stream and off-stream posting for Level I
+Market Price content. The item name used for an off-stream post is "OFFPOST". For
+simplicity, the off-stream post item name is not configurable, but users can modify
+the code if desired.
+
+If multiple item requests are specified on the command line for the same domain and
+the provider supports batch requests, this application will send the item requests as a
+single Batch request.
+
+If supported by the provider and the application requests view use, a dynamic
+view will be requested with all Level I Market Price requests.  For simplicity,
+this view is not configurable but users can modify the code to change the
+requested view.  
+
+This application supports a symbol list request. The symbol list name is optional.
+If the user does not provide a symbol list name, the name is taken from the source
+directory response.
+
+This application can optionally use the Value Add payload cache component for storing
+the OMM payload of the open items in a cache associated with each connection. When using
+cache, payload from refreshes and updates are written to cache, instead of decoded to
+the console. The contents of the cache are retrieved and decoded to the console at the
+end of the application runtime. Optionally, the contents of cache can also be displayed
+periodically during application runtime.
+
+This application can open tunnel streams to a provider that supports them (via the -tunnel option),
+such as the included provider example.
+
+This application is intended as a basic usage example.  Some of the design choices
+were made to favor simplicity and readability over performance.  This application 
+is not intended to be used for measuring performance.
+ 
+-----------------
+Application Name:
+-----------------
+
+VAConsumer
+
+------------------
+Setup Environment:
+------------------
+
+The RDMFieldDictionary and enumtype.def files located in the etc directory
+can be located in the directory of execution.  If the dictionary files
+cannot be found, they are requested from the provider.
+
+Both the shared version of libcurl and the openssl libraries are needed to run this example for 
+connecting and consuming data from Real-Time - Optimized. 
+
+-------------------
+Command line usage:
+-------------------  
+
+VAConsumer 
+(runs with a default set of paramters(-tcp localhost:14002 DIRECT_FEED mp:TRI -tcp localhost:14002 DIRECT_FEED mp:.DJI))
+
+or
+
+VAConsumer [-tcp [<hostname>:<port> <service>] [<domain>:<item name>,...] [-uname <LoginUsername>] [-passwd <LoginPassword>] [-clientId <Client ID>] [-sessionMgnt] [-takeExclusiveSignOnControl <true/false> ] [-at <AuthenticationToken>] [-ax <AuthenticationExtended>] [-aid <ApplicationId>] [-view] [-post] [-offpost] [-snapshot] [-x] [-runtime <seconds>] [-cache] [-cacheInterval <seconds>] [-statisticInterval <seconds>] [-qSourceName <name>] [-qDestName <name>] [-tsServiceName <service>] [-tunnel] [-tsAuth] [-tsDomain]
+
+-tcp specifies creating a channel on the given host and port, a service to request items from, and the list of items to request.
+
+The domains for the item list may be any of: mp(MarketPrice), mbo(MarketByOrder), mbp(MarketByPrice), yc(YieldCurve), sl(SymbolList)
+The domain may also be any of the private stream domains: mpps(MarketPrice PS), mbops(MarketByOrder PS), mbpps(MarketByPrice PS), ycps(YieldCurve PS)
+
+	Example Usage: -tcp localhost:14002 DIRECT_FEED mp:TRI,mp:GOOG,mpps:FB,mbo:MSFT,mbpps:IBM,yc:YCMAT01,sl
+
+Symbol list requests may optionally specify a name, e.g. "sl:_ETA_ITEM_LIST." If a name is not
+specified, the consumer will use the ItemList from the directory response.
+
+Specifying the -sessionMgnt option enables session management in the Reactor to perform
+authentication token management and query Delivery Platform service discovery on behalf of users if configured to do so.
+
+When -sessionMgnt is specified, if a host and port is specified, the Consumer will not use service discovery.
+In addition, the following options are used to retrieve a token from the authentication token management system.
+
+For a password grant(Machine ID) V1 login: -uname <Machine ID> -passwd <password> -clientId <Client ID>
+The client ID can be retrieved from Eikon by To generate clientID and search for App Key Generator. The App Key is the Client ID.
+
+For a client credentials grant(Service Account) V2 login: -clientId <service account> -clientSecret <client secret> OR -jwkFile <location of the JWK formatted private key file>
+
+Specifying the -takeExclusiveSignOnControl <true/false> option will set exclusive sign on control to force sign-out
+for the same credentials when enabling the session management. This only applies to a password grant V1 login. Defaults to true.
+
+Specifying the -view option will result in a dynamic view being requested with any
+MarketPrice items.  If the provider does not indicate support for dynamic views, this
+functionality will not be performed.
+
+Specifying the -post option will enable the consumer application to attempt on-stream
+posting to the provider.  When a provider supports posting, the consumer will post to
+the first successfully established MarketPrice stream.  If no MarketPrice items are 
+requested, posting will be disabled.  While posting, the appliation will alternate
+between a Post message that contains another message and a Post message that contains
+only data payload. 
+
+Specifying the -offpost option will enable the consumer application to attempt off-stream
+posting to the VAprovider.  When a VAprovider supports posting, the consumer will post to 
+the login stream.
+
+Specifying the -snapshot option results in a non-streaming or "snapshot" request for
+all items.
+
+Specifying the -runtime option controls the time the application will run
+before exiting, in seconds.
+
+Specifying the -cache option will store each received refresh or update payload into
+a cache, instead of decoding to the console. 
+
+Specifying the -cacheInterval will set the number of seconds between the display of the
+cache contents. The default value is 0: cache contents are not displayed at regular intervals,
+but only displayed on exit when runtime completes.
+
+Specifying the -statisticInterval will set the number of seconds between the display of the
+channel statistics.
+
+The -tunnel option opens a tunnel stream to the provider for exchanging simple messages.
+This option may be specified once per channel.
+
+The -tsServiceName option may be used to specify the name of the service used for tunnel stream
+messaging. This option is associated with a channel (specified by the -tcp option).  If not 
+specified, the service name used will be the same as the service name specified for the channel 
+via the -tcp option. 
+
+The -tsAuth option causes the consumer to use authentication when performing tunnel stream
+messaging.  Like the other tunnel stream messaging options, this is associated with a channel
+(specified by the -tcp option). This option may be specified once per channel.
+
+The -tsDomain option specifies the domainType to use when opening the tunnel stream, for the
+simple tunnel messaging. Like the other tunnel stream messaging options, this is associated
+with a channel (specified by the -tcp option). This option may be specified once per channel.
+
+Specifying the -at option configures the token used for UserAuthn Authentication. This should be used 
+in place of a userName.  This token is retrieved from a token generator, and passed to
+LSEG Real-Time Distribution, which will verify the token against a token validator.
+For more information about the UserAuthn Authentication feature, please see the Developers guide and
+the UserAuthn Authentication guide.
+
+Specifying the -ax option configures the authentication extended information used for UserAuthn Authentication.
+
+Specifying the -aid option configures the Application Id.
+
+or 
+
+VAConsumer -encryptedSocket <service name> mp:TRI.N -uname <machine ID> -passwd <password> -clientId <Client ID> -sessionMgnt
+
+The above example command line is used to create an encrypted connection with the socket encrypted protocol type
+using the default "us-east-1" region and enable session management to login and subscribe TRI.N from
+Real-Time - Optimized.
+
+- VAConsumer -? displays command line options.  
+
+- Pressing the CTRL+C buttons terminates the program.  
+
+-----------------
+Compiling Source:
+-----------------
+
+The included makefile is set up to run from the file
+locations as presented through the distribution package.
+It is set up for building on the Transport API supported 
+Linux platforms using the supported compilers.
+
+The VA_CUSTOM_BUILT_LIBS value in the makefile is used to 
+link in the Transport API ValueAdd components compiled from the provided
+source code.  If a custom library is used, VA_CUSTOM_BUILT_LIBS 
+should be set to Yes.  In addition, the user should point the 
+VA_INCLUDE locations to the location where the directory of 
+the current platform's library is built.
+
+The LINKTYPE value in the makefile is used to control
+whether the application is built using Transport API static or
+shared libraries. The default build uses Transport API static
+libraries. To use Transport API shared libraries,
+set LINKTYPE=Shared.
+
+To compile, run the gmake command.
+
+Gmake can be obtained at http://www.gnu.org/software/make/
+
+For windows platform, using Visual Studio, open one of the included vcxproj project
+files and build.
+
+----------------
+Example Content:
+----------------
+
+Included for this application are:
+
+- Source files.
+
+- This document.
+
+--------------------
+Detailed Description
+--------------------
+
+rsslConsumer.c - The main file for the rsslVAConsumer application. Provides the default message callback.
+
+rsslDictionaryHandler.c - Handles loading the dictionaries and provides the dictionary message callback.
+
+rsslDirectoryHandler.c - Provides the directory message callback.
+
+rsslLoginConsumer.c - Provides the login message callback.
+
+rsslMarketPriceHandler.c - Provides functions for encoding market price requests and decoding responses.
+
+rsslMarketByOrderHandler.c - Provides functions for encoding market by order requests and decoding responses. 
+
+rsslMarketByPriceHandler.c - Provides functions for encoding market by price requests and decoding responses. 
+
+rsslYieldCurveHandler.c - Provides functionality for encoding yield curve requests and decoding responses.
+
+rsslSymbolListHandler.c - Provides functions for encoding symbol list requests and decoding responses. 
+
+rsslPostHandler.c - This handles all post message encoding and sending when the -post option is specified.  
+
+rsslVAMarketPriceItems.c - This encodes market price content inside of the Post message when posting is enabled.
+
+rsslVASendMessage.c - Utility functions for sending messages.
+
+rsslVACacheHandler.c - Utility functions for applying and retrieving cache payload data.
+
+tunnelStreamHandler.c - Provides tunnel stream management, used by the SimpleTunnelStreamMsgHandler.
+
+simpleTunnelMsgHandler.c - Provides functionality for sending and receiving basic messages via a tunnel stream.
+

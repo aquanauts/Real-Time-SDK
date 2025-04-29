@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2020-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2020-2022 LSEG. All rights reserved.
 */
 
 /* consumerThreads.h
@@ -189,6 +189,7 @@ typedef struct {
 	RsslBuffer				directoryMsgCopyMemory;		/* Memory buffer for directoryMsgCopy. */
 	RsslBuffer				directoryMsgCopyMemoryOrig;	/* Copy of memory buffer(used to cleanup) */
 	ItemRequest				*itemRequestList;			/* List of items to request. */
+	ItemRequest				*itemRequestListAllocator;	/* Store pointer to the List of items to request. */
 	RsslReactor				*pReactor;					/* Used for when application uses VA Reactor instead of ETA Channel. */
 	RsslReactorChannel		*pReactorChannel;			/* Used for when application uses VA Reactor instead of ETA Channel. */
 	RsslReactorOMMConsumerRole consumerRole;			/* Used for when application uses VA Reactor instead of ETA Channel. */

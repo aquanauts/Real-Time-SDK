@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -18,6 +18,7 @@
 #endif
 
 #include <new>
+#include <cstdlib>
 
 #include "ActiveConfig.h"
 #include "EmaConfigImpl.h"
@@ -32,6 +33,7 @@
 #include "OmmOAuth2CredentialImpl.h"
 #include "OmmException.h"
 #include "OmmInvalidUsageException.h"
+#include "ServiceList.h"
 
 using namespace refinitiv::ema::access;
 
@@ -39,29 +41,36 @@ extern const EmaString& getDTypeAsString( DataType::DataTypeEnum dType );
 
 static const char* strEmaConfigXMLFileName = "EmaConfig.xml";
 
-EmaString EmaConfigBaseImpl::defaultEmaConfigXMLFileName(strEmaConfigXMLFileName);
+EmaString EmaConfigBaseImpl::defaultEmaConfigXMLFileName{ strEmaConfigXMLFileName };
 
-EmaConfigBaseImpl::EmaConfigBaseImpl( const EmaString & path ) :
-	_pEmaConfig(new XMLnode("EmaConfig", 0, 0)),
-	_pProgrammaticConfigure(0),
+EmaConfigBaseImpl::EmaConfigBaseImpl( const EmaString & configPath) :
+	_pEmaConfig{ new XMLnode("EmaConfig", 0, 0) },
+	_pProgrammaticConfigure{ nullptr },
 	_instanceNodeName(),
-	_configSessionName()
+	_configSessionName(),
+	_userSetShouldInitializeCPUIDlib(false),
+	_shouldInitializeCPUIDlib(true),
+	_securityProtocolSetViaFunctionCall(OmmConsumerConfig::ENC_NONE)
 {
 	createNameToValueHashTable();
 
-	readXMLconfiguration(path);
+	readXMLconfiguration(configPath);
 }
 
 EmaConfigBaseImpl::~EmaConfigBaseImpl()
 {
-	delete _pEmaConfig;
-	delete _pProgrammaticConfigure;
 }
 
 void EmaConfigBaseImpl::clear()
 {
 	_instanceNodeName.clear();
 	_configSessionName.clear();
+
+	_cpuWorkerThreadBind.clear();
+	_cpuApiThreadBind.clear();
+	_userSetShouldInitializeCPUIDlib = false;
+	_shouldInitializeCPUIDlib = true;
+	_securityProtocolSetViaFunctionCall = OmmConsumerConfig::ENC_NONE;
 }
 
 const XMLnode* EmaConfigBaseImpl::getNode(const EmaString& itemToRetrieve) const
@@ -174,21 +183,9 @@ static OmmLoggerClient::Severity handleConfigurationPathError(const EmaString& e
 	return OmmLoggerClient::ErrorEnum; // only happens if no path was specified
 }
 
-/*
- * read and parse a configuration file
- *
- * if parameter path is empty, attempt to read and parse file EmaConfig.xml in the current working directory. Return
- * OmmLoggerClient::SuccessEnum or OmmLoggerClient::ErrorEnum
- *
- * if parameter path is not empty, read the configuration from path if it is a file or file path/EmaConfig.xml if path is a directory.
- * If a configuration can be constructed from the file, return OmmLoggerClient::SuccessEnum. Otherwise, throw an
- * OmmInvalidConfigurationException exception
- */
-OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaString& path)
+OmmLoggerClient::Severity EmaConfigBaseImpl::readFileToMemory(const EmaString& path, const EmaString& defaultFileName, EmaString& fileName,
+	BufferPtrT& outByteData, size_t& outBytesRead)
 {
-	EmaString fileName;		// eventual location of config file
-	const EmaString defaultFileName( defaultEmaConfigXMLFileName ); // used if path is empty or contains a directory
-
 	int statResult;
 #ifdef WIN32
 #define getcwd _getcwd
@@ -197,8 +194,10 @@ OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaStrin
 	struct stat statBuffer;
 #endif
 
-	if ( path.empty() )
+	if (path.empty())
+    {
 		fileName = defaultFileName;
+    }
 	else {						// user specified a path
 #ifdef WIN32
 		statResult = _stat(path.c_str(), &statBuffer);
@@ -206,9 +205,10 @@ OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaStrin
 		statResult = stat(path.c_str(), &statBuffer);
 #endif
 		if (statResult == -1) {
-			EmaString errorMsg( "configuration path [" );
+			BufferPtrT currentDir{ getcwd(nullptr, 0), std::free };
+			EmaString errorMsg("path [");
 			errorMsg.append(path).append("] does not exist;")
-				.append("working directory was [").append(getcwd(0, 0)).append("];")
+				.append("working directory was [").append(currentDir.get()).append("];")
 				.append("system error message [").append(strerror(errno)).append("]");
 			throwIceException(errorMsg);
 		}
@@ -224,9 +224,10 @@ OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaStrin
 		}
 
 		else {
-			EmaString errorMsg( "configuration path [" );
+			BufferPtrT currentDir{ getcwd(nullptr, 0), std::free };
+			EmaString errorMsg("path [");
 			errorMsg.append(path).append("] must be either a file or directory;")
-				.append("working directory was [").append(getcwd(0, 0)).append("]");
+				.append("working directory was [").append(currentDir.get()).append("]");
 			throwIceException(errorMsg);
 		}
 	}
@@ -242,47 +243,51 @@ OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaStrin
 	statResult = stat(fileName.c_str(), &statBuffer);
 #endif
 	// file must exist
-	if ( statResult == -1 ) {
+	if (statResult == -1) {
+		BufferPtrT currentDir{ getcwd(nullptr, 0), std::free };
 		EmaString errorMsg("fileName [");
 		errorMsg.append(fileName).append("] does not exist;")
-			.append("working directory was [").append(getcwd(0, 0)).append("];")
+			.append("working directory was [").append(currentDir.get()).append("];")
 			.append("system error message [").append(strerror(errno)).append("]");
 		_pEmaConfig->appendErrorMessage(errorMsg, (!path.empty() ? OmmLoggerClient::ErrorEnum : OmmLoggerClient::VerboseEnum));
 		return handleConfigurationPathError(errorMsg, !path.empty());
 	}
+
 	// file must be a file
-	if ( !(statBuffer.st_mode & S_IFREG) ) {
+	if (!(statBuffer.st_mode & S_IFREG)) {
+		BufferPtrT currentDir{ getcwd(nullptr, 0), std::free };
 		EmaString errorMsg("fileName [");
 		errorMsg.append(fileName).append("] is not a file;")
-			.append("working directory was [").append(getcwd(0, 0)).append("]");
+			.append("working directory was [").append(currentDir.get()).append("]");
 		_pEmaConfig->appendErrorMessage(errorMsg, (!path.empty() ? OmmLoggerClient::ErrorEnum : OmmLoggerClient::VerboseEnum));
 		return handleConfigurationPathError(errorMsg, !path.empty());
 	}
 
-	char* xmlData = NULL;
+	outByteData = NULL;
 	if (statBuffer.st_size > 0)
 	{
-		xmlData = reinterpret_cast<char*>(malloc(statBuffer.st_size + 1LL));
-		if (!xmlData)
+		outByteData.reset(reinterpret_cast<char*>(malloc(statBuffer.st_size + 1LL)));
+		
+		if (!(outByteData))
 		{
-			EmaString errorMsg("Failed to allocate memory for reading configuration file[");
+			EmaString errorMsg("Failed to allocate memory for reading file[");
 			errorMsg.append(fileName.c_str()).append("]");
 			_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
 			return handleConfigurationPathError(errorMsg, !path.empty());
 		}
 	}
 
-	FILE* fp = NULL;
-	size_t bytesRead = 0;
+	FILE* fp = nullptr;
+	outBytesRead = 0;
 
-	if (statResult == -1 || statBuffer.st_size <= 0 || xmlData == NULL ||
-		!(fp = fopen(fileName.c_str(), "r"))    ||
-		!(bytesRead = fread(reinterpret_cast<void*>(xmlData), sizeof(char), statBuffer.st_size, fp)))
+	if (statResult == -1 || statBuffer.st_size <= 0 || outByteData == NULL ||
+		!(fp = fopen(fileName.c_str(), "r")) ||
+		!(outBytesRead = fread(reinterpret_cast<void*>(outByteData.get()), sizeof(char), statBuffer.st_size, fp)))
 	{
 		EmaString workingDir;
 		getCurrentDir(workingDir);
 
-		EmaString errorMsg("Missing, unreadable or empty file configuration, path=[");
+		EmaString errorMsg("Missing, unreadable or empty file, path=[");
 		errorMsg.append(workingDir);
 #ifdef WIN32
 		errorMsg.append("\\");
@@ -291,56 +296,158 @@ OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaStrin
 #endif
 		errorMsg.append(fileName.c_str()).append("];");
 		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::VerboseEnum);
-		if(xmlData) free(xmlData);
-		if(fp) fclose(fp);
+
+		if (fp) fclose(fp);
 		return handleConfigurationPathError(errorMsg, !path.empty());
 	}
 	fclose(fp);
-	xmlData[bytesRead] = 0;
-	bool retVal(extractXMLdataFromCharBuffer(fileName.c_str(), xmlData, static_cast<int>(bytesRead)));
-	free(xmlData);
+	outByteData.get()[outBytesRead] = 0;
+
+	return OmmLoggerClient::SuccessEnum;;
+}
+
+/*
+ * read and parse a configuration file
+ *
+ * if parameter path is empty, attempt to read and parse file EmaConfig.xml in the current
+ * working directory. Return OmmLoggerClient::SuccessEnum or OmmLoggerClient::ErrorEnum
+ *
+ * if parameter configPath is not empty, read the configuration from path if it is a file
+ * or file configPath/EmaConfig.xml if path is a directory.
+ *
+ * If a configuration can be constructed from the file and valid, return
+ * OmmLoggerClient::SuccessEnum. Otherwise, throw an OmmInvalidConfigurationException
+ * exception
+ */
+OmmLoggerClient::Severity EmaConfigBaseImpl::readXMLconfiguration(const EmaString& configPath)
+{
+	OmmLoggerClient::Severity retCode;
+
+	EmaString configFileName;		// eventual location of config file
+	size_t configBytesRead{ 0 };
+	BufferPtrT configByteData{ nullptr, std::free };
+
+	if (OmmLoggerClient::SuccessEnum
+		!= (retCode = readFileToMemory(configPath, defaultEmaConfigXMLFileName, configFileName, configByteData, configBytesRead)))
+	{
+		return retCode;
+	}
+
+	bool retVal = extractXMLdataFromCharBuffer(configPath.c_str(), configByteData.get(), configBytesRead);
 
 	if ( retVal )
 		return OmmLoggerClient::SuccessEnum;
-	else {
+	else
+	{
 		EmaString errorMsg;
-		if (!path.empty())
-			errorMsg.append("could not construct configuration from file [").append(fileName).append("]");
-		return handleConfigurationPathError(errorMsg, !path.empty());
+		if (!configPath.empty())
+			errorMsg.append("could not construct configuration from file [").append(configFileName).append("] ");
+
+		errorMsg.append("error parsing XML file");
+
+		return handleConfigurationPathError(errorMsg, !configPath.empty());
 	}
 }
 
-bool EmaConfigBaseImpl::extractXMLdataFromCharBuffer(const EmaString& what, const char* xmlData, int length)
+void EmaConfigBaseImpl::errorHandler(void *userData, xmlErrorPtr error)
+{
+	printf("Configuration error at line %d, column %d\n%s",
+		error->line, error->int2, error->message);
+}
+
+bool EmaConfigBaseImpl::validateXMLdata(xmlDocPtr xmlDoc)
+{
+	const char* data = getSchemaData();
+	int len = static_cast<int>(getSchemaDataLen());
+	xmlSchemaParserCtxtPtr schemaCtxtPtr = xmlSchemaNewMemParserCtxt(data, len);
+	if (schemaCtxtPtr == nullptr)
+	{
+		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlSchemaNewMemParserCtxt failed");
+		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
+		return false;
+	}
+
+	xmlSchemaPtr schemaPtr = xmlSchemaParse(schemaCtxtPtr);
+	if (schemaPtr == nullptr)
+	{
+		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlSchemaParse failed");
+		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
+		xmlSchemaFreeParserCtxt(schemaCtxtPtr);
+		return false;
+	}
+
+	xmlSchemaValidCtxtPtr schemaValidCtxtPtr = xmlSchemaNewValidCtxt(schemaPtr);
+	if (schemaValidCtxtPtr == nullptr)
+	{
+		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlSchemaNewValidCtxt failed");
+		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
+		xmlSchemaFreeParserCtxt(schemaCtxtPtr);
+		xmlSchemaFree(schemaPtr);
+		return false;
+	}
+
+	xmlSchemaSetValidStructuredErrors(schemaValidCtxtPtr, (xmlStructuredErrorFunc)errorHandler, nullptr);
+
+	/*Validate XML configuration with XML schema*/
+	int schemaValidateResult = xmlSchemaValidateDoc(schemaValidCtxtPtr, xmlDoc);
+
+	if (schemaValidateResult > 0)
+	{
+		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlSchemaValidateDoc fails to validate");
+		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
+	}
+	else if (schemaValidateResult < 0)
+	{
+		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlSchemaValidateDoc generated an internal error");
+		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
+	}
+
+	xmlSchemaFreeParserCtxt(schemaCtxtPtr);
+	xmlSchemaFree(schemaPtr);
+	xmlSchemaFreeValidCtxt(schemaValidCtxtPtr);
+
+	return (schemaValidateResult == 0);
+}
+
+bool EmaConfigBaseImpl::extractXMLdataFromCharBuffer(const EmaString& configName, const char* xmlData, size_t xmlLength)
 {
 	LIBXML_TEST_VERSION
 
-		EmaString note("extracting XML data from ");
-	note.append(what);
+	EmaString note{ "extracting XML data from " };
+	note.append(configName);
 	_pEmaConfig->appendErrorMessage(note, OmmLoggerClient::VerboseEnum);
 
-	xmlDocPtr xmlDoc = xmlReadMemory(xmlData, length, NULL, "notnamed.xml", XML_PARSE_HUGE);
-	if (xmlDoc == NULL)
+	xmlDocPtr xmlDoc = xmlReadMemory(xmlData, static_cast<int>(xmlLength), "notnamed.xml", nullptr, XML_PARSE_HUGE);
+	if (xmlDoc == nullptr)
 	{
 		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlReadMemory failed while processing ");
-		errorMsg.append(what);
+		errorMsg.append(configName);
 		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
-		xmlFreeDoc(xmlDoc);
 		return false;
+	}
+
+	if (!validateXMLdata(xmlDoc))
+	{
+		xmlFreeDoc(xmlDoc);
+
+		EmaString errorMsg("error validating XML configuration");
+		throwIceException(errorMsg);
 	}
 
 	xmlNodePtr _xmlNodePtr = xmlDocGetRootElement(xmlDoc);
-	if (_xmlNodePtr == NULL)
+	if (_xmlNodePtr == nullptr)
 	{
 		EmaString errorMsg("extractXMLdataFromCharBuffer: xmlDocGetRootElement failed while processing ");
-		errorMsg.append(what);
+		errorMsg.append(configName);
 		_pEmaConfig->appendErrorMessage(errorMsg, OmmLoggerClient::ErrorEnum);
 		xmlFreeDoc(xmlDoc);
 		return false;
 	}
 
-	processXMLnodePtr(_pEmaConfig, _xmlNodePtr);
+	processXMLnodePtr(_pEmaConfig.get(), _xmlNodePtr);
 	_pEmaConfig->name(reinterpret_cast<const char*>(_xmlNodePtr->name));
 	xmlFreeDoc(xmlDoc);
+
 	return true;
 }
 
@@ -362,7 +469,7 @@ void EmaConfigBaseImpl::processXMLnodePtr(XMLnode* theNode, const xmlNodePtr& no
 			}
 		}
 
-		static EmaString errorMsg;
+		EmaString errorMsg;
 		ConfigElement* e(createConfigElement(reinterpret_cast<const char*>(nodePtr->name), theNode->parent(),
 			reinterpret_cast<const char*>(value), errorMsg));
 		if (e)
@@ -524,7 +631,7 @@ ConfigElement* EmaConfigBaseImpl::createConfigElement(const char* name, XMLnode*
 
 bool EmaConfigBaseImpl::validateConfigElement(const char* value, ConfigElement::ConfigElementType valueType) const
 {
-	if (!strlen(value))
+	if (value == nullptr || !strlen(value))
 		return false;
 
 	const char* p = value;
@@ -598,6 +705,7 @@ ConfigElement* EmaConfigBaseImpl::convertEnum(const char* name, XMLnode* parent,
 		{
 			{ "File", OmmLoggerClient::FileEnum },
 			{ "Stdout", OmmLoggerClient::StdoutEnum },
+			{ "Stderr", OmmLoggerClient::StderrEnum },
 		};
 		for (int i = 0; i < sizeof converter / sizeof converter[0]; i++)
 			if (!strcmp(converter[i].configInput, enumValue))
@@ -729,7 +837,7 @@ void EmaConfigBaseImpl::config(const Data& config)
 	{
 		if (!_pProgrammaticConfigure)
 		{
-			_pProgrammaticConfigure = new ProgrammaticConfigure(static_cast<const Map&>(config), _pEmaConfig->errors());
+			_pProgrammaticConfigure.reset(new ProgrammaticConfigure(static_cast<const Map&>(config), _pEmaConfig->errors()));
 		}
 		else
 		{
@@ -781,9 +889,13 @@ void EmaConfigBaseImpl::setCpuApiThreadBind(const EmaString& cpuString)
 	_cpuApiThreadBind = cpuString;
 }
 
-EmaConfigImpl::EmaConfigImpl(const EmaString& path) :
-	EmaConfigBaseImpl( path ),
-	configFilePath(path),
+void EmaConfigBaseImpl::securityProtocol(int securityProtocol)
+{
+	_securityProtocolSetViaFunctionCall = securityProtocol;
+}
+
+EmaConfigImpl::EmaConfigImpl(const EmaString& configPath) :
+	EmaConfigBaseImpl( configPath ),
 	_loginRdmReqMsg(),
 	_pDirectoryRsslRequestMsg( 0 ),
 	_pRdmFldRsslRequestMsg( 0 ),
@@ -793,7 +905,6 @@ EmaConfigImpl::EmaConfigImpl(const EmaString& path) :
 	_portSetViaFunctionCall(),
 	_proxyHostnameSetViaFunctionCall(),
 	_proxyPortSetViaFunctionCall(),
-	_securityProtocolSetViaFunctionCall(OmmConsumerConfig::ENC_NONE),
 	_proxyUserNameSetViaFunctionCall(),
 	_proxyPasswdSetViaFunctionCall(),
 	_proxyDomainSetViaFunctionCall(),
@@ -803,7 +914,10 @@ EmaConfigImpl::EmaConfigImpl(const EmaString& path) :
 	_libcurlName(),
 	_tokenServiceUrlV1(),
 	_tokenServiceUrlV2(),
-	_sslCAStoreSetViaFunctionCall()
+	_sslCAStoreSetViaFunctionCall(),
+	_channelTypeViaFunctionCall( RSSL_CONN_TYPE_INIT ),
+	_encryptedProtocolTypeViaFunctionCall( RSSL_CONN_TYPE_INIT ),
+	_serviceLists()
 {
 }
 
@@ -846,6 +960,14 @@ EmaConfigImpl::~EmaConfigImpl()
 	}
 
 	_LoginRequestMsgs.clear();
+
+	for (UInt32 i = 0; i < _serviceLists.size(); ++i)
+	{
+		delete _serviceLists[i];
+		_serviceLists[i] = NULL;
+	}
+
+	_serviceLists.clear();
 }
 
 void EmaConfigImpl::clear()
@@ -871,7 +993,6 @@ void EmaConfigImpl::clear()
 	_instanceNodeName.clear();
 	_proxyHostnameSetViaFunctionCall.clear();
 	_proxyPortSetViaFunctionCall.clear();
-	_securityProtocolSetViaFunctionCall = OmmConsumerConfig::ENC_NONE;
 	_proxyUserNameSetViaFunctionCall.clear();
 	_proxyPasswdSetViaFunctionCall.clear();
 	_proxyDomainSetViaFunctionCall.clear();
@@ -881,6 +1002,13 @@ void EmaConfigImpl::clear()
 	_tokenServiceUrlV1.clear();
 	_tokenServiceUrlV2.clear();
 	_serviceDiscoveryUrl.clear();
+	_proxyHostnameSetViaFunctionCall.clear();
+	_proxyPortSetViaFunctionCall.clear();
+	_proxyUserNameSetViaFunctionCall.clear();
+	_proxyPasswdSetViaFunctionCall.clear();
+	_proxyDomainSetViaFunctionCall.clear();
+	_channelTypeViaFunctionCall = RSSL_CONN_TYPE_INIT;
+	_encryptedProtocolTypeViaFunctionCall = RSSL_CONN_TYPE_INIT;
 }
 
 void EmaConfigImpl::username( const EmaString& username )
@@ -1089,6 +1217,19 @@ void EmaConfigImpl::getChannelName( const EmaString& instanceName, EmaString& re
 	}
 }
 
+
+bool EmaConfigImpl::getConsumerRoutingSessionChannelSetName(const EmaString& instanceName, EmaString& retVal) const
+{
+	if (_pProgrammaticConfigure && _pProgrammaticConfigure->getActiveConsumerRoutingSessionChannelSetName(instanceName, retVal))
+		return true;
+
+	EmaString nodeName(_instanceNodeName);
+	nodeName.append(instanceName);
+	nodeName.append("|SessionChannelSet");
+
+	return get<EmaString>(nodeName, retVal);
+}
+
 void EmaConfigImpl::getWarmStandbyChannelName(const EmaString& instanceName, EmaString& retVal, bool& foundProgrammaticCfg) const
 {
 	if (_pProgrammaticConfigure && _pProgrammaticConfigure->getActiveWSBChannelSetName(instanceName, retVal))
@@ -1258,11 +1399,6 @@ void EmaConfigImpl::proxyPort(const EmaString& proxyPort)
 		_proxyPortSetViaFunctionCall = "";
 }
 
-void EmaConfigImpl::securityProtocol(int securityProtocol)
-{
-	_securityProtocolSetViaFunctionCall = securityProtocol;
-}
-
 void EmaConfigImpl::proxyUserName(const EmaString& proxyUserName)
 {
 	if (proxyUserName.length())
@@ -1293,6 +1429,16 @@ void EmaConfigImpl::sslCAStore(const EmaString& sslCAStore)
 		_sslCAStoreSetViaFunctionCall = sslCAStore;
 	else
 		_sslCAStoreSetViaFunctionCall = "";
+}
+
+void EmaConfigImpl::channelType(RsslConnectionTypes channelType)
+{
+	_channelTypeViaFunctionCall = channelType;
+}
+
+void EmaConfigImpl::encryptedProtocolTypes(RsslConnectionTypes encProtocolType)
+{
+	_encryptedProtocolTypeViaFunctionCall = encProtocolType;
 }
 
 void EmaConfigImpl::objectName(const EmaString& objectName)
@@ -1367,8 +1513,76 @@ void EmaConfigImpl::addLoginMsgCredential(const ReqMsg& reqMsg, const EmaString&
 	_LoginRequestMsgs.push_back(newCredential);
 }
 
-EmaConfigServerImpl::EmaConfigServerImpl( const EmaString & path ) :
-	EmaConfigBaseImpl( path ),
+void EmaConfigImpl::restProxyHostName(const EmaString& restProxyHostName)
+{
+	if (restProxyHostName.length())
+		_restProxyHostnameSetViaFunctionCall = restProxyHostName;
+	else
+		_restProxyHostnameSetViaFunctionCall = "";
+}
+
+void EmaConfigImpl::restProxyPort(const EmaString& restProxyPort)
+{
+	if (restProxyPort.length())
+		_restProxyPortSetViaFunctionCall = restProxyPort;
+	else
+		_restProxyPortSetViaFunctionCall = "";
+}
+
+void EmaConfigImpl::restProxyUserName(const EmaString& restProxyUserName)
+{
+	if (restProxyUserName.length())
+		_restProxyUserNameSetViaFunctionCall = restProxyUserName;
+	else
+		_restProxyUserNameSetViaFunctionCall = "";
+}
+
+void EmaConfigImpl::restProxyPasswd(const EmaString& restProxyPasswd)
+{
+	if (restProxyPasswd.length())
+		_restProxyPasswdSetViaFunctionCall = restProxyPasswd;
+	else
+		_restProxyPasswdSetViaFunctionCall = "";
+}
+
+void EmaConfigImpl::restProxyDomain(const EmaString& restProxyDomain)
+{
+	if (restProxyDomain.length())
+		_restProxyDomainSetViaFunctionCall = restProxyDomain;
+	else
+		_restProxyDomainSetViaFunctionCall = "";
+}
+
+void EmaConfigImpl::addServiceList(const ServiceList& serviceList)
+{
+	if (serviceList.name().length() == 0)
+	{
+		EmaString errorMsg("The ServiceList's name must be non-empty string.");
+		throwIceException(errorMsg);
+		return;
+	}
+
+	EmaString& name = (EmaString&)serviceList.name();
+
+	for (UInt32 i = 0; i < _serviceLists.size(); i++)
+	{
+		if (_serviceLists[i]->name() == name)
+		{
+			EmaString errorMsg("A ServiceList with the name of ");
+			errorMsg.append(name).append(" has already been added to this OmmConsumerConfig.");
+			throwIceException(errorMsg);
+			return;
+		}
+	}
+
+	ServiceList* pNewServiceList = new ServiceList(serviceList);
+
+	_serviceLists.push_back(pNewServiceList);
+}
+
+
+EmaConfigServerImpl::EmaConfigServerImpl( const EmaString& configPath ) :
+	EmaConfigBaseImpl( configPath ),
 	_portSetViaFunctionCall(),
 	_pDirectoryRsslRefreshMsg(0)
 {

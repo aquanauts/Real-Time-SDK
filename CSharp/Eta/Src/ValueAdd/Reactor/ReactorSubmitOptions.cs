@@ -1,12 +1,13 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
 using LSEG.Eta.Transports;
+using System.Runtime.CompilerServices;
 
 namespace LSEG.Eta.ValueAdd.Reactor
 {
@@ -27,12 +28,19 @@ namespace LSEG.Eta.ValueAdd.Reactor
         public WriteArgs WriteArgs { get; set; } = new WriteArgs();
 
         /// <summary>
+        /// Gets request message options if submitting RequestMsg and enabling the watchlist.
+        /// </summary>
+        public ReactorRequestMsgOptions RequestMsgOptions { get; private set; } = new ReactorRequestMsgOptions();
+
+        /// <summary>
         /// Clears to default values.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public void Clear()
         {
             ServiceName = null;
             WriteArgs.Clear();
+            RequestMsgOptions.Clear();
         }
     }
 }

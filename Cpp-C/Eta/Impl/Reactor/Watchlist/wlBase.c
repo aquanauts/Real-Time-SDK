@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #include "rtr/wlBase.h"
@@ -78,10 +78,6 @@ RsslRet wlBaseInit(WlBase *pBase, WlBaseInitOptions *pOpts, RsslErrorInfo *pErro
 	RsslRet ret;
 
 	wlServiceCacheClearCreateOptions(&serviceCacheOpts);
-	serviceCacheOpts.serviceUpdateCallback = pOpts->updateCallback;
-	serviceCacheOpts.serviceStateChangeCallback = pOpts->serviceStateChangeCallback;
-	serviceCacheOpts.serviceCacheInitCallback = pOpts->serviceCacheInitCallback;
-	serviceCacheOpts.serviceCacheUpdateCallback = pOpts->serviceCacheUpdateCallback;
 
 	if (!(pServiceCache = wlServiceCacheCreate(&serviceCacheOpts, pErrorInfo)))
 		return pErrorInfo->rsslError.rsslErrorId;
@@ -108,7 +104,6 @@ RsslRet wlBaseInit(WlBase *pBase, WlBaseInitOptions *pOpts, RsslErrorInfo *pErro
 
 	pBase->channelMaxFragmentSize = 0;
 	pBase->pServiceCache = pServiceCache;
-	pBase->config.msgCallback = pOpts->msgCallback;
 	pBase->config.obeyOpenWindow = pOpts->obeyOpenWindow;
 	pBase->config.requestTimeout = pOpts->requestTimeout;
 	pBase->watchlist.state = 0;

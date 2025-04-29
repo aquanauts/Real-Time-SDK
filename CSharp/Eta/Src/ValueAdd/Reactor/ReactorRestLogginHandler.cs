@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -36,7 +36,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 try
                 {
                     m_StringBuilder.Length = 0;
-                    m_StringBuilder.AppendLine($"{Environment.NewLine}------ REST REQUEST ------");
+                    m_StringBuilder.AppendLine($"{NewLine}------ REST REQUEST ------");
                     m_StringBuilder.AppendLine($"Time stamp: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)}");
 
                     if(!string.IsNullOrEmpty(restConnetOptions.ProxyOptions.ProxyHostName) && !string.IsNullOrEmpty(restConnetOptions.ProxyOptions.ProxyPort))
@@ -94,7 +94,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 try
                 {
                     m_StringBuilder.Length = 0;
-                    m_StringBuilder.AppendLine($"{Environment.NewLine}------ REST RESPONSE ------");
+                    m_StringBuilder.AppendLine($"{NewLine}------ REST RESPONSE ------");
                     m_StringBuilder.AppendLine($"Time stamp: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)}");
                     m_StringBuilder.AppendLine(responseMessage.ToString());
 

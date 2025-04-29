@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2022 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -54,6 +54,7 @@ namespace access {
 class ServiceEndpointDiscoveryOption;
 class ServiceEndpointDiscoveryClient;
 class ServiceEndpointDiscoveryImpl;
+class ServiceEndpointDiscoveryConfig;
 
 class EMA_ACCESS_API ServiceEndpointDiscovery
 {
@@ -69,9 +70,17 @@ public:
 
 	///@name Constructor
 	//@{
+	/** Create an ServiceEndpointDiscovery from a ServiceEndpointDiscoveryConfig.
+		@param[in] serviceEndpointDiscoveryConfig specifies the configuration object containing configurations for service discovery.
+		\remark This affects exceptions thrown from ServiceEndpointDiscovery methods
+	 */
+	ServiceEndpointDiscovery(const ServiceEndpointDiscoveryConfig& serviceEndpointDiscoveryConfig);
+	//@}
+
+	///@name Constructor
+	//@{
 	/** Create an ServiceEndpointDiscovery.
 		@param[in] tokenServiceURLV1 specifies the token service URL V1 to override the default value.
-		@param[in] serviceDiscoveryURL specifies the service discovery URL to override the default value.
 		\remark This affects exceptions thrown from ServiceEndpointDiscovery methods
 	 */
 	ServiceEndpointDiscovery(const EmaString& tokenServiceURLV1);

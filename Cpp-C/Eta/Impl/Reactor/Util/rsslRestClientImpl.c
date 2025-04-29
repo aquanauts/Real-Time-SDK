@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
 */
 
@@ -209,7 +209,7 @@ void _rsslRestClearError(RsslError* rsslError)
 	rsslError->channel = 0;
 	rsslError->rsslErrorId = RSSL_RET_SUCCESS;
 	rsslError->sysError = 0;
-	memset(rsslError->text, 0, MAX_RSSL_ERROR_TEXT+1);
+	memset(rsslError->text, 0, MAX_RSSL_ERROR_TEXT);
 }
 
 void _rsslClearRestHandleImpl(RsslRestHandleImpl* rsslRestHandleImpl)
@@ -391,7 +391,7 @@ struct curl_slist * _rsslRestExtractHeaderInfo(CURL* curl, RsslRestRequestArgs* 
 			_rsslRestClearError(pError);
 			pError->rsslErrorId = RSSL_RET_FAILURE;
 			snprintf(pError->text, MAX_RSSL_ERROR_TEXT,
-				"<%s:%d> Error: _rsslRestExtractHeaderInfo() failed with text: failed to allocate memory.", __FILE__, __LINE__);
+				"<%s:%d> Error: _rsslRestExtractHeaderInfo() failed to allocate memory.", __FILE__, __LINE__);
 			return pHeaderList;
 		}
 
@@ -422,7 +422,7 @@ struct curl_slist * _rsslRestExtractHeaderInfo(CURL* curl, RsslRestRequestArgs* 
 		_rsslRestClearError(pError);
 		pError->rsslErrorId = RSSL_RET_FAILURE;
 		snprintf(pError->text, MAX_RSSL_ERROR_TEXT,
-			"<%s:%d> Error: _rsslRestExtractHeaderInfo() failed with text: %s", __FILE__, __LINE__,
+			"<%s:%d> Error: _rsslRestExtractHeaderInfo() Curl failed with text: %s", __FILE__, __LINE__,
 			(*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(curlCode));
 
 		return pHeaderList;
@@ -1038,8 +1038,16 @@ RsslRestClient* rsslCreateRestClient(RsslCreateRestClientOptions *pRestClientOpt
 
 		_rsslRestClearError(pError);
 		pError->rsslErrorId = RSSL_RET_FAILURE;
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 		snprintf(pError->text, MAX_RSSL_ERROR_TEXT,
 			"<%s:%d> Error: rsslHashTableInit() failed with text: %s", __FILE__, __LINE__, rsslErrorInfo.rsslError.text);
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+	#pragma GCC diagnostic pop
+#endif
+
 		return 0;
 	}
 
@@ -1153,7 +1161,7 @@ RsslInt64 rsslRestClientDispatch(RsslRestClient* RsslRestClient)
 					_rsslRestClearError(&pRestHandleImpl->rsslError);
 					pRestHandleImpl->rsslError.rsslErrorId = RSSL_RET_FAILURE;
 					snprintf(pRestHandleImpl->rsslError.text, MAX_RSSL_ERROR_TEXT,
-						"<%s:%d> Error: The REST request failed with text: %s",
+						"<%s:%d> Error: rsslRestClientDispatch() Curl failed to perform the request with text: %s",
 						__FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(pCurlMsg->data.result));
 
 					rsslRestResponseEvent.closure = pRestHandleImpl->userPtr;
@@ -1308,10 +1316,11 @@ CURLcode commonCurlOptions(CURL* curl, RsslRestRequestArgs* requestArgs)
 	if ((curlCode = (*(rssl_rest_CurlJITFuncs->curl_easy_setopt))(curl, CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L)) != CURLE_OK)
 		return curlCode;
 
-#ifdef RSSL_REST_CLIENT_VERBOSE
+	if (requestArgs->restVerboseMode)
+	{
 	if ((curlCode = (*(rssl_rest_CurlJITFuncs->curl_easy_setopt))(curl, CURLOPT_VERBOSE, 1L)) != CURLE_OK)
 		return curlCode;
-#endif
+	}
 
 	if ((curlCode = (*(rssl_rest_CurlJITFuncs->curl_easy_setopt))(curl, CURLOPT_TIMEOUT, timeout)) != CURLE_OK)
 		return curlCode;
@@ -1412,7 +1421,7 @@ RsslRestHandle* rsslRestClientNonBlockingRequest(RsslRestClient* restClient, Rss
 		{
 			error->rsslErrorId = RSSL_RET_FAILURE;
 			snprintf(error->text, MAX_RSSL_ERROR_TEXT,
-				"<%s:%d> Error: Failed to set CURL options with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(curlCode));
+				"<%s:%d> Error: rsslRestClientNonBlockingRequest() Curl failed to set CURL options with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(curlCode));
 		}
 
 		goto Failed;
@@ -1501,7 +1510,7 @@ Failed:
 	{
 		error->rsslErrorId = RSSL_RET_FAILURE;
 		snprintf(error->text, MAX_RSSL_ERROR_TEXT,
-			"<%s:%d> Error: Failed to perform the request with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(curlCode));
+			"<%s:%d> Error: rsslRestClientNonBlockingRequest() Curl failed to perform the request with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(curlCode));
 	}
 
 	(*(rssl_rest_CurlJITFuncs->curl_easy_cleanup))(curl);
@@ -1555,7 +1564,7 @@ RsslRet _rsslRestClientBlockingRequest(
 		{
 			error->rsslErrorId = RSSL_RET_FAILURE;
 			snprintf(error->text, MAX_RSSL_ERROR_TEXT,
-				"<%s:%d> Error: Failed to set CURL options with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(code));
+				"<%s:%d> Error: _rsslRestClientBlockingRequest() Curl failed to set CURL options with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(code));
 		}
 
 		(*(rssl_rest_CurlJITFuncs->curl_easy_cleanup))(curl);
@@ -1629,7 +1638,7 @@ Failed:
 	{
 		error->rsslErrorId = RSSL_RET_FAILURE;
 		snprintf(error->text, MAX_RSSL_ERROR_TEXT,
-			"<%s:%d> Error: Failed to perform the request with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(code));
+			"<%s:%d> Error: _rsslRestClientBlockingRequest() Curl failed to perform the request with text: %s", __FILE__, __LINE__, (*(rssl_rest_CurlJITFuncs->curl_easy_strerror))(code));
 	}
 
 	(*(rssl_rest_CurlJITFuncs->curl_slist_free_all))(restHandleImpl->pCurlHeaderList);
@@ -2534,7 +2543,7 @@ RsslBuffer* rsslRestRequestDumpBuffer(RsslRestRequestArgs* pRestRequest, RsslErr
 	}
 
 	//fprintf(pOutputStream, "\n--- REST REQUEST ---\n\n");
-	pos += snprintf(data + pos, (sizeRestRequest - pos), headerRestRequest.data);
+	pos += snprintf(data + pos, (sizeRestRequest - pos), "%s", headerRestRequest.data);
 
 	//xmlDumpTimestamp(pOutputStream);
 	pos += dumpTimestamp(data + pos, (sizeRestRequest - pos));
@@ -2703,13 +2712,13 @@ RsslBuffer* rsslRestResponseDumpBuffer(RsslRestResponse* pRestResponse, RsslErro
 	}
 
 	//fprintf(pOutputStream, "\n--- REST RESPONSE ---\n\n");
-	pos += snprintf(data + pos, (sizeRestResponse - pos), headerRestResponse.data);
+	pos += snprintf(data + pos, (sizeRestResponse - pos), "%s", headerRestResponse.data);
 
 	//xmlDumpTimestamp(pOutputStream);
 	pos += dumpTimestamp(data + pos, (sizeRestResponse - pos));
 
 	//fprintf(pOutputStream, "HTTP header data:\n");
-	pos += snprintf(data + pos, (sizeRestResponse - pos), sHttpHeaderData.data);
+	pos += snprintf(data + pos, (sizeRestResponse - pos), "%s", sHttpHeaderData.data);
 	
 	httpHeaders = &(pRestResponse->headers);
 	for (pLink = rsslQueuePeekFront(httpHeaders), n = 0; pLink; pLink = rsslQueuePeekNext(httpHeaders, pLink), n++)
@@ -2788,7 +2797,7 @@ RsslBuffer* rsslRestResponseErrDumpBuffer(RsslError* pErrorOutput)
 	}
 
 	//fprintf(pOutputStream, "\n--- REST RESPONSE ERROR---\n\n");
-	pos += snprintf(data + pos, (sizeRestResponseErr - pos), headerRestErr.data);
+	pos += snprintf(data + pos, (sizeRestResponseErr - pos), "%s", headerRestErr.data);
 
 	//xmlDumpTimestamp(pOutputStream);
 	pos += dumpTimestamp(data + pos, (sizeRestResponseErr - pos));
@@ -3344,7 +3353,7 @@ RsslRet rsslGenerateSignedJWT(RsslBuffer* JWK, RsslBuffer* aud, RsslBuffer* out,
 				(*(cryptoFuncs->bn_free))(rsa.dmq1);
 				(*(cryptoFuncs->bn_clear))(rsa.iqmp);
 				(*(cryptoFuncs->bn_free))(rsa.iqmp);
-			memset(&rsa, sizeof(OPENSSL_10_rsa), 0);
+			memset(&rsa, 0, sizeof(OPENSSL_10_rsa));
 
 			JWT_10_RSA_Failure:
 			if(privateKeyFailure == RSSL_TRUE)
@@ -3391,7 +3400,7 @@ RsslRet rsslGenerateSignedJWT(RsslBuffer* JWK, RsslBuffer* aud, RsslBuffer* out,
 					(*(cryptoFuncs->bn_clear))(rsa.iqmp);
 					(*(cryptoFuncs->bn_free))(rsa.iqmp);
 				}
-				memset(&rsa, sizeof(OPENSSL_10_rsa), 0);
+				memset(&rsa, 0, sizeof(OPENSSL_10_rsa));
 				cJSON_Delete(root);
 
 				return RSSL_RET_FAILURE;

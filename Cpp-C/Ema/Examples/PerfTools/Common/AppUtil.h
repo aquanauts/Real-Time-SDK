@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|         Copyright (C) 2019-2021 Refinitiv. All rights reserved.           --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|         Copyright (C) 2019-2021 LSEG. All rights reserved.                --
 ///*|-----------------------------------------------------------------------------
 
 #ifndef __PERFTOOL__COMMON__APPUTIL__H__
@@ -67,7 +67,7 @@ private:
 
 	static refinitiv::ema::access::EmaString				_appName;
 	static refinitiv::ema::access::EmaString				_sysTimeStr;
-	static const refinitiv::ema::access::Int32				_SIZE = 26;
+	static const refinitiv::ema::access::Int32				_SIZE = 42;
 	static char													_sysTimeBuf[_SIZE];
 	static time_t*												_pTime;
 	static tm*													_pTm;

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2021 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2021, 2025 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -139,6 +139,8 @@ OmmLoggerClient::OmmLoggerClient( LoggerType loggerType, bool includeDate, Sever
 {
 	if ( loggerType == OmmLoggerClient::FileEnum )
 		openLogFile( fileName, maxFileSize, maxFileNumber );
+	else if ( loggerType == OmmLoggerClient::StderrEnum )
+		_pOutput = stderr;
 	else
 		_pOutput = stdout;
 }
@@ -290,7 +292,7 @@ void OmmLoggerClient::closeLogFile()
 {
 	_printLock.lock();
 
-	if ( _pOutput && _pOutput != stdout )
+	if ( _pOutput && _pOutput != stdout && _pOutput != stderr )
 	{
 		if ( ! --clientFiles.openFiles[_clientFileIndex].clientCount )
 		{
@@ -347,7 +349,7 @@ char* OmmLoggerClient::timeString( bool includeDate )
 		next = strftime( timeString, sizeof timeString, "%Y/%m/%d %H:%M:%S", localtime(&tp.tv_sec));
 	else
 		next = strftime( timeString, sizeof timeString, "%H:%M:%S", localtime(&tp.tv_sec));
-	 snprintf(timeString + next, sizeof timeString - next, ".%03d", tp.tv_nsec/static_cast<long>(1E6));
+	 snprintf(timeString + next, sizeof timeString - next, ".%03ld", tp.tv_nsec/static_cast<long>(1E6));
 #endif
 
 	return timeString;
@@ -365,7 +367,7 @@ void OmmLoggerClient::log( const EmaString& callbackClientName, Severity severit
 
 	_printLock.lock();
 
-	if ( _pOutput && _pOutput != stdout && clientFiles.openFiles[_clientFileIndex].maxFileSize > 0 )
+	if ( _pOutput && _pOutput != stdout && _pOutput != stderr && clientFiles.openFiles[_clientFileIndex].maxFileSize > 0 )
 	{
 		if (!clientFiles.openFiles[_clientFileIndex].ptr)
 		{

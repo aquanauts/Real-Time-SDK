@@ -1,9 +1,9 @@
 ﻿/*
  *|-------------------------------------------------------------------------------
- *| This source code is provided under the Apache 2.0 license and is provided   --
- *| AS IS with no warranty or guarantee of fit for purpose.  See the project's  --
- *| LICENSE.md for details.                                                     --
- *| Copyright (C) 2022-2023 Refinitiv. All rights reserved.                          --
+ *| This source code is provided under the Apache 2.0 license
+ *| AS IS with no warranty or guarantee of fit for purpose.
+ *| See LICENSE.md for details.
+ *| Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-------------------------------------------------------------------------------
  */
 
@@ -53,9 +53,12 @@
  * Pressing the CTRL+C buttons terminates the program.
  *****************************************************************************************/
 
-
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net.Sockets;
-using LSEG.Eta.Codec;
+
 using LSEG.Eta.Transports;
 
 namespace LSEG.Eta.Training.Provider
@@ -194,7 +197,7 @@ namespace LSEG.Eta.Training.Provider
             /*********************************************************
              * Server/Provider Application Life Cycle Major Step 2: Create listening
              * socket using Bind Establishes a listening socket connection, which
-             * supports connections from standard socket and HTTP Connect users.
+             * supports connections from standard socket users.
              *
              * Returns an Server that represents the listening socket connection to
              * the user. In the event of an error, NULL is returned and additional
@@ -314,9 +317,9 @@ namespace LSEG.Eta.Training.Provider
                          ***************************************************************************/
 
                         /* Internally, the ETA initialization process includes several actions. The
-                         * initialization includes any necessary ETA connection handshake exchanges, including
-                         * any HTTP or HTTPS negotiation.  Compression, ping timeout, and versioning related
-                         * negotiations also take place during the initialization process.
+                         * initialization includes any necessary ETA connection handshake exchanges.  
+                         * Compression, ping timeout, and versioning related negotiations also take 
+                         * place during the initialization process.
                          *
                          * This process involves exchanging several messages across the connection,
                          * and once all message exchanges have completed the Channel.State will transition.

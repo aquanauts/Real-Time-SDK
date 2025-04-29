@@ -128,6 +128,9 @@ Series100Consumer112-PConfig-001
     Alters consumer to specify programatic config for parameters related to EncryptedType connection: 
     Host,Port,ProxyHost,ProxyPort and ObjectName
 
+Module:  Series100Consumer113
+-----------------------------
+
 Series100Consumer113-ConsFunc-001
    Alters consumer added addition arguments -tokenServiceUrl and -serviceDiscoveryUrl to set config.tokenServiceUrl or config.serviceDiscoveryUrl. 
    
@@ -142,6 +145,22 @@ Series100Consumer113-RestLogCallback-001
    -restLogFilename: File name for printing the REST logging messages.
    ./Cons113 -username <> -password <> -clientId <> -restLogCallback -restLogFilename "filename.log"
 
+Series100Consumer113-RestProxy-001
+   Alters consumer to test proxy connection for Rest requests.
+   Added command line options for check "functional" way:
+   -restProxyHost, -restProxyPort, -restProxyUserName, -restProxyPasswd, -restProxyDomain.
+   Added command line options for check "programmatic" way:
+   -prestProxyHost, -prestProxyPort.
+
+Series100Consumer113-ApiDispatch-001
+	Alters consumer ApiDispatch mode with implementing OMMConsumerErrorClient onJsonConverter.
+
+Series100Consumer113-UserDispatch-001
+	Alters consumer UserDispatch mode without implementing OMMConsumerErrorClient onJsonConverter.
+
+Series100Consumer113-UserDispatch-002
+	Alters consumer UserDispatch mode with implementing OMMConsumerErrorClient onJsonConverter.
+	
 Module:  Series100Consumer140
 -----------------------------
 
@@ -169,6 +188,21 @@ Module:  Series200Consumer280
 
 Series200Consumer280-ConsFunc-001
      Alters consumer which remove set host with api call OmmConsumerConfig() in file Consumer.cpp ,also alter to specify consumerName("Consumer_3") 
+
+Module:  Series300Consumer310
+---------------------------
+Series300Consumer310-Rmtes-001
+   Alters consumer to use new function rmtesBuffer.getAsEmaBuffer() and encode it as a FieldEntry of FieldList.
+
+Module:  Series300Consumer320
+-----------------------------
+Series300Consumer320-RequestRouting-001
+    Alters consumer 320 to include printSessionInfo for testing with RequestRouting feature.
+
+Module:  Series300Consumer330
+-----------------------------
+Series300Consumer330-RequestRouting-001
+   Alters consumer 300 to include printSessionInfo for testing with RequestRouting feature.
 
 Module:  Series300Consumer331
 ---------------------------
@@ -227,8 +261,23 @@ Series300Consumer331-ConsFunc-002
                  -directoryFilter 5 (SERVICE_INFO_FILTER | SERVICE_GROUP_FILTER)
                  -directoryFilter 63 (SERVICE_INFO_FILTER | SERVICE_GROUP_FILTER | SERVICE_STATE_FILTER | SERVICE_LOAD_FILTER | SERVICE_DATA_FILTER | SERVICE_LINK_FILTER)
 
+Series300Consumer331-ConsFunc-002
+    Alters consumer to request directory filters with -directoryFilter argument. 
+                 -directoryFilter 1 (SERVICE_INFO_FILTER) 
+                 -directoryFilter 2 (SERVICE_STATE_FILTER)
+                 -directoryFilter 4 (SERVICE_GROUP_FILTER)
+                 -directoryFilter 8 (SERVICE_LOAD_FILTER)
+                 -directoryFilter 16 (SERVICE_DATA_FILTER)
+                 -directoryFilter 32 (SERVICE_LINK_FILTER)
+                 -directoryFilter 3 (SERVICE_INFO_FILTER | SERVICE_STATE_FILTER)
+                 -directoryFilter 5 (SERVICE_INFO_FILTER | SERVICE_GROUP_FILTER)
+                 -directoryFilter 63 (SERVICE_INFO_FILTER | SERVICE_GROUP_FILTER | SERVICE_STATE_FILTER | SERVICE_LOAD_FILTER | SERVICE_DATA_FILTER | SERVICE_LINK_FILTER)
+
 Series300Consumer331-ConsFunc-003
     Alters consumer to request directory with interestAfterRefresh(false) 
+
+Series300Consumer331-RequestRouting-001
+   Alters consumer 331 to include printSessionInfo for testing with RequestRouting feature.
 
 Module:  Series300Consumer332
 ---------------------------
@@ -254,6 +303,9 @@ Series300Consumer332-Dict-007
 Series300Consumer332-Dict-008
     Alters consumer to call new interface DataDictionary.entry(int id, DictionaryEntry entryDst)
 
+Series300Consumer332-RequestRouting-001
+   Alters consumer 332 to include printSessionInfo for testing with RequestRouting feature.
+
 Module:  Series300Consumer333
 -----------------------------
 
@@ -267,10 +319,26 @@ Series300Consumer333-GenM-003
 
 Module:  Series300Consumer340
 -----------------------------
-
 Series300Consumer340-ConsFunc-001
    Alters consumer to clone and decode these messages: RefreshMsg, AckMsg, UpdateMsg and StatusMsg 
 
+Series300Consumer340-RequestRouting-001
+   Alters consumer 340 to include printSessionInfo for testing with RequestRouting feature.
+
+Module:  Series300Consumer341
+-----------------------------
+Series300Consumer341-RequestRouting-001
+   Alters consumer 341 to include printSessionInfo for testing with RequestRouting feature.
+
+Module:  Series300Consumer350
+-----------------------------
+Series300Consumer360-MultiThreadViews-001
+   Alters consumer to request multiple view from the plenty different threads
+
+Module:  Series300Consumer370
+---------------------------
+Series300Consumer370-BatchView-10Consumers
+   Alters the Consumer to bring multiple consumers up and down triggering any memory issues
 
 Module:  Series400Consumer410 
 ---------------------------
@@ -365,6 +433,20 @@ Series400Consumer421-PConfig-003
     instead of ( "DictionaryType", 1 ). 
     In functional configuration for consumerName as Consumer_3 and  host("localhost:14002")
 
+Series400Consumer421-PTimeout-001
+    Alters consumer such that Channel_1 added configuration settings for proxy connections.
+    Under Windows:
+	.addAscii("ProxyHost", "webproxy.pln.colo.services")
+	.addAscii("ProxyPort", "80")
+	.addUInt("ProxyConnectionTimeout", 7)
+    Under Linux:
+	.addAscii("ProxyHost", "google.com")
+	.addAscii("ProxyPort", "102")
+	.addUInt("ProxyConnectionTimeout", 7)
+    Also added configuration option for Reactor initialization timeout:
+	.addUInt("InitializationTimeout", 10)
+    Note: to display the curl_easy_setopt's parameters in runBlockingLibcurlProxyConnection use eta-PTimeout-001
+
 
 Module:  Series400Consumer430
 -----------------------------
@@ -398,7 +480,21 @@ Series400Consumer430-Auth-006
 Series400Consumer430-Auth-007
     Alters consumer which supports an authentication to do offstream posting.
 
+Series500-Consumer500-ConsFunc-001
+    Alter consumer to have file config, retister client for logitn to test preferred host feature.
 
+Series500-Consumer501-ConsFunc-001
+    Alter consumer to have programaticaly config, 3 warm standby groups with two channels each, 3 channels in channelset to test preferred host feature.
+
+Series500-Consumer501-ConsFunc-002
+    Alter consumer to have programatic config, retister client for logitn to test preferred host feature.
+
+Series500-Consumer501-BatchView-10Consumers
+    Alters the Consumer to bring miltiple consumers up and down triggering any memory issues.
+
+Series500-Consumer502-ConsFunc-001
+    Alter consumer retister client for logitn to test preferred host feature.
+	
 Module:  Series400Consumer440
 -----------------------------
 Series400Consumer440-TS-001
@@ -438,7 +534,92 @@ Series400Consumer450-RestLogCallback-001
    -restLogFilename: File name for printing the REST logging messages.
    ./Cons450 -username <> -password <> -clientId <> -restLogCallback -restLogFilename "filename.log"
 
+Module:  Series400Consumer490
+-----------------------------
+    Alters consumer to test a dictionary loading from object
+    Added command line options:
+    -loadLocalDictTwoConsSeq: load local dictionary to object then use this object to run 2 consumers sequntially
+    -loadChannelDictTwoConsSeq: load channel dictionary to object then use this object to run 2 consumers sequntially
+    -loadLocalDictTwoConsConcur: load local dictionary to object then use this object to run 2 consumers concurrently
+    -loadChannelDictTwoConsConcur: load channel dictionary to object then use this object to run 2 consumers concurrently
+    -shouldCopyIntoAPI: enable deep copy dictionary object into API
 
+Module:  Series500Consumer510
+-----------------------------
+Series500Consumer510-ConsFunc-001
+	Alters to add options for testing qos on ReqMsg and prin event.ChannelInformation instead of SessionInformation.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.INEXACT_DELAYED, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JUST_IN_TIME_CONFLATED).
+
+Series500Consumer510-ConsFunc-002
+	Alters to add options for testing with identifying a concrete service name and qos on ReqMsg and prin event.ChannelInformation instead of SessionInformation.
+	-i itemName.\n"        
+	-s Identifying service name.
+	-user userName.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.INEXACT_DELAYED, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JUST_IN_TIME_CONFLATED).
+
+Series500Consumer510-ConsFunc-003
+	Alters to add options for testing with requesting view1(2,22,25) and view2(2,30,31) on LSEG.L with qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.INEXACT_DELAYED, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JUST_IN_TIME_CONFLATED).
+
+Series500Consumer510-ConsFunc-004
+	Alters to add options for testing with identifying a concrete service name & requesting view1(2,22,25) and view2(2,30,31) on LSEG.L with qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-s Identifying service name.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.INEXACT_DELAYED, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JUST_IN_TIME_CONFLATED).
+
+Series500Consumer510-ConsFunc-005
+	Alters to add options for testing requesting same item but 2 streams, one is normal and one is private, qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-itemName to identify itemName.
+	-domain follow by domainType mp=MARKET_PRICE, mbp=MARKET_BY_PRICE, mbo=MARKET_BY_ORDER.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.BEST_DELAYED_TIMELINESS, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JIT_CONFLATED).
+
+Series500Consumer510-ConsFunc-006
+	Alters to add options for testing requesting batch with view for TRI.N IBM.N LSEG.L, qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.BEST_DELAYED_TIMELINESS, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JIT_CONFLATED).
+
+Series500Consumer510-ConsFunc-007
+	Alters to add options to identify serviceName1 and serviceName2 in serviceList SVG1, qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-s1 serviceName1.
+	-s2 serviceName2.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.BEST_DELAYED_TIMELINESS, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JIT_CONFLATED).
+
+Series500Consumer510-ConsFunc-008
+	Alters to add options for testing with identifying service id and qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-sid service Id.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.INEXACT_DELAYED, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JUST_IN_TIME_CONFLATED).
+
+Series500Consumer510-ConsFunc-009
+	Alters to add options to identify concrete serviceName1 and serviceName2 to request TRI.N on serviceName1 and IBM.N on serviceName2, qos on ReqMsg and print event.ChannelInformation instead of SessionInformation.
+	-s1 serviceName1.
+	-s2 serviceName2.
+	-test0 Testing default, no qos in ReqMsg.
+	-test11 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.TICK_BY_TICK).
+	-test12 Testing ReqMsg.qos(Timeliness.BEST_DELAYED_TIMELINESS, Rate.TICK_BY_TICK).
+	-test21 Testing ReqMsg.qos(Timeliness.REALTIME, Rate.JIT_CONFLATED).	
+	
 Module:  Series100Provider100 
 -------------------------------
 
@@ -511,11 +692,25 @@ Series100IProvider100-ProvFunc-009
 Series100IProvider100-ProvFunc-010
 	Alters Interactive Provider to register appClientError (since v. 1.4.0) and submit huge updateMsg.
 
+Series100IProvider100-ProvFunc-011
+	Alerts Interactive Provider to support the following user inputs:
+	-port: Provider port
+
 Module:	 Series100IProvider170
 ---------------------------
 Series100IProvider170-ProvFunc-001
 	Alters Interactive Provider to parse IOControl parameters as an input argument to modify their values and get those values to display after modifying i.e.
     -maxOutputBuffers, 	-guranteedOutputBuffers, -compressionThreshold
+
+Module:	 Series200IProvider200
+--------------------------
+Series200Provider200-ProvFunc-001
+	Alters Interactive Provider to provide views for multi threaded consumer. Compatible with Series300Consumer360-MultiThreadViews-001.
+
+Module:	 Series200IProvider260
+---------------------------
+Series200Provider260-toStringTest-001
+	Alters Interactive Provider to encode all Container Types and Msg Types and call function .toString() and .toString(dictionary).
 
 Module:  Series300Provider320
 ---------------------------
@@ -552,6 +747,20 @@ Series300Provider320-ProvFunc-005
 Series300Provider320-ProvFunc-006
     Alters Interactive Provider to send a dictionary in fragments starting at size 9600 
     bytes and incrementing subsequent fragments by 10000 bytes.
+
+Series300Provider320-ProvFunc-007
+    Alters Interactive Provider 320 to accept -p for portNumber via commandline arguments.
+
+Module:  Series300Provider340
+----------------------------------
+Series300Provider340-ProvFunc-001
+    Alter IProv340 to set AckId
+
+Series300Provider340-ProvFunc-002	
+    Alter IProv340 to add 3 options for testing set ackMsg with serviceName or serviceId or invalid serviceId.
+   -ackWithServiceId Set serviceName on Ack messages.
+   -ackWithServiceName Set serviceId on Ack messages.
+   -ackWithInvalidSID Set invalid serviceId on Ack messages.
 
 Module:  Series300Provider350
 ----------------------------------
@@ -736,3 +945,8 @@ emacppconsperf-Rto-001
            -uname <username> -password <password> -clientId <clientId> \
            -tickRate 1000 -steadyStateTime 300 \
            -itemFile 350k.xml -consumerName Perf_Consumer_WSJSON_1
+
+Module: other
+----------------------------------
+ContainerPerformance
+    Performance tool which evaluate encoding performance for all containers.

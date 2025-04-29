@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -188,11 +188,6 @@ namespace LSEG.Eta.PerfTools.ConsPerf
 		/// </summary>
 		public int RequestsPerTickRemainder { get; set; }
 
-		/// <summary>
-		/// At startup, prime the Just-In-Time compiler to optimize code by requesting a snapshot of all items before opening the streaming items
-		/// </summary>
-		public bool PrimeJIT { get; set; } = false;
-
         /// <summary>
         /// Use the VA Reactor instead of the ETA Channel for sending and receiving.
         /// </summary>
@@ -243,7 +238,6 @@ namespace LSEG.Eta.PerfTools.ConsPerf
 			CommandLine.AddOption("postingLatencyRate", 0, "Rate at which to send latency post messages");
 			CommandLine.AddOption("genericMsgRate", 0, "Rate at which to send generic messages");
 			CommandLine.AddOption("genericMsgLatencyRate", 0, "Rate at which to send latency generic messages");
-			CommandLine.AddOption("primeJIT", false, "At startup, prime the JIT to optimize code by requesting a snapshot of all items before opening the streaming items");
 			CommandLine.AddOption("busyRead", false, "If set, the application will continually read rather than using notification.");
 			//APIQA
 			CommandLine.AddOption("reactor", false, "Use the VA Reactor instead of the ETA Channel for sending and receiving");
@@ -251,7 +245,7 @@ namespace LSEG.Eta.PerfTools.ConsPerf
 			CommandLine.AddOption("password", "", "Password to use in login request");
 			CommandLine.AddOption("clientId", "", "ClientId to use in login request");
 			CommandLine.AddOption("clientSecret", "", "ClientId to use in login request");
-			CommandLine.AddOption("proxy", "Specifies that the application will make a tunneling connection (http or encrypted) through a proxy server, default is false");
+			CommandLine.AddOption("proxy", "Specifies that the application will make a connection through a proxy server, default is false");
 			CommandLine.AddOption("ph", "", "Proxy server host name");
 			CommandLine.AddOption("pp", "", "Proxy port number");
 			CommandLine.AddOption("sessionMgnt", "(optional) Enable Session Management in the reactor.");

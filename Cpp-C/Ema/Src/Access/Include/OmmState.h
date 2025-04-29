@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024-2025 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -122,6 +122,8 @@ public :
 		DacsUserAccessToAppDeniedEnum	= 32,	/*!< User is not allowed to use application */
 		GapFillEnum						= 34,	/*!< Content is intended to fill a recognized gap */
 		AppAuthorizationFailedEnum		= 35,	/*!< Application Authorization Failed */
+		SocketPHComplete				= 201,	/*!< Socket preferred host complete>*/
+		SocketPHStartingFallback		= 202,	/*!< Socket preferred host starting fallback>*/
 		InvalidFormedMsgEnum			= 256,  /*!< DEPRECATED: Not Used */
 		ChannelUnavailableEnum			= 257, /*!< DEPRECATED: Not Used */
 		ServiceUnavailableEnum			= 258, /*!< DEPRECATED: Not Used */
@@ -217,7 +219,7 @@ private :
 	OmmState& operator=( const OmmState& );
 
 	OmmStateDecoder*		_pDecoder;
-	UInt64					_space[19];
+	UInt64					_space[23];
 };
 
 }

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019, 2024 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,8 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "RdmUtilities.h"
+#include "OmmInvalidUsageException.h"
+#include "StaticDecoder.h"
 
 using namespace refinitiv::ema::access;
 using namespace refinitiv::ema::rdm;
@@ -133,16 +135,15 @@ AckMsg::AckMsg(const AckMsg& other)
 
 AckMsg::~AckMsg()
 {
-	if ( _pEncoder  &&  !GlobalPool::isFinalState() )
-		g_pool._ackMsgEncoderPool.returnItem( static_cast<AckMsgEncoder*>( _pEncoder ) );
+	if ( _pEncoder )
+		g_pool.returnItem( static_cast<AckMsgEncoder*>( _pEncoder ) );
 
 	if ( _pDecoder )
 	{
 		// Free memory from cloning the message if any
 		MsgDecoder::deallocateCopiedBuffer(this);
 
-		if ( !GlobalPool::isFinalState() )
-			g_pool._ackMsgDecoderPool.returnItem( static_cast<AckMsgDecoder*>( _pDecoder ) );
+		g_pool.returnItem( static_cast<AckMsgDecoder*>( _pDecoder ) );
 	}
 }
 
@@ -174,10 +175,33 @@ const EmaString& AckMsg::toString() const
 	return toString( 0 );
 }
 
+const EmaString& AckMsg::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	AckMsg ackMsg;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+	{
+		_pEncoder = g_pool.getAckMsgEncoderItem();
+		static_cast<Encoder*>(_pEncoder)->acquireEncIterator();
+	}
+	else if (!_pEncoder->ownsIterator())
+		static_cast<Encoder*>(_pEncoder)->acquireEncIterator();
+
+	RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+	StaticDecoder::setRsslData(&ackMsg, &rsslBuffer, RSSL_DT_MSG, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+	_toString.clear().append(ackMsg.toString());
+
+	return _toString;
+}
+
 const EmaString& AckMsg::toString( UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );
+	if (!_pDecoder)
+		return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
 
 	const AckMsgDecoder* pTempDecoder = static_cast<const AckMsgDecoder*>( _pDecoder );
 
@@ -328,7 +352,7 @@ bool AckMsg::getPrivateStream() const
 Decoder& AckMsg::getDecoder()
 {
 	if ( !_pDecoder )
-		setDecoder( g_pool._ackMsgDecoderPool.getItem() );
+		setDecoder( g_pool.getAckMsgDecoderItem() );
 
 	return *_pDecoder;
 }
@@ -336,7 +360,7 @@ Decoder& AckMsg::getDecoder()
 AckMsg& AckMsg::name( const EmaString& name )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->name( name );
 	return *this;
@@ -345,7 +369,7 @@ AckMsg& AckMsg::name( const EmaString& name )
 AckMsg& AckMsg::nameType( UInt8 nameType )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->nameType( nameType );
 	return *this;
@@ -354,7 +378,7 @@ AckMsg& AckMsg::nameType( UInt8 nameType )
 AckMsg& AckMsg::serviceName( const EmaString& serviceName )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->serviceName( serviceName );
 	return *this;
@@ -363,7 +387,7 @@ AckMsg& AckMsg::serviceName( const EmaString& serviceName )
 AckMsg& AckMsg::serviceId( UInt32 serviceId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->serviceId( serviceId );
 	return *this;
@@ -372,7 +396,7 @@ AckMsg& AckMsg::serviceId( UInt32 serviceId )
 AckMsg& AckMsg::id( Int32 id )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->identifier( id );
 	return *this;
@@ -381,7 +405,7 @@ AckMsg& AckMsg::id( Int32 id )
 AckMsg& AckMsg::filter( UInt32 filter )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->filter( filter );
 	return *this;
@@ -390,7 +414,7 @@ AckMsg& AckMsg::filter( UInt32 filter )
 AckMsg& AckMsg::streamId( Int32 streamId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->streamId( streamId );
 	return *this;
@@ -406,7 +430,7 @@ AckMsg& AckMsg::domainType( UInt16 domainType )
 	}
 
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->domainType( ( UInt8 )domainType );
 	return *this;
@@ -415,7 +439,7 @@ AckMsg& AckMsg::domainType( UInt16 domainType )
 AckMsg& AckMsg::seqNum( UInt32 seqNum )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	static_cast<AckMsgEncoder*>( _pEncoder )->seqNum( seqNum );
 	return *this;
@@ -424,7 +448,7 @@ AckMsg& AckMsg::seqNum( UInt32 seqNum )
 AckMsg& AckMsg::ackId( UInt32 postId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	static_cast<AckMsgEncoder*>( _pEncoder )->ackId( postId );
 	return *this;
@@ -433,7 +457,7 @@ AckMsg& AckMsg::ackId( UInt32 postId )
 AckMsg& AckMsg::nackCode( UInt8 nackCode )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	static_cast<AckMsgEncoder*>( _pEncoder )->nackCode( nackCode );
 	return *this;
@@ -442,7 +466,7 @@ AckMsg& AckMsg::nackCode( UInt8 nackCode )
 AckMsg& AckMsg::text( const EmaString& text )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	static_cast<AckMsgEncoder*>( _pEncoder )->text( text );
 	return *this;
@@ -451,7 +475,7 @@ AckMsg& AckMsg::text( const EmaString& text )
 AckMsg& AckMsg::attrib( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->attrib( data );
 	return *this;
@@ -460,7 +484,7 @@ AckMsg& AckMsg::attrib( const ComplexType& data )
 AckMsg& AckMsg::payload( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	_pEncoder->payload( data );
 	return *this;
@@ -469,7 +493,7 @@ AckMsg& AckMsg::payload( const ComplexType& data )
 AckMsg& AckMsg::extendedHeader( const EmaBuffer& Buffer )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	static_cast<AckMsgEncoder*>( _pEncoder )->extendedHeader( Buffer );
 	return *this;
@@ -478,7 +502,7 @@ AckMsg& AckMsg::extendedHeader( const EmaBuffer& Buffer )
 AckMsg& AckMsg::privateStream( bool privateStream )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ackMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getAckMsgEncoderItem();
 
 	static_cast<AckMsgEncoder*>( _pEncoder )->privateStream( privateStream );
 	return *this;

@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2020 Refinitiv. All rights reserved.
+ * Copyright (C) 2020 LSEG. All rights reserved.     
 */
 
 #include "providerThreads.h"
@@ -48,7 +48,7 @@ void clearProviderThreadConfig()
 	providerThreadConfig.threadReactorWorkerBindList[0][0] = '\0';
 	providerThreadConfig.threadCount = defaultThreadCount;
 	snprintf(providerThreadConfig.statsFilename, sizeof(providerThreadConfig.statsFilename), "ProvStats");
-	snprintf(providerThreadConfig.latencyLogFilename, sizeof(providerThreadConfig.latencyLogFilename), "");
+	snprintf(providerThreadConfig.latencyLogFilename, sizeof(providerThreadConfig.latencyLogFilename), "%s", "");
 	providerThreadConfig.logLatencyToFile = RSSL_FALSE;
 
 	providerThreadConfig.preEncItems = RSSL_FALSE;
@@ -183,7 +183,7 @@ void providerThreadInit(ProviderThread *pProvThread,
 {
 	char errTxt[256];
 	RsslBuffer errorText = {255, (char*)errTxt};
-	char tmpFilename[sizeof(providerThreadConfig.statsFilename) + 8];
+	char tmpFilename[sizeof(providerThreadConfig.statsFilename) + 24];
 
 	timeRecordQueueInit(&pProvThread->genMsgLatencyRecords);
 
@@ -1675,7 +1675,7 @@ void providerWaitForThreads(Provider *pProvider)
 
 	for (i = 0; i < providerThreadConfig.threadCount; ++i)
 		if ((ret = RSSL_THREAD_JOIN(pProvider->providerThreadList[i].threadId)) < 0)
-			printf("Failed to join thread %u: %d\n", 
+			printf("Failed to join thread %lu: %u\n", 
 #ifdef WIN32
 			pProvider->providerThreadList[i].threadId.threadId, 
 #else

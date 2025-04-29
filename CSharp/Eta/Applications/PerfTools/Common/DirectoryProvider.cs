@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -22,7 +22,7 @@ namespace LSEG.Eta.PerfTools.Common
         protected const int REFRESH_MSG_SIZE = 1024;
 
         // vendor name
-        protected const string vendor = "Refinitiv";
+        protected const string vendor = "LSEG";
 
         // field dictionary used and provided for the source. 
         protected const string fieldDictionaryName = "RWFFld";

@@ -1,12 +1,11 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
-using Microsoft.IdentityModel.Tokens;
 using LSEG.Eta.ValueAdd.Common;
 using System.Text.Json;
 
@@ -109,7 +108,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 ReactorOAuthCredential.ClientJwk.Data(reactorOAuthCredRenewal.ClientJwk.ToString());
                 ReactorOAuthCredential.JsonWebKey = null;
 
-                if ( ReactorRestClient.ValidateJWKFile(ReactorOAuthCredential, out ReactorErrorInfo? errorInfo) != ReactorReturnCode.SUCCESS)
+                if ( ReactorRestClient.ValidateJWK(ReactorOAuthCredential, out ReactorErrorInfo? errorInfo) != ReactorReturnCode.SUCCESS)
                 {
                     RestEvent restEvent = new RestEvent();
                     restEvent.Type = RestEvent.EventType.FAILED;
@@ -142,6 +141,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     ReactorOAuthCredentialRenewal.Clear();
                     ReactorOAuthCredentialRenewal.ClientId.Data(ReactorOAuthCredential.ClientId.ToString());
                     ReactorOAuthCredentialRenewal.TokenScope.Data(ReactorOAuthCredential.TokenScope.ToString());
+                    ReactorOAuthCredentialRenewal.Audience.Data(ReactorOAuthCredential.Audience.ToString());
 
                     /* Creates the token renewal event to the Reactor's queue for the application to submit sensitive information */
                     m_Reactor.SendCredentialRenewalEvent(ReactorChannel!, this, null);

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -73,6 +73,14 @@ namespace LSEG.Eta.ValueAdd.Rdm
         /// 1 - if enhanced symbol list features supported, 0 - if not.
         /// </summary>
         public long SupportEnhancedSymbolList { get; set; }
+
+        /// <summary>
+        /// Indicates support standby modes for the warm standby feature.
+        /// 0 - Unknown warm standby mode.
+        /// 1 - Login based warm standby mode.
+        /// 2 - Service based warm standby mode.
+        /// </summary>
+        public long SupportStandbyMode { get; set; }
 
         /// <summary>
         /// Checks the presence of supportBatchRequests field.
@@ -209,9 +217,22 @@ namespace LSEG.Eta.ValueAdd.Rdm
             }
         }
 
+        /// <summary>
+        /// Checks the presence of supportStandbyMode field.
+        /// </summary>
+        public bool HasSupportStandbyMode
+        {
+            get => (Flags & LoginSupportFeaturesFlags.HAS_SUPPORT_STANDBY_MODE) != 0;
+            set
+            {
+                if (value)
+                    Flags |= LoginSupportFeaturesFlags.HAS_SUPPORT_STANDBY_MODE;
+                else
+                    Flags &= ~LoginSupportFeaturesFlags.HAS_SUPPORT_STANDBY_MODE;
+            }
+        }
 
         private StringBuilder stringBuf = new StringBuilder();
-        private const string eol = "\n";
         private const string tab = "\t";
 
         /// <summary>
@@ -305,63 +326,70 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportBatchRequests: ");
                 stringBuf.Append(SupportBatchRequests);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportBatchReissues)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportBatchReissues: ");
                 stringBuf.Append(SupportBatchReissues);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportBatchCloses)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportBatchCloses: ");
                 stringBuf.Append(SupportBatchCloses);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportPost)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportOMMPost: ");
                 stringBuf.Append(SupportOMMPost);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportOptimizedPauseResume)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportOptimizedPauseResume: ");
                 stringBuf.Append(SupportOptimizedPauseResume);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportStandby)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportStandby: ");
                 stringBuf.Append(SupportStandby);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportViewRequests)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportViewRequests: ");
                 stringBuf.Append(SupportViewRequests);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportProviderDictionaryDownload)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportProviderDictionaryDownload: ");
                 stringBuf.Append(SupportProviderDictionaryDownload);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasSupportEnhancedSymbolList)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("SupportEnhancedSymbolList: ");
                 stringBuf.Append(SupportEnhancedSymbolList);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
+            }
+            if (HasSupportStandbyMode)
+            {
+                stringBuf.Append(tab);
+                stringBuf.Append("SupportStandbyMode: ");
+                stringBuf.Append(SupportStandbyMode);
+                stringBuf.AppendLine();
             }
 
             return stringBuf.ToString();

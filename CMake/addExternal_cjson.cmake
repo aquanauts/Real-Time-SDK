@@ -1,21 +1,21 @@
 #[=============================================================================[
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license    
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.              
+ *|           Copyright (C) 2024 LSEG. All rights reserved.     
 #]=============================================================================]
 
 
 include(rcdevExternalUtils)
 
 if(NOT cjson_url)
-	set(cjson_url "https://github.com/DaveGamble/cJSON/archive/v1.7.15.tar.gz")
+	set(cjson_url "https://github.com/DaveGamble/cJSON/archive/v1.7.18.tar.gz")
 endif()
 if(NOT cjson_hash)
-	set(cjson_hash "MD5=921b4bcb401aa604dc632fdb1c8dbdea")
+	set(cjson_hash "MD5=926245ca76bd04f338efcac489e2da9d")
 endif()
 if(NOT cjson_version)
-	set(cjson_version "1.7.15")
+	set(cjson_version "1.7.18")
 endif()
 	
 # If the option for using the system installed 

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019,2024 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -94,7 +94,7 @@ public :
 			
 		BufferEnum = 16,		/*!< A general purpose buffer. */
 
-		AsciiEnum = 17,			/*!< An 8-bit characters encoding using the Refinitiv Basic Character Set 
+		AsciiEnum = 17,			/*!< An 8-bit characters encoding using the LSEG Basic Character Set 
 									(RBCS). The first 128 characters are equivalent to the ASCII character 
 									set (ANSI X3.4-1968). */
 								
@@ -103,7 +103,7 @@ public :
 		
 		RmtesEnum = 19,			/*!< An encoding with a multilingual text encoding standard.
 									RMTES uses ISO 2022 escape sequences to select the character sets used. 
-									RMTES provides support for the Refinitiv Basic Character Set, UTF-8, 
+									RMTES provides support for the LSEG Basic Character Set, UTF-8, 
 									Japanese Latin and Katakana (JIS C 6220 - 1969), Japanese Kanji (JIS X 
 									0208 - 1990), and Chinese National Standard (CNS 11643-1986). StringRMTES 
 									also supports RREP sequences for character repetition and RHPA sequences 
@@ -175,6 +175,8 @@ public :
 									application to house a message within a message or a message within
 									another container's entries. This type is typically used with posting.*/
 		
+		JsonEnum = 142, 		/*!< JSON formatted data, use Non-RWF type encoders. */
+
 		ReqMsgEnum = 256,		/*!< A message to specify item interest. 
 									A consumer sends this message. */
 

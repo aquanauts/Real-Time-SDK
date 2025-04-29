@@ -1,0 +1,20 @@
+root = true
+
+[*.csproj]
+indent_style = space
+indent_size = 2
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+[*.json]
+indent_style = space
+indent_size = 2
+
+[Ema*Config.xml]
+indent_style = tab
+
+[EmaConfig.xsd]
+indent_style = space
+indent_size = 2

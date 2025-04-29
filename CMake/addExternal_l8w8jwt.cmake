@@ -1,8 +1,8 @@
 #[=============================================================================[
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2024-2025 LSEG. All rights reserved. 
 #]=============================================================================]
 
 
@@ -13,11 +13,11 @@ if(NOT l8w8jwt_url)
 endif()
 
 if(NOT l8w8jwt_tag)
-	set(l8w8jwt_tag "2.1.6" CACHE STRING "l8w8jwt tag")
+	set(l8w8jwt_tag "2.5.0" CACHE STRING "l8w8jwt tag")
 endif()
 
 if(NOT l8w8jwt_version)
-	set(l8w8jwt_version "2.1.6" CACHE STRING "l8w8jwt version")
+	set(l8w8jwt_version "2.5.0" CACHE STRING "l8w8jwt version")
 endif()
 
 unset(_cfg_type)
@@ -58,30 +58,61 @@ if((NOT l8w8jwt_USE_INSTALLED) AND
 	#        install/
 	rcdev_init_ep_add(${_EPA_NAME})
 
-	if(NOT EXISTS ${l8w8jwt_source}/l8w8jwt/.git)
-		file(MAKE_DIRECTORY ${l8w8jwt_source})
+	if(WIN32)
+		set(_LIB_PATH_NAME "${l8w8jwt_install}/lib/libl8w8jwt.lib")
+	else()
+		set(_LIB_PATH_NAME "${l8w8jwt_install}/${_libdir}/${_l8w8jwt_libname}")
+	endif()
 
-		execute_process(COMMAND ${GIT_EXECUTABLE} clone --recursive  ${l8w8jwt_url}
-									RESULT_VARIABLE _ret_val
-									WORKING_DIRECTORY ${l8w8jwt_source}
-									ERROR_VARIABLE _cmd_out
-									)
+	if(NOT EXISTS ${_LIB_PATH_NAME})
+
+		if (EXISTS "${l8w8jwt_download}/l8w8jwt-${l8w8jwt_tag}.tar.gz")
+			# Do the archive
+			file(MAKE_DIRECTORY ${l8w8jwt_source})
+			execute_process(COMMAND "${CMAKE_COMMAND}" -E tar x "${l8w8jwt_download}/l8w8jwt-${l8w8jwt_tag}.tar.gz"
+										RESULT_VARIABLE _ret_val
+										WORKING_DIRECTORY ${l8w8jwt_source}
+										ERROR_VARIABLE _cmd_out
+										)
+		else()
+			# Clone the GitHub
+			file(MAKE_DIRECTORY ${l8w8jwt_source})
+
+			execute_process(COMMAND ${GIT_EXECUTABLE} clone --recursive  ${l8w8jwt_url}
+										RESULT_VARIABLE _ret_val
+										WORKING_DIRECTORY ${l8w8jwt_source}
+										ERROR_VARIABLE _cmd_out
+										)
+
+			if(_ret_val)
+				message(WARNING 
+					"Git pull of l8w8jwt failed!"
+						"    gitcmd:${GIT_EXECUTABLE}\n"
+						"     dir:${_src}\n"
+						"     ret:${_ret_val}\n"
+						"     out:${_cmd_out}")
+			endif()
+
+			if(GIT_VERSION_STRING VERSION_LESS 2.14.0)
+				execute_process(COMMAND ${GIT_EXECUTABLE} checkout ${l8w8jwt_tag}
+										RESULT_VARIABLE _ret_val
+										WORKING_DIRECTORY ${l8w8jwt_source}/l8w8jwt
+										ERROR_VARIABLE _cmd_out
+										)
+				execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --recursive
+										RESULT_VARIABLE _ret_val
+										WORKING_DIRECTORY ${l8w8jwt_source}/l8w8jwt
+										ERROR_VARIABLE _cmd_out
+										)
+			else()
+				execute_process(COMMAND ${GIT_EXECUTABLE} checkout --recurse-submodules ${l8w8jwt_tag}
+										RESULT_VARIABLE _ret_val
+										WORKING_DIRECTORY ${l8w8jwt_source}/l8w8jwt
+										ERROR_VARIABLE _cmd_out
+										)
+			endif()
 									
-		if(_ret_val)
-			message(WARNING 
-				"Git pull of l8w8jwt failed!"
-					"    gitcmd:${GIT_EXECUTABLE}\n"
-					"     dir:${_src}\n"
-					"     ret:${_ret_val}\n"
-					"     out:${_cmd_out}")
 		endif()
-					
-		execute_process(COMMAND ${GIT_EXECUTABLE} checkout --recurse-submodules ${l8w8jwt_tag}
-									RESULT_VARIABLE _ret_val
-									WORKING_DIRECTORY ${l8w8jwt_source}/l8w8jwt
-									ERROR_VARIABLE _cmd_out
-									)
-									
 									
 		file(MAKE_DIRECTORY ${l8w8jwt_build})
 		
@@ -114,6 +145,8 @@ if((NOT l8w8jwt_USE_INSTALLED) AND
 										"-DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH_TMP}"
 										"-DCMAKE_SIZEOF_VOID_P=${CMAKE_SIZEOF_VOID_P}"
 										"-DLIBDIR:STRING=${_libdir}"
+										"-DGEN_FILES:BOOL=OFF"
+										"-DMBEDTLS_FATAL_WARNINGS:BOOL=OFF"
 										)
 		endif()
 										

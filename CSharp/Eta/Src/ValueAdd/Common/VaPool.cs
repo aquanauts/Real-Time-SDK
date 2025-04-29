@@ -1,10 +1,12 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
+
+using System.Runtime.CompilerServices;
 
 namespace LSEG.Eta.ValueAdd.Common
 {
@@ -50,6 +52,7 @@ namespace LSEG.Eta.ValueAdd.Common
         /// Adds a node to the pool.
         /// </summary>
         /// <param name="node">the node to add</param>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public virtual void Add(VaNode node)
         {
             if (m_Debug)
@@ -82,6 +85,7 @@ namespace LSEG.Eta.ValueAdd.Common
         /// Removes and returns the first item pooled.
         /// </summary>
         /// <returns>the first item pooled</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public VaNode? Poll()
         {
             if (m_Debug)
@@ -102,6 +106,7 @@ namespace LSEG.Eta.ValueAdd.Common
         /// Returns the size of the pool.
         /// </summary>
         /// <returns>the size of the pool</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public int Size()
         {
             return m_Queue.Size();

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2023, 2025 LSEG. All rights reserved.         --
  *|-----------------------------------------------------------------------------
  */
 
@@ -97,7 +97,7 @@ typedef enum {
 	RSSL_CONN_TYPE_UNIDIR_SHMEM		= 3,  /*!< (3) Channel is using a shared memory connection */
 	RSSL_CONN_TYPE_RELIABLE_MCAST	= 4,   /*!< (4) Channel is a reliable multicast based connection. This can be on a unified/mesh network where send and receive networks are the same or a segmented network where send and receive networks are different */
 	RSSL_CONN_TYPE_EXT_LINE_SOCKET  = 5,   /*!< (5) Channel is using an extended line socket transport */	
-	RSSL_CONN_TYPE_SEQ_MCAST		= 6,   /*!< (6) Channel is an unreliable, sequenced multicast connection for reading from an Refinitiv Real-Time Direct Feed system. This is a client-only, read-only transport. This transport is supported on Linux only. */
+	RSSL_CONN_TYPE_SEQ_MCAST		= 6,   /*!< (6) Channel is an unreliable, sequenced multicast connection for reading from an LSEG Real-Time Direct Feed system. This is a client-only, read-only transport. This transport is supported on Linux only. */
 	RSSL_CONN_TYPE_WEBSOCKET		= 7    /*!< (7) Channel is a WebSocket connection type. */
 } RsslConnectionTypes;
 
@@ -152,7 +152,7 @@ typedef struct {
 	RsslChannel			*channel;					/*!< @brief The RSSL channel the error occurred on. */
 	RsslRet				rsslErrorId;				/*!< @brief The RSSL Error value. */ 
 	RsslUInt32			sysError;					/*!< @brief The system error number.  */ 
-	char				text[MAX_RSSL_ERROR_TEXT+1];/*!< @brief Detailed text describing the error. */
+	char				text[MAX_RSSL_ERROR_TEXT];	/*!< @brief Detailed text describing the error. */
 } RsslError;
 
 
@@ -225,12 +225,13 @@ typedef struct
 	void*			 initConfig;			/*!< private config init */			
 	size_t			 initConfigSize;		/*!< private size of config init */	
 	RsslBool		 initCurlDebug;			/*!< curl debug (verbose) mode enable */
+	RsslBool		 shouldInitializeCPUIDlib;	/*!< Should ETA initialize CpuID lib, it identifies CPU topology */
 }RsslInitializeExOpts;
 
 /**
  * @brief Static initializer for RsslInitializeExOpts
  */
-#define RSSL_INIT_INITIALIZE_EX_OPTS { RSSL_LOCK_NONE, RSSL_INIT_SSL_LIB_JIT_OPTS, NULL, 0, RSSL_FALSE }
+#define RSSL_INIT_INITIALIZE_EX_OPTS { RSSL_LOCK_NONE, RSSL_INIT_SSL_LIB_JIT_OPTS, NULL, 0, RSSL_FALSE, RSSL_TRUE }
 
 /**
  * @brief Initializes the RSSL API and all internal members
@@ -515,19 +516,27 @@ typedef struct {
 } RsslSeqMCastOpts;
 
 #define RSSL_INIT_SEQ_MCAST_OPTS { 3000, 0 }
+
+/**
+ * @brief Options used for configuring a connection via proxy.
+ * see rsslConnect
+ * see RsslConnectOptions
+ */
 typedef struct {
 	char* proxyHostName;				/*!<  @brief Proxy host name. */
 	char* proxyPort;					/*!<  @brief Proxy port. */
 	char* proxyUserName;				/*!<  @brief User Name for authenticated proxies. */
 	char* proxyPasswd;					/*!<  @brief Password for authenticated proxies. */
 	char* proxyDomain;					/*!<  @brief Domain for authenticated proxies. */
+	RsslUInt32 proxyConnectionTimeout;	/*!<  @brief Maximum time a connection is allowed to be established. */
 } RsslProxyOpts;
 
-#define RSSL_INIT_PROXY_OPTS {0, 0, 0, 0, 0}
+#define RSSL_INIT_PROXY_OPTS { 0, 0, 0, 0, 0, 40 }
 
 typedef enum {
 	RSSL_ENC_NONE    = 0x00,			/*!< @brief (0x00) No encryption. */
-	RSSL_ENC_TLSV1_2 = 0x04				/*!< @brief (0x08) Encryption using TLSv1.2 protocol */
+	RSSL_ENC_TLSV1_2 = 0x04,			/*!< @brief (0x04) Encryption using TLSv1.2 protocol */
+	RSSL_ENC_TLSV1_3 = 0x08				/*!< @brief (0x08) Encryption using TLSv1.3 protocol */
 } RsslEncryptionProtocolTypes;
 
 /**
@@ -565,6 +574,8 @@ typedef struct{
 	RsslQueue		cookies;            /*!<represents a list of available cookies represented by a key and value pair structure. */
 	RsslBuffer		dataBody;			/*!<represents the data body portion of message if any. */
 	char*			protocolVersion;	/*!<represents the protocol version. */
+	RsslBuffer		url;				/*!<represents URL of HTTP request; Example: "/Websocket?<parameters>" */
+	void*			userSpecPtr;		/*!<represents a user specified pointer, possibly a closure. */
 }RsslHttpMessage;
 
 typedef void RsslHttpCallback(RsslHttpMessage*, RsslError*);
@@ -612,9 +623,9 @@ typedef struct {
 } RsslEncryptionOpts;
 
 #ifdef _WIN32
-#define RSSL_INIT_ENCRYPTION_OPTS { RSSL_ENC_TLSV1_2, RSSL_CONN_TYPE_HTTP, NULL}
+#define RSSL_INIT_ENCRYPTION_OPTS { (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3), RSSL_CONN_TYPE_HTTP, NULL}
 #else
-#define RSSL_INIT_ENCRYPTION_OPTS { RSSL_ENC_TLSV1_2, RSSL_CONN_TYPE_SOCKET, NULL}
+#define RSSL_INIT_ENCRYPTION_OPTS { (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3), RSSL_CONN_TYPE_SOCKET, NULL}
 #endif
 
 
@@ -701,7 +712,7 @@ typedef struct {
 	RsslMCastOpts		multicastOpts;			/*!< @brief Multicast transport specific options (used by ::RSSL_CONN_TYPE_RELIABLE_MCAST). */
 	RsslShmemOpts		shmemOpts;				/*!< @brief shmem transport specific options (used by ::RSSL_CONN_TYPE_UNIDIR_SHMEM). */
 	RsslSeqMCastOpts	seqMulticastOpts;		/*!< @brief Sequenced Multicast transport specific options (used by ::RSSL_CONN_TYPE_SEQ_MCAST). */
-	RsslProxyOpts		proxyOpts;
+	RsslProxyOpts		proxyOpts;				/*!< @brief Proxy configuration options. */
 	char*				componentVersion;		/*!< @brief User defined component version information*/
 	RsslEncryptionOpts  encryptionOpts;
 	RsslELOpts			extLineOptions;			/* Extended Line specific options */
@@ -771,10 +782,8 @@ RTR_C_INLINE void rsslClearConnectOpts(RsslConnectOptions *opts)
 	opts->sysRecvBufSize = 0;
 	opts->seqMulticastOpts.maxMsgSize = 3000;
 	opts->seqMulticastOpts.instanceId = 0;
-	opts->proxyOpts.proxyHostName = 0;
-	opts->proxyOpts.proxyPort = 0;
 	opts->componentVersion = NULL;
-	opts->encryptionOpts.encryptionProtocolFlags = RSSL_ENC_TLSV1_2;
+	opts->encryptionOpts.encryptionProtocolFlags = (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3);
 #ifdef _WIN32
 	opts->encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_HTTP;
 #else
@@ -787,6 +796,7 @@ RTR_C_INLINE void rsslClearConnectOpts(RsslConnectOptions *opts)
 	opts->proxyOpts.proxyUserName = NULL;
 	opts->proxyOpts.proxyPasswd = NULL;
 	opts->proxyOpts.proxyDomain = NULL;
+	opts->proxyOpts.proxyConnectionTimeout = 40;
 	opts->wsOpts.maxMsgSize = 61440;
 	opts->wsOpts.protocols = NULL;
 	opts->wsOpts.httpCallback = NULL;
@@ -934,12 +944,12 @@ typedef struct {
 	char*				serverCert;					/*!< Path to this server's certificate.   */
 	char*				serverPrivateKey;			/*!< Path to the server's key file */
 	char*				cipherSuite;				/*!< Optional OpenSSL formatted cipher suite string.  ETA's default configuration is OWASP's "B" tier recommendations, which are the following:
-														DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!DSS:!RC4:!SEED:!ECDSA:!ADH:!IDEA:!3DES */
+														ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!DSS:!RC4:!SEED:!ADH:!IDEA:!3DES */
 	char*				dhParams;					/*!< Optional Diffie-Hellman parameter file.  If this is not present, RSSL will load it's default DH parameters */
 } RsslBindEncryptionOpts;
 
 
-#define RSSL_INIT_BIND_ENCRYPTION_OPTS { RSSL_ENC_TLSV1_2, NULL, NULL, NULL, NULL}
+#define RSSL_INIT_BIND_ENCRYPTION_OPTS { (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3), NULL, NULL, NULL, NULL}
  
 /**
  * @brief RSSL Bind Options used in the rsslBind call.
@@ -958,7 +968,7 @@ typedef struct {
 	RsslBool		tcp_nodelay;			/*!< @deprecated DEPRECATED: Only used with connectionType of SOCKET.  If RSSL_TRUE, disables Nagle's Algorithm. Users should migrate to the RsslBindOptions::tcpOpts::tcp_nodelay configuration for the same behavior with current and future connection types */
 	RsslBool		serverToClientPings;	/*!< @brief If RSSL_TRUE, pings will be sent from server side to client side */
 	RsslBool		clientToServerPings;	/*!< @brief If RSSL_TRUE, pings will be sent from client side to server side */
-	RsslConnectionTypes	connectionType;		/*!< @brief If RSSL_CONN_TYPE_UNIDIR_SHMEM this will use server to client shared memory.  Setting to RSSL_CONN_TYPE_SOCKET or RSSL_CONN_TYPE_HTTP will allow for accepting both socket or HTTP connection types.  RSSL_CONN_TYPE_ENCRYPTED is currently not supported for servers  */
+	RsslConnectionTypes	connectionType;		/*!< @brief If RSSL_CONN_TYPE_UNIDIR_SHMEM this will use server to client shared memory.  Setting to RSSL_CONN_TYPE_SOCKET or RSSL_CONN_TYPE_HTTP will allow for accepting both socket or HTTP connection types. */
 	RsslUInt32		pingTimeout;			/*!< @brief Desired amount of time to use as a timeout for a connected channel. */
 	RsslUInt32		minPingTimeout;			/*!< @brief Least amount of time to use as a timeout for a connected channel. */
 	RsslUInt32		maxFragmentSize;		/*!< @brief Sets the maximum size fragment to be sent without any fragmentation or assembly of messages. */
@@ -1031,7 +1041,7 @@ RTR_C_INLINE void rsslClearBindOpts(RsslBindOptions *opts)
 	opts->wsOpts.cookies.numberOfCookies = 0;
 	opts->encryptionOpts.cipherSuite = NULL;
 	opts->encryptionOpts.dhParams = NULL;
-	opts->encryptionOpts.encryptionProtocolFlags = RSSL_ENC_TLSV1_2;
+	opts->encryptionOpts.encryptionProtocolFlags = (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3);
 	opts->encryptionOpts.serverCert = NULL;
 	opts->encryptionOpts.serverPrivateKey = NULL;
 }

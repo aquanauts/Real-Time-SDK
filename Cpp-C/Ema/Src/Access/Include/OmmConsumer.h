@@ -1,13 +1,15 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022, 2024-2025 LSEG. All rights reserved.        --
  *|-----------------------------------------------------------------------------
  */
 
 #ifndef __refinitiv_ema_access_OmmConsumer_h
 #define __refinitiv_ema_access_OmmConsumer_h
+
+#include "Access/Include/EmaVector.h"
 
 /**
 	@class refinitiv::ema::access::OmmConsumer OmmConsumer.h "Access/Include/OmmConsumer.h"
@@ -117,6 +119,7 @@
 #include "Access/Include/ChannelInformation.h"
 #include "Access/Include/ChannelStatistics.h"
 #include "Access/Include/IOCtlReactorCode.h"
+#include "Access/Include/IOCtlReactorChannelCode.h"
 #include "Access/Include/OAuth2CredentialRenewal.h"
 #include "Access/Include/LoginMsgCredentialRenewal.h"
 
@@ -323,15 +326,23 @@ public :
 	void unregister( UInt64 handle );
 
 	/** Provides channel information about the active channel.
-		@param[in] caller provider ChannelInformation&; parameter will be cleared and then
+		@param[in] caller provided ChannelInformation&; parameter will be cleared and then
 				   current channel information will be provided
 		@return void
 		\remark This method is \ref ObjectLevelSafe
 	*/
 	void getChannelInformation(ChannelInformation&);
 
+	/** Provides channel information about the active channels in the session.
+		@param[in] caller provided EmaVector of ChannelInformation objects; The vector will be cleared and then
+				   current channel information for all channels in the session will be provided
+		@return void
+		\remark This method is \ref ObjectLevelSafe
+	*/
+	void getSessionInformation(EmaVector<ChannelInformation>&);
+
 		/** Provides channel statistics about the active channel.
-		@param[in] caller provider ChannelStatistics&; parameter will be cleared and then
+		@param[in] caller provided ChannelStatistics&; parameter will be cleared and then
 				   current channel statistics will be provided
 		@throw OmmInvalidUsageException if it cannot get the channel statistics
 		@return void
@@ -358,6 +369,15 @@ public :
 	void modifyReactorIOCtl(Int32 code, Int32 value);
 
 
+	/** Allows modifying some I/O values programmatically for ReactorChannel to override the default values.
+		@param[in] code provides Code of I/O option defined in IOCtlReactorCode::IOCtlReactorChannelCodeEnum to modify.
+		@param[in] value provides pointer to  modify I/O option to
+		@return void
+		@throw OmmInvalidUsageException if failed to modify I/O option to
+	\remark This method is \ref ObjectLevelSafe
+*/
+	void modifyReactorChannelIOCtl(Int32 code, void* value);
+
 	/** Provide updated OAuth2 credentials when the callback OmmOAuth2ConsumerClient::onCredentialRenewal is called.
 		This function allows the application to use a secure credential storage when using RDP functionality such as the RDP token service
 		or RDP service discovery.
@@ -378,6 +398,14 @@ public :
 	@throw OmmInvalidUsageException if the credential update fails.
 */
 	void renewLoginCredentials(LoginMsgCredentialRenewal&);
+
+	/** Perform switch to preferred host. 
+	@return void
+	@throw OmmInvalidUsageException if no active channel.
+	@throw OmmInvalidUsageException if failed to perform preferred host fall back.
+	*/
+
+	void fallbackPreferredHost();
 	//@}
 
 private :

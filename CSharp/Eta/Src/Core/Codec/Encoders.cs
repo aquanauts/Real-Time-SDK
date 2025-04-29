@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -111,6 +111,34 @@ namespace LSEG.Eta.Codec
             {
                 _encoders = encoders;
             }
+
+            /* A table of Array entry encoding types, for each valid combination of primitive type and item length.
+             * It is specifically for use with ArrayEntry.EncodeBlank().(note that Enum does not have types for itemLength 1 & 2 because types like ENUM_1 and ENUM_2 don't exist.
+             * They can't be encoded as blank though, so for purposes of this array this will work. */
+            internal static int[,] ArrayEntryBlankTypes = new int[DataTypes.RMTES_STRING+1, 13]
+            {
+             /*              0                        1                  2                  3                 4                  5                 6  7                     8                   9                     10 11                     12 */
+            /* (0) */      { 0                       ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* (1) */      { 0                       ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* (2) */      { 0                       ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* INT */      { DataTypes.INT           ,DataTypes.INT_1   ,DataTypes.INT_2   ,0                ,DataTypes.INT_4   ,0                ,0 ,0                    ,DataTypes.INT_8    ,0                    ,0 ,0                     ,0},
+            /* UINT */     { DataTypes.UINT          ,DataTypes.UINT_1  ,DataTypes.UINT_2  ,0                ,DataTypes.UINT_4  ,0                ,0 ,0                    ,DataTypes.UINT_8   ,0                    ,0 ,0                     ,0},
+            /* FLOAT */    { DataTypes.FLOAT         ,0                 ,0                 ,0                ,DataTypes.FLOAT_4 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* DOUBLE */   { DataTypes.DOUBLE        ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,DataTypes.DOUBLE_8 ,0                    ,0 ,0                     ,0},
+            /* (7) */      { 0                       ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* REAL */     { DataTypes.REAL          ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* DATE */     { DataTypes.DATE          ,0                 ,0                 ,0                ,DataTypes.DATE_4  ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* TIME */     { DataTypes.TIME          ,0                 ,0                 ,DataTypes.TIME_3 ,0                 ,DataTypes.TIME_5 ,0 ,DataTypes.TIME_7     ,DataTypes.TIME_8   ,0                    ,0 ,0                     ,0},
+            /* DATETIME */ { DataTypes.DATETIME      ,0                 ,0                 ,0                ,0                 ,0                ,0 ,DataTypes.DATETIME_7 ,0                  ,DataTypes.DATETIME_9 ,0 ,DataTypes.DATETIME_11 ,DataTypes.DATETIME_12},
+            /* QOS */      { DataTypes.QOS           ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* STATE */    { DataTypes.STATE         ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* ENUM */     { DataTypes.ENUM          ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* (ARRAY) */  { 0                       ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* BUFFER */   { DataTypes.BUFFER        ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* ASCII */    { DataTypes.ASCII_STRING  ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* UTF8 */     { DataTypes.UTF8_STRING   ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0},
+            /* RMTES */    { DataTypes.RMTES_STRING  ,0                 ,0                 ,0                ,0                 ,0                ,0 ,0                    ,0                  ,0                    ,0 ,0                     ,0}
+            };
 
             public static bool ValidEncodeActions(int type)
             {
@@ -1675,11 +1703,12 @@ namespace LSEG.Eta.Codec
             Debug.Assert(null != msg, "Invalid parameters or parameters passed in as NULL");
             Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
 
-            _levelInfo = iter._levelInfo[++iter._encodingLevel];
-            if (iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
+            if (++iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
             {
                 return CodecReturnCode.ITERATOR_OVERRUN;
             }
+
+            _levelInfo = iter._levelInfo[iter._encodingLevel];
 
             /* _initElemStartPos and encoding state should be the only two members used at a msg encoding level. */
             _levelInfo._initElemStartPos = iter._curBufPos;
@@ -1761,11 +1790,12 @@ namespace LSEG.Eta.Codec
             Debug.Assert(null != msg, "Invalid parameters or parameters passed in as NULL");
             Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
 
-            _levelInfo = iter._levelInfo[++iter._encodingLevel];
-            if (iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
+            if (++iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
             {
                 return CodecReturnCode.ITERATOR_OVERRUN;
             }
+
+            _levelInfo = iter._levelInfo[iter._encodingLevel];
 
             _levelInfo._internalMark._sizePos = 0;
             _levelInfo._internalMark._sizeBytes = 0;
@@ -1830,12 +1860,12 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static CodecReturnCode EncodeMsgComplete(EncodeIterator iter, bool success)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (!success)
             {
@@ -1856,7 +1886,7 @@ namespace LSEG.Eta.Codec
             CodecReturnCode retVal = CodecReturnCode.SUCCESS;
 
             /* ensure container type is valid */
-            if (!(ValidAggregateDataType(msg.ContainerType)))
+            if (!ValidAggregateDataType(msg.ContainerType))
             {
                 return CodecReturnCode.UNSUPPORTED_DATA_TYPE;
             }
@@ -1887,6 +1917,10 @@ namespace LSEG.Eta.Codec
 
             switch (msg.MsgClass)
             {
+                case MsgClasses.REQUEST:
+                    IRequestMsg requestMsg = (IRequestMsg)msg;
+                    retVal = EncodeRequestMsg(iter, requestMsg);
+                    break;
                 case MsgClasses.UPDATE:
                     IUpdateMsg updateMsg = (IUpdateMsg)msg;
                     retVal = EncodeUpdateMsg(iter, updateMsg);
@@ -1898,10 +1932,6 @@ namespace LSEG.Eta.Codec
                 case MsgClasses.POST:
                     IPostMsg postMsg = (IPostMsg)msg;
                     retVal = EncodePostMsg(iter, postMsg);
-                    break;
-                case MsgClasses.REQUEST:
-                    IRequestMsg requestMsg = (IRequestMsg)msg;
-                    retVal = EncodeRequestMsg(iter, requestMsg);
                     break;
                 case MsgClasses.CLOSE:
                     ICloseMsg closeMsg = (ICloseMsg)msg;
@@ -2342,7 +2372,7 @@ namespace LSEG.Eta.Codec
             }
 
             /* Store Qos */
-            if (msg.CheckHasQos())
+            if ((msg.Flags & RequestMsgFlags.HAS_QOS) > 0)
             {
                 if ((retVal = PrimitiveEncoder.EncodeQos(iter, msg.Qos)) < 0)
                 {
@@ -2351,7 +2381,7 @@ namespace LSEG.Eta.Codec
             }
 
             /* Store WorstQos */
-            if (msg.CheckHasWorstQos())
+            if ((msg.Flags & RequestMsgFlags.HAS_WORST_QOS) > 0)
             {
                 if ((retVal = PrimitiveEncoder.EncodeQos(iter, msg.WorstQos)) < 0)
                 {
@@ -2360,7 +2390,7 @@ namespace LSEG.Eta.Codec
             }
 
             int keyAndExtHeader = HAS_MSG_KEY;
-            if (msg.CheckHasExtendedHdr())
+            if ((msg.Flags & RequestMsgFlags.HAS_EXTENDED_HEADER) > 0)
             {
                 keyAndExtHeader = keyAndExtHeader + HAS_EXT_HEADER;
             }
@@ -2749,7 +2779,7 @@ namespace LSEG.Eta.Codec
                 /* save position for storing key size */
                 int lenPos = iter._curBufPos;
 
-                if ((retVal = EncodeKeyInternal(iter, (MsgKey)msg.MsgKey)) < 0)
+                if ((retVal = EncodeKeyInternal(iter, msg.MsgKey)) < 0)
                 {
                     return retVal;
                 }
@@ -3024,14 +3054,14 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeMsgKeyAttribComplete(EncodeIterator iter, bool success)
         {
-            CodecReturnCode ret;
-            int headerSize;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            CodecReturnCode ret;
+            int headerSize;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -3192,17 +3222,17 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeExtendedHeaderComplete(EncodeIterator iter, bool success)
         {
+            /* Validations */
+            Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.EXTENDED_HEADER, "Unexpected encoding attempted");
+            Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
+            Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
             CodecReturnCode ret;
             int size;
             int headerSize;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
             IMsg msg = (IMsg)_levelInfo._listType;
-
-            /* Validations */
-            Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.EXTENDED_HEADER, "Unexpected encoding attempted");
-            Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
-            Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
 
             if (success)
             {
@@ -3745,13 +3775,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static CodecReturnCode EncodeElementListComplete(EncodeIterator iter, bool success)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.ELEMENT_LIST, "Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.ELEMENT_LIST, "Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -3778,15 +3808,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static CodecReturnCode EncodeElementEntry(EncodeIterator iter, ElementEntry element, object data)
         {
-            CodecReturnCode ret = 0;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
             Debug.Assert(null != element, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES || _levelInfo._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            CodecReturnCode ret = 0;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             _levelInfo._initElemStartPos = iter._curBufPos;
 
@@ -4079,16 +4109,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static CodecReturnCode EncodeElementEntryInit(EncodeIterator iter, ElementEntry element, int encodingMaxSize)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.ELEMENT_LIST, "Invalid encoding attempted");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES || _levelInfo._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.ELEMENT_LIST, "Invalid encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(null != element && null != element._name.Data(), "Invalid parameters or parameters passed in as NULL");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, " Data exceeds iterators buffer length");
 
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
             _levelInfo._initElemStartPos = iter._curBufPos;
 
             /* Set data. */
@@ -4096,10 +4125,10 @@ namespace LSEG.Eta.Codec
             {
                 ElementSetDef def = _levelInfo._elemListSetDef;
 
+                Debug.Assert(null != def, "Invalid parameters or parameters passed in as NULL");
+
                 /* Use currentCount as a temporary set iterator. It should be reset before doing standard entries. */
                 ElementSetDefEntry encoding = (ElementSetDefEntry)def.Entries[_levelInfo._currentCount];
-
-                Debug.Assert(null != def, "Invalid parameters or parameters passed in as NULL");
 
                 if (!ValidAggregateDataType(_levelInfo._containerType))
                 {
@@ -4194,36 +4223,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static bool ValidAggregateDataType(int dataType)
 		{
-			bool retVal = false;
+            if (dataType == DataTypes.NO_DATA 
+                || dataType >= DataTypes.OPAQUE && dataType <= DataTypes.JSON
+                || dataType == 223
+                || dataType > DataTypes.MAX_RESERVED && dataType <= DataTypes.LAST)
+            {
+                return true;
+            }
 
-			switch (dataType)
-			{
-				case DataTypes.NO_DATA:
-				case DataTypes.OPAQUE:
-				case DataTypes.XML:
-				case DataTypes.FIELD_LIST:
-				case DataTypes.ELEMENT_LIST:
-				case DataTypes.ANSI_PAGE:
-				case DataTypes.FILTER_LIST:
-				case DataTypes.VECTOR:
-				case DataTypes.MAP:
-				case DataTypes.SERIES:
-				case 139:
-				case 140:
-				case DataTypes.MSG:
-				case DataTypes.JSON:
-				case 223:
-					retVal = true;
-					break;
-				default:
-					if (dataType > DataTypes.MAX_RESERVED && dataType <= DataTypes.LAST)
-					{
-						retVal = true;
-					}
-					break;
-			}
-
-			return retVal;
+            return false;
 		}
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
@@ -4261,15 +4269,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static CodecReturnCode EncodeElementEntryComplete(EncodeIterator iter, bool success)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.ELEMENT_LIST, "Invalid encoding attempted");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE || _levelInfo._encodingState == EncodeIteratorStates.ENTRY_WAIT_COMPLETE || _levelInfo._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.ELEMENT_LIST, "Invalid encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRY_INIT || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRY_WAIT_COMPLETE || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             /* Set data. */
             if (_levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE)
@@ -4395,12 +4403,14 @@ namespace LSEG.Eta.Codec
             /* Assertions */
             Debug.Assert(null != fieldList && null != iter, "Invalid parameters or parameters passed in as NULL");
 
-			levelInfo = iter._levelInfo[++iter._encodingLevel];
-			if (iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
+			if (++iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
 			{
 				return CodecReturnCode.ITERATOR_OVERRUN;
 			}
-			levelInfo.Init(DataTypes.FIELD_LIST, EncodeIteratorStates.NONE, fieldList, iter._curBufPos);
+
+            levelInfo = iter._levelInfo[iter._encodingLevel];
+
+            levelInfo.Init(DataTypes.FIELD_LIST, EncodeIteratorStates.NONE, fieldList, iter._curBufPos);
 
 			/* Make sure that required elements can be encoded */
 			if (iter.IsIteratorOverrun(1))
@@ -4706,15 +4716,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static CodecReturnCode EncodeFieldListComplete(EncodeIterator iter, bool success)
 		{
-			EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
 			/* Validations */
-			Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-			Debug.Assert(_levelInfo._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong type");
+			Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+			Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong type");
 			Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
 			Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
 
-			if (success)
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+
+            if (success)
 			{
 				if (_levelInfo._encodingState == EncodeIteratorStates.ENTRIES)
 				{
@@ -4737,18 +4747,18 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeFieldEntry(EncodeIterator iter, FieldEntry field, object data)
 		{
-            CodecReturnCode ret;
-			EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
 			/* Validations */
-			Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
+			Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
 			// assert field, Invalid parameters or parameters passed in as NULL";
-			Debug.Assert(_levelInfo._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong container");
-			Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES || _levelInfo._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
+			Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong container");
+			Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
 			Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
 			Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
 
-			_levelInfo._initElemStartPos = iter._curBufPos;
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+
+            _levelInfo._initElemStartPos = iter._curBufPos;
 
 			if (_levelInfo._encodingState == EncodeIteratorStates.SET_DATA)
 			{
@@ -4949,7 +4959,7 @@ namespace LSEG.Eta.Codec
 				}
 
 				/* Store FieldId as Uint16 */
-				iter._writer.WriteShort(field.DataType);
+				iter._writer.WriteShort(field.FieldId);
 				iter._curBufPos = iter._writer.Position();
 
 				iter._writer._buffer.Write((byte)zero);
@@ -4963,18 +4973,17 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeFieldEntryInit(EncodeIterator iter, FieldEntry field, int encodingMaxSize)
 		{
-			EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
 			/* Validations */
-			Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
+			Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
 			Debug.Assert(null != field, "Invalid parameters or parameters passed in as NULL");
 
-			Debug.Assert(_levelInfo._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong type");
-			Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES || _levelInfo._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
+			Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong type");
+			Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_DATA, "Unexpected encoding attempted");
 			Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
 			Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
 
-			_levelInfo._initElemStartPos = iter._curBufPos;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+            _levelInfo._initElemStartPos = iter._curBufPos;
 
 			/* Set data */
 			if (_levelInfo._encodingState == EncodeIteratorStates.SET_DATA)
@@ -5041,18 +5050,18 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeFieldEntryComplete(EncodeIterator iter, bool success)
 		{
-            CodecReturnCode ret;
-			EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
 			/* Validations */
-			Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-			Debug.Assert(_levelInfo._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong type");
-			Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.ENTRY_WAIT_COMPLETE || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE || _levelInfo._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
+			Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+			Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.FIELD_LIST, "Invalid encoding attempted - wrong type");
+			Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRY_INIT || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRY_WAIT_COMPLETE || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE || iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
 			Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
 			Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
 
-			/* Set data (user was encoding a container in the set) */
-			if (_levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE)
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+
+            /* Set data (user was encoding a container in the set) */
+            if (_levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_INIT || _levelInfo._encodingState == EncodeIteratorStates.SET_ENTRY_WAIT_COMPLETE)
 			{
 				FieldList fieldList = (FieldList)_levelInfo._listType;
 				FieldSetDef def = _levelInfo._fieldListSetDef;
@@ -5213,11 +5222,13 @@ namespace LSEG.Eta.Codec
                 return CodecReturnCode.UNSUPPORTED_DATA_TYPE;
             }
 
-            levelInfo = iter._levelInfo[++iter._encodingLevel];
-            if (iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
+            if (++iter._encodingLevel >= EncodeIterator.ENC_ITER_MAX_LEVELS)
             {
                 return CodecReturnCode.ITERATOR_OVERRUN;
             }
+
+            levelInfo = iter._levelInfo[iter._encodingLevel];
+
             levelInfo.Init(DataTypes.ARRAY, EncodeIteratorStates.NONE, array, iter._curBufPos);
 
             // length value is written on wire as uShort16ob
@@ -5458,10 +5469,12 @@ namespace LSEG.Eta.Codec
                 /* Blank */
                 if (array._itemLength > 0)
                 {
-                    if (array._primitiveType <= DataTypes.RMTES_STRING && array._itemLength <= 9)
+                    int arrayEntryBlankType;
+                    if (array._primitiveType <= DataTypes.RMTES_STRING && array._itemLength <= 9
+                        && ((arrayEntryBlankType = PrimitiveEncoder.ArrayEntryBlankTypes[array._primitiveType,array._itemLength]) != 0))
                     {
                         _levelInfo._encodingState = EncodeIteratorStates.SET_DATA;
-                        if ((ret = EncodeBlank(iter, array._primitiveType)) != CodecReturnCode.SUCCESS)
+                        if ((ret = EncodeBlank(iter, arrayEntryBlankType)) != CodecReturnCode.SUCCESS)
                         {
                             return ret;
                         }
@@ -5491,13 +5504,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeArrayComplete(EncodeIterator iter, bool success)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.ARRAY, " Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.ARRAY, " Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -5632,16 +5645,16 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeNonRWFComplete(EncodeIterator iter, Buffer buffer, bool success)
 		{
-			EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
 			/* Validations */
 			Debug.Assert(null != buffer, "Invalid buffer");
 			Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
-			Debug.Assert(_levelInfo._containerType == DataTypes.OPAQUE, "Invalid container type");
+			Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.OPAQUE, "Invalid container type");
 			Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
 			Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
 
-			if (success)
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+
+            if (success)
 			{
 				/* verify no overrun */
 				if (iter._buffer != buffer.Data())
@@ -5731,15 +5744,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeFilterListComplete(EncodeIterator iter, bool success, FilterList filterList)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-            int count = _levelInfo._currentCount;
-            int flags;
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES || (_levelInfo._encodingState == EncodeIteratorStates.WAIT_COMPLETE), "Unexpected encoding attempted");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES || (iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.WAIT_COMPLETE), "Unexpected encoding attempted");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+            int count = _levelInfo._currentCount;
+            int flags;
 
             if (success)
             {
@@ -5773,15 +5786,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeFilterEntryInit(EncodeIterator iter, FilterEntry entry, int size)
         {
-            CodecReturnCode ret = CodecReturnCode.SUCCESS;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, " Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.FILTER_LIST, "Invalid encoding attempted");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, " Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.FILTER_LIST, "Invalid encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            CodecReturnCode ret = CodecReturnCode.SUCCESS;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             FilterList filterList = (FilterList)_levelInfo._listType;
             _levelInfo._initElemStartPos = iter._curBufPos;
@@ -6302,14 +6315,14 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeMapComplete(EncodeIterator iter, Map map, bool success)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-            int flags;
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong container");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong container");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+            int flags;
 
             if (success)
             {
@@ -6347,13 +6360,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeMapSummaryDataComplete(EncodeIterator iter, Map mapInt, bool success)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong container");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong container");
             Debug.Assert(iter._curBufPos != 0, "Invalid iterator use - check buffer");
+
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -6383,15 +6396,15 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeMapEntryInit(EncodeIterator iter, MapEntry mapEntry, object keyData, int maxEncodingSize)
         {
-            CodecReturnCode ret;
-            Map map;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter && null != mapEntry, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong type");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong type");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
             Debug.Assert(iter._curBufPos != 0, "Invalid iterator use - check buffer");
+
+            CodecReturnCode ret;
+            Map map;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             map = (Map)_levelInfo._listType;
 
@@ -6559,13 +6572,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeMapEntryComplete(EncodeIterator iter, MapEntry mapEntryInt, bool success)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.MAP, "Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
+
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -6899,13 +6912,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeSeriesComplete(EncodeIterator iter, bool success)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.SERIES, "Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.SERIES, "Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -6972,13 +6985,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeSeriesEntryComplete(EncodeIterator iter, bool success)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.SERIES, "Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.SERIES, "Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
+
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -7022,14 +7035,14 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeSeriesEntry(EncodeIterator iter, SeriesEntry seriesEntry)
         {
-            Series series;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter && null != seriesEntry, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.SERIES, "Invalid encoding attempted - wrong type");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.SERIES, "Invalid encoding attempted - wrong type");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
             Debug.Assert(iter._curBufPos != 0, "Invalid iterator use - check buffer");
+
+            Series series;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             series = (Series)_levelInfo._listType;
 
@@ -7306,14 +7319,14 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeVectorComplete(EncodeIterator iter, bool success, Vector vector)
         {
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-            int flags;
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
             Debug.Assert(iter._curBufPos <= iter._endBufPos, "Data exceeds iterators buffer length");
+
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
+            int flags;
 
             if (success)
             {
@@ -7352,13 +7365,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeVectorSummaryDataComplete(EncodeIterator iter, Vector vector, bool success)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
             Debug.Assert(iter._curBufPos != 0, "Invalid encoding attempted");
+
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {
@@ -7388,15 +7401,14 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeVectorEntryInit(EncodeIterator iter, VectorEntry vectorEntry, int maxEncodingSize)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
             Debug.Assert(null != iter && null != vectorEntry, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
-            Debug.Assert(_levelInfo._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
+            Debug.Assert(iter.GetCurrentLevelInfo()._encodingState == EncodeIteratorStates.ENTRIES, "Unexpected encoding attempted");
             Debug.Assert(iter._curBufPos != 0, "Invalid encoding attempted");
 
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
             Vector vector = (Vector)_levelInfo._listType;
 
             _levelInfo._initElemStartPos = iter._curBufPos;
@@ -7591,13 +7603,13 @@ namespace LSEG.Eta.Codec
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal static CodecReturnCode EncodeVectorEntryComplete(EncodeIterator iter, bool success)
         {
-            CodecReturnCode ret;
-            EncodingLevel _levelInfo = iter._levelInfo[iter._encodingLevel];
-
             /* Validations */
-            Debug.Assert(null != iter && null != _levelInfo._listType, "Invalid parameters or parameters passed in as NULL");
-            Debug.Assert(_levelInfo._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
+            Debug.Assert(null != iter && null != iter.GetCurrentLevelInfo()._listType, "Invalid parameters or parameters passed in as NULL");
+            Debug.Assert(iter.GetCurrentLevelInfo()._containerType == DataTypes.VECTOR, "Invalid encoding attempted - wrong type");
             Debug.Assert(null != iter._buffer, "Invalid iterator use - check buffer");
+
+            CodecReturnCode ret;
+            EncodingLevel _levelInfo = iter.GetCurrentLevelInfo();
 
             if (success)
             {

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -238,7 +238,7 @@ public interface UpdateMsg extends Msg
      * <li>
      * Domain message model specifications define available update types</li>
      * <li>
-     * For Refinitiv's provided domain models, see
+     * For LSEG's provided domain models, see
      * {@link UpdateEventTypes}</li>
      * </ul>
      * 
@@ -253,7 +253,7 @@ public interface UpdateMsg extends Msg
      * <li>
      * Domain message model specifications define available update types</li>
      * <li>
-     * For Refinitiv's provided domain models, see {@link UpdateEventTypes}</li>
+     * For LSEG's provided domain models, see {@link UpdateEventTypes}</li>
      * </ul>
      * 
      * @return the updateType

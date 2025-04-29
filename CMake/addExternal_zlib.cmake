@@ -1,8 +1,8 @@
 #[=============================================================================[
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2024, 2025 LSEG. All rights reserved.
 #]=============================================================================]
 
 ################################################################################################
@@ -23,7 +23,7 @@ set(CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS ON)
 
 project(zlib C)
 
-set(VERSION \"1.2.13\")
+set(VERSION \"1.3.1\")
 
 option(ASM686 \"Enable building i686 assembly implementation\")
 option(AMD64 \"Enable building amd64 assembly implementation\")
@@ -185,7 +185,7 @@ endif()
 # parse the full version number from zlib.h and include in ZLIB_FULL_VERSION
 file(READ \${CMAKE_CURRENT_SOURCE_DIR}/zlib.h _zlib_h_contents)
 string(REGEX REPLACE \".*#define[ \\t]+ZLIB_VERSION[ \\t]+\\\"([-0-9A-Za-z.]+)\\\".*\"
-    \"\\\\1\" ZLIB_FULL_VERSION "\${_zlib_h_contents}")
+    \"\\\\1\" ZLIB_FULL_VERSION \"\${_zlib_h_contents}\")
 
 if(MINGW)
     # This gets us DLL resource information when compiling on MinGW.
@@ -283,13 +283,13 @@ End of work around for WIN32 zlib library naming issue
 include(rcdevExternalUtils)
 
 if(NOT zlib_url)
-	set(zlib_url "https://www.zlib.net/fossils/zlib-1.2.13.tar.gz")
+	set(zlib_url "https://www.zlib.net/fossils/zlib-1.3.1.tar.gz")
 endif()
 if(NOT zlib_hash)
-	set(zlib_hash "SHA256=b3a24de97a8fdbc835b9833169501030b8977031bcb54b3b3ac13740f846ab30")
+	set(zlib_hash "SHA256=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23")
 endif()
 if(NOT zlib_version)
-	set(zlib_version "1.2.13")
+	set(zlib_version "1.3.1")
 endif()
 	
 # If the option for using the system installed 
@@ -471,6 +471,9 @@ if( (NOT zlib_USE_INSTALLED) AND
 	unset(_config_options)
 	unset(_log_args)
 	unset(_dl_filename)
+	if (WIN32)
+		unset(_EPA_PATCH_COMMAND)
+	endif()
 
 	# This call will reset all the _EPA_... variables. Because this is a
 	# macro and if this is not called, the next external project using
@@ -486,6 +489,14 @@ endif()
 if ((NOT ZLIB_FOUND) OR
 		(NOT TARGET ZLIB::ZLIB) )
 	
+	# For linking to static library CMAKE_FIND_LIBRARY_SUFFIXES need to be set.
+	if (CMAKE_VERSION VERSION_LESS 3.24)
+		set(TEMP_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+		set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+	else()
+		set(ZLIB_USE_STATIC_LIBS "ON")
+	endif()
+
 	# Calling find_package with a required version number will fail if the
 	# package does not have a <name>version.cmake in the same location as
 	# the <package>config.cmake.  Unfortunately, CMake will not use the version
@@ -506,6 +517,10 @@ if ((NOT ZLIB_FOUND) OR
 	endif()
 
 	rcdev_add_external_target(ZLIB::ZLIB)
+
+	if (CMAKE_VERSION VERSION_LESS 3.24)
+		set(CMAKE_FIND_LIBRARY_SUFFIXES ${TEMP_CMAKE_FIND_LIBRARY_SUFFIXES})
+	endif()
 
 endif()
 

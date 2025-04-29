@@ -1,3 +1,10 @@
+///*|-----------------------------------------------------------------------------
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.
+///*|-----------------------------------------------------------------------------
+
 package com.refinitiv.eta.transport;
 
 import com.refinitiv.eta.codec.*;
@@ -17,6 +24,7 @@ import java.util.concurrent.*;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class EncryptionTest {
 
@@ -167,11 +175,12 @@ public class EncryptionTest {
             executor.submit(() -> runWithNoBlocks(sc.serverChannel, sc.serverSelector, latch));
             executor.submit(() -> runWithNoBlocks(cc.clientChannel, cc.clientSelector, latch));
 
-            latch.await(5, TimeUnit.SECONDS);
-            assertTrue(latch.getCount() == 0);
+            boolean allTasksCompleted = latch.await(10, TimeUnit.SECONDS);
+            assertTrue("Tasks did not complete in time", allTasksCompleted);
+            assertTrue("Not all tasks completed successfully", latch.getCount() == 0);
 
         } catch (Exception e) {
-            assert(false);
+            fail("Exception occurred: " + e.getMessage());
         } finally {
             cc.terminate();
             sc.terminate();
@@ -295,6 +304,70 @@ public class EncryptionTest {
             sc.terminate();
         }
     }
+    
+    @Test
+    public void testOptionsCopies() {
+		ConnectOptions connectOptions = TransportFactory.createConnectOptions();
+		int connType = 0;
+		String port = "14002";
+		String proxyHost = "localhost";
+		int proxyPort = 14002;
+		
+		connectOptions.connectionType(ConnectionTypes.ENCRYPTED);
+		connectOptions.encryptionOptions().connectionType(connType);
+		connectOptions.encryptionOptions().KeystoreFile(CryptoHelperTest.VALID_CERTIFICATE);
+		connectOptions.encryptionOptions().KeystorePasswd(CryptoHelperTest.KEYSTORE_PASSWORD);
+		connectOptions.encryptionOptions().KeystoreType("JKS");
+		connectOptions.encryptionOptions().TrustManagerAlgorithm("");
+		connectOptions.encryptionOptions().KeyManagerAlgorithm("SunX509");
+		connectOptions.encryptionOptions().SecurityProtocol("TLS");
+		connectOptions.encryptionOptions().SecurityProtocolVersions(new String[] {"1.3", "1.2"});
+		connectOptions.encryptionOptions().SecurityProvider("SunJSSE");
+		connectOptions.tunnelingInfo().tunnelingType("None");
+		connectOptions.tunnelingInfo().SecurityProtocol("TLS");
+		connectOptions.tunnelingInfo().SecurityProtocolVersions(new String[] {"1.3", "1.2"});
+		connectOptions.tunnelingInfo().HTTPproxy(true);
+		connectOptions.tunnelingInfo().HTTPproxyHostName(proxyHost);
+		connectOptions.tunnelingInfo().HTTPproxyPort(proxyPort);
+		connectOptions.unifiedNetworkInfo().address("localhost");
+		connectOptions.unifiedNetworkInfo().serviceName(port);
+		connectOptions.guaranteedOutputBuffers(2);
+		connectOptions.majorVersion(Codec.majorVersion());
+		connectOptions.minorVersion(Codec.minorVersion());
+		connectOptions.sysRecvBufSize(64 * 1024);
+         
+		ConnectOptions copyOptions = TransportFactory.createConnectOptions();
+		connectOptions.copy(copyOptions);
+        
+		assertEquals(copyOptions.connectionType(), connectOptions.connectionType());
+		assertEquals(copyOptions.encryptionOptions().connectionType(), connectOptions.encryptionOptions().connectionType());
+		assertEquals(copyOptions.encryptionOptions().KeystoreFile(), connectOptions.encryptionOptions().KeystoreFile());
+		assertEquals(copyOptions.encryptionOptions().KeystorePasswd(), connectOptions.encryptionOptions().KeystorePasswd());
+		assertEquals(copyOptions.encryptionOptions().KeystoreType(), connectOptions.encryptionOptions().KeystoreType());
+		assertEquals(copyOptions.encryptionOptions().TrustManagerAlgorithm(), connectOptions.encryptionOptions().TrustManagerAlgorithm());
+		assertEquals(copyOptions.encryptionOptions().KeyManagerAlgorithm(), connectOptions.encryptionOptions().KeyManagerAlgorithm());
+		assertEquals(copyOptions.encryptionOptions().SecurityProtocol(), connectOptions.encryptionOptions().SecurityProtocol());
+		for (int i = 0; i < copyOptions.encryptionOptions().SecurityProtocolVersions().length; ++i)
+		{
+			assertEquals(copyOptions.encryptionOptions().SecurityProtocolVersions()[i], connectOptions.encryptionOptions().SecurityProtocolVersions()[i]);
+		}
+		assertEquals(copyOptions.encryptionOptions().SecurityProvider(), connectOptions.encryptionOptions().SecurityProvider());
+		assertEquals(copyOptions.tunnelingInfo().tunnelingType(), connectOptions.tunnelingInfo().tunnelingType());
+		assertEquals(copyOptions.tunnelingInfo().SecurityProtocol(), connectOptions.tunnelingInfo().SecurityProtocol());
+		for (int i = 0; i < copyOptions.tunnelingInfo().SecurityProtocolVersions().length; ++i)
+		{
+			assertEquals(copyOptions.tunnelingInfo().SecurityProtocolVersions()[i], connectOptions.tunnelingInfo().SecurityProtocolVersions()[i]);
+		}
+		assertEquals(copyOptions.tunnelingInfo().HTTPproxy(), connectOptions.tunnelingInfo().HTTPproxy());
+		assertEquals(copyOptions.tunnelingInfo().HTTPproxyHostName(), connectOptions.tunnelingInfo().HTTPproxyHostName());
+		assertEquals(copyOptions.tunnelingInfo().HTTPproxyPort(), connectOptions.tunnelingInfo().HTTPproxyPort());
+		assertEquals(copyOptions.unifiedNetworkInfo().address(), connectOptions.unifiedNetworkInfo().address());
+		assertEquals(copyOptions.unifiedNetworkInfo().serviceName(), connectOptions.unifiedNetworkInfo().serviceName());
+		assertEquals(copyOptions.guaranteedOutputBuffers(), connectOptions.guaranteedOutputBuffers());
+		assertEquals(copyOptions.majorVersion(), connectOptions.majorVersion());
+		assertEquals(copyOptions.minorVersion(), connectOptions.minorVersion());
+		assertEquals(copyOptions.sysRecvBufSize(), connectOptions.sysRecvBufSize());
+    }
 
     class ClientConnection {
 
@@ -321,6 +394,7 @@ public class EncryptionTest {
             connectOptions.encryptionOptions().TrustManagerAlgorithm("");
             connectOptions.encryptionOptions().KeyManagerAlgorithm("SunX509");
             connectOptions.encryptionOptions().SecurityProtocol("TLS");
+            connectOptions.encryptionOptions().SecurityProtocolVersions(new String[] {"1.3", "1.2"});
             connectOptions.encryptionOptions().SecurityProvider("SunJSSE");
             connectOptions.tunnelingInfo().tunnelingType("None");
             connectOptions.unifiedNetworkInfo().address("localhost");

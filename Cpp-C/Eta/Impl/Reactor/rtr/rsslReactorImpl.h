@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2024 LSEG. All rights reserved.
 */
 
 #ifndef _RTR_RSSL_REACTOR_IMPL_H
@@ -103,7 +103,6 @@ typedef struct
 	RsslHashLink hashLink;
 	RsslUInt32 totalSize;
 	RsslUInt32 remainingSize;
-
 } RsslReactorPackedBufferImpl;
 
 RTR_C_INLINE void rsslClearReactorPackedBufferImpl(RsslReactorPackedBufferImpl* pReactorPackedBufferImpl)
@@ -126,6 +125,7 @@ typedef struct
 	RsslBool	userSetConnectionInfo; /* True when user specifies connectionInfo.unified fields address and serviceName. See RsslConnectionInfo */
 	RsslUInt32	reconnectEndpointAttemptCount; /* Attempts counter of connecting to the channel using this endpoint */
 	RsslBool startedSessionManagement; /* Indicates that this conenctionInfo has started session management */
+	RsslBool sendInitialAuthTokenInfo; /* This is used by V1 credential to ensure that the RsslReactorAuthTokenEventCallback is send for the initial access token.*/
 } RsslReactorConnectInfoImpl;
 
 RTR_C_INLINE void rsslClearReactorConnectInfoImpl(RsslReactorConnectInfoImpl* pReactorConnectInfoImpl)
@@ -150,6 +150,7 @@ typedef enum
 	RSSL_RC_DEBUG_INFO_TUNNEL_STREAM_ESTABLISHED = 0x400, /* Accept tunnel stream request */
 	RSSL_RC_DEBUG_INFO_HANDLE_TUNNEL_CLOSE = 0x800, /* Receives close tunnel stream requst. */
 	RSSL_RC_DEBUG_INFO_REJECT_TUNNEL_REQUEST = 0x2000, /* Receive tunnel stream request */
+	RSSL_RC_DEBUG_INFO_CHANNEL_FALLBACK = 0x4000, /* Channel fallback to preferred host initiated */
 }RsslReactorChannelDebugInfoState;
 
 typedef enum
@@ -206,7 +207,7 @@ RTR_C_INLINE void rsslClearReactorWSRecoveryMsgInfo(RsslReactorWSRecoveryMsgInfo
 }
 
 /* RsslReactorDictionaryVersion
-* - Represents Refinitiv Data Dictionary version
+* - Represents LSEG Data Dictionary version
 */
 typedef struct
 {
@@ -315,6 +316,7 @@ typedef struct
 	RsslQueueLink					  queueLink;	/* Queue link for RsslReactorWarmStandByGroupImpl.pActiveServiceConfigList */
 	RsslBool						  isStartingServerConfig; /* This is used to indicate that this service config belongs to the starting server configuration. */
 	RsslUInt32						  standByServerListIndex; /* Keeps the index of the standby server list in a RsslReactorWarmStandByGroup. */
+	RsslBool						  hasBeenFound;
 } RsslReactorWSBServiceConfigImpl;
 
 RTR_C_INLINE void rsslClearReactorWSByServiceConfigImpl(RsslReactorWSBServiceConfigImpl* pReactorWarmStandbyServiceConfigImpl)
@@ -323,6 +325,7 @@ RTR_C_INLINE void rsslClearReactorWSByServiceConfigImpl(RsslReactorWSBServiceCon
 	rsslInitQueueLink(&pReactorWarmStandbyServiceConfigImpl->queueLink);
 	pReactorWarmStandbyServiceConfigImpl->isStartingServerConfig = RSSL_FALSE;
 	pReactorWarmStandbyServiceConfigImpl->standByServerListIndex = 0;
+	pReactorWarmStandbyServiceConfigImpl->hasBeenFound = RSSL_FALSE;
 }
 
 typedef struct
@@ -339,6 +342,7 @@ typedef struct
 	RsslBuffer						  directoryMemBuffer; /* Keeps track to the current location of memory */
 	RsslUInt32						  updateServiceFilter; /* This is used as indication to create source directory response for a service using the RsslRDMServiceFlags flags. */
 	RsslUInt32						  serviceAction; /* Uses RsslMapEntryActions to indicate an action for this service. */
+	RsslBool						  preferredHostSwitched; // This has already been switched over during a RSSL_RCIMPL_WSBET_PREFERRED_HOST_FALLBACK_IN_GROUP event.
 
 } RsslReactorWarmStandbyServiceImpl;
 
@@ -356,6 +360,7 @@ RTR_C_INLINE void rsslClearReactorWarmStandbyServiceImpl(RsslReactorWarmStandbyS
 	rsslClearBuffer(&pReactorWarmStandbyServiceImpl->directoryMemBuffer);
 	pReactorWarmStandbyServiceImpl->updateServiceFilter = 0;
 	pReactorWarmStandbyServiceImpl->serviceAction = 0;
+	pReactorWarmStandbyServiceImpl->preferredHostSwitched = RSSL_FALSE;
 }
 
 typedef struct
@@ -381,7 +386,6 @@ typedef struct
 												  and non-negative values represent an index of RsslReactorWarmStandbyGroup.standbyServerList */
 	RsslUInt32                numOfClosingStandbyServers; /* Keeps track of number of standby servers being closed. */
 	RsslInt32				  downloadConfigActiveServer; /* Select an active server from downloadConnectionConfig */
-	RsslInt32				  streamId; /* Stream ID for the source directory. */
 	RsslBool				  isStartingServerIsDown; /* Indicate whether the starting server is down. */
 }RsslReactorWarmStandbyGroupImpl;
 
@@ -402,7 +406,6 @@ RTR_C_INLINE void rsslClearReactorWarmStandByGroupImpl(RsslReactorWarmStandbyGro
 	pReactorWarmStandByGroupImpl->currentStartingServerIndex = RSSL_REACTOR_WSB_STARTING_SERVER_INDEX;
 	pReactorWarmStandByGroupImpl->downloadConfigActiveServer = RSSL_REACTOR_WSB_STARTING_SERVER_INDEX;
 	pReactorWarmStandByGroupImpl->numOfClosingStandbyServers = 0;
-	pReactorWarmStandByGroupImpl->streamId = 0;
 	pReactorWarmStandByGroupImpl->isStartingServerIsDown = RSSL_FALSE;
 }
 
@@ -486,17 +489,37 @@ struct _RsslReactorChannelImpl
 	RsslInt32 reconnectAttemptCount;
 	RsslInt64 lastReconnectAttemptMs;
 
+	RsslBool isInitialChannelConnect;
+
+	/* Preferred host implemenation */
+	RsslPreferredHostOptions preferredHostOptions;	/* Preferred host options to fallback. */
+	RsslInt64 preferredHostNextReconnectMs;			/* Next time to fallback to Preferred host. */
+	RsslBool nextReconnectShouldBeFallback;			/* The next reconnect should be fallback to Preferred host. */
+	RsslInt32 lastConnectionNonPreferred;			/* The last index of the connection to non preferred host, when is equal to preferred host then it's starting */
+	RsslBool connectingToPreferredHost;				/* Indicates that fallback to Preferred host initiated, pRsslPreferredHostChannel is initializing. */
+	RsslBool sentReconnectCompleteEvent;				/* Indicates that worker's portion of fallback to Preferred host has been completed, and it's been sent off to the main reactor thread for final processing. */
+	RsslChannel *pRsslPreferredHostChannel;			/* The Rssl Channel that is used during fallback. It initializes, then switch over to pRsslChannel. */
+	RsslChannel *oldRsslChannel;					/* The old RSSLChannel to be closed at the end of the operation */
+	RsslReactorConnectInfoImpl *preferredHostConnectionOpts; /* The currrent pointer to the connection options during the preferred host operation.*/
+	RsslNotifierEvent *pWorkerPreferredHostNotifierEvent;	/* The notifier event uses during pRsslPreferredHostChannel initialization. */
+	RsslReactorTokenChannelInfo* pPreferredHostTokenSesion; /* The token session for the next preferred host connection */
+	RsslRDMLoginRequest* pPreferredHostLoginRequest;
+	RsslPreferredHostOptions* newPreferredHostOptions;
+	RsslMutex					preferredHostCopyMutex;		/* Mutex for retrieving and swapping the preferred host options. */
+	RsslBool doNotSendShutdownToWorker;				/* Used to not send the channel close to the worker when running the preferred host operation. */
+
+
 	RsslInt32 connectionListCount;
 	RsslInt32 connectionListIter;
 	RsslReactorConnectInfoImpl *connectionOptList;				/* List of connection objects */
-	RsslReactorConnectInfoImpl *currentConnectionOpts;  /* Pointer to the current connection info. Actual location is either in the connectionOptList or the warm standby config. This is assigned in one of three places.  
+	RsslReactorConnectInfoImpl *currentConnectionOpts;	/* Pointer to the current connection info. Actual location is either in the connectionOptList or the warm standby config. This is assigned in one of three places.  
 														Either the initial rsslReactorConnect call for a non-warm standby or WSB active, in the reconnection logic once the next connection location has been determined, or 
 														during the standby connection initialization for WSB. */
 	TunnelManager *pTunnelManager;
 
 	/* Support session management and RDP service discovery. */
 	RsslBool				supportSessionMgnt; /* This indicates this ReactorChannel support session managment in one of its RsslReactorConnectInfo */
-	RsslUInt32				httpStausCode; /* the latest HTTP status code */
+	RsslUInt32				httpStatusCode; /* the latest HTTP status code */
 	RsslRestHandle			*pRestHandle; /* This is used to request the endpoints from RDP service discovery */
 
 	/* This is original login request information */
@@ -531,14 +554,17 @@ struct _RsslReactorChannelImpl
 	RsslBool						  isStartingServerConfig; /* This is used to indicate that this channel uses the starting server configuration. */
 	RsslInt64						  lastSubmitOptionsTime; /* Keeps the timestamp when handling the last submit options. */
 	RsslQueue						  *pWSRecoveryMsgList; /* Keeps a list of recovery status messages to notify application when this channel becomes active. */
+	RsslBool						  isLoggedInForWSB; /* This is used to indicate whether the user is successfully logged for this first time this Reactor channel as part of a WSB group. */
+	RsslBool						  removedSocketFromlist; /* This is used to indicate whether the socket is removed */
+	RsslBool						  isLoggedOutFromWSB; /* This is used to indicate that the user is logged out from the provider */
+	RsslBool						  isRsslChannelClosed; /* This is used to indicate whether RSSL channel is closed when the user is logged out by provider. */
+
 	RsslReactorChannelDebugInfo*      pChannelDebugInfo; /* Provides addtional debugging information for channel and tunnel stream. */
 
 	/* For multi-credentials */
 	RsslBool						  deepCopyRole;			/* This RsslReactorChannelImpl contains a deepy copy of the channel role credentials */
 	RsslBool			inLoginCredentialCallback;
 	RsslBool			doNotNotifyWorkerOnCredentialChange;
-	
-
 };
 
 RTR_C_INLINE void rsslClearReactorChannelImpl(RsslReactorImpl *pReactorImpl, RsslReactorChannelImpl *pInfo)
@@ -549,6 +575,7 @@ RTR_C_INLINE void rsslClearReactorChannelImpl(RsslReactorImpl *pReactorImpl, Rss
 	pInfo->lastRequestedExpireTime = RCIMPL_TIMER_UNSET;
 }
 
+/* WarmStandBy Ioctl codes. */
 typedef enum
 {
 	RSSL_REACTOR_WS_MAX_NUM_BUFFERS = 0x01,
@@ -583,12 +610,17 @@ struct _RsslReactorWarmStandByHandlerImpl
 	RsslRDMLoginRefresh		rdmLoginRefresh; /* Keeps login response of the first active server. */
 	RsslState				rdmLoginState;			/*!< The current state of the login stream. */
 	RsslBool		 hasConnectionList; /* This is used to indicate if a connection list is specified. */
+	RsslBool		 isInitialConnection;
 	RsslReatorWarmStandbyChInfoImpl  wsbChannelInfoImpl; /* Provider warm standby channel info. */
 	RsslMutex					warmStandByHandlerMutex;
 	RsslReactorDictionaryVersion	rdmFieldVersion; /* keeps RDM dictionary version of primary sever */
 	RsslReactorDictionaryVersion	rdmEnumTypeVersion; /* keeps RDM enumerated type version of primary sever */
 	RsslReactorChannelImpl			*pReadMsgChannel; /* keeps track which channel reads the current processing message. */
 	RsslBool						queuedRecoveryMessage; /* This is used to indicate for queing recovery message when moving to another WSB group. */
+	RsslBool						preferredHostClosingChannels; /* This is used to indicate that the current channels are getting closed by the preferred host operation. */
+	RsslBool						nextWSBGroupShouldBeFallback; /* Used to indicate that the next WSB group change should fallback to the preferred host */
+	RsslInt32						lastWSBGroupNonPreferred;	/* the last wsb group */
+
 	/* For applying ioctl */
 	RsslUInt32				ioCtlCodes; /* Keeps ioctl codes for all channels. Defined in RsslReactorWSIoctlCodes */
 	RsslTraceOptions traceOptions; /* Keeps the trace options. */
@@ -601,6 +633,10 @@ struct _RsslReactorWarmStandByHandlerImpl
 	RsslUInt32		priorityFlushOrder;
 	RsslUInt32		compressionThresHold;
 	RsslBool		directWrite;
+
+	RsslUInt32		numOfLoginClosed;
+	RsslUInt32		numOfChannelClosed;
+	RsslBool		isChannelOpenCallbackCalled; /* This is used to indicate whether the RsslConsumerWatchlistOptions.channelOpenCallback is called only once per WSB channel */
 };
 
 RTR_C_INLINE void rsslClearReactorWarmStandByHandlerImpl(RsslReactorWarmStandByHandlerImpl* pReactorWarmStandByHandlerImpl)
@@ -635,6 +671,18 @@ RTR_C_INLINE RsslRet _rsslChannelCopyConnectionList(RsslReactorChannelImpl *pRea
 		pReactorChannel->statisticFlags = pOpts->statisticFlags;
 	}
 
+	if (rsslDeepCopyPreferredHostOpts(&(pReactorChannel->preferredHostOptions), &pOpts->preferredHostOptions) != RSSL_RET_SUCCESS)
+	{
+		rsslFreePreferredHostOpts(&pReactorChannel->preferredHostOptions);
+
+		if (pReactorChannel->pChannelStatistic)
+		{
+			free(pReactorChannel->pChannelStatistic);
+			pReactorChannel->pChannelStatistic = NULL;
+		}
+		return RSSL_RET_FAILURE;
+	}
+
 	if(pOpts->connectionCount != 0)
 	{
 		pReactorChannel->connectionOptList = (RsslReactorConnectInfoImpl*)malloc(pOpts->connectionCount*sizeof(RsslReactorConnectInfoImpl));
@@ -646,6 +694,7 @@ RTR_C_INLINE RsslRet _rsslChannelCopyConnectionList(RsslReactorChannelImpl *pRea
 				free(pReactorChannel->pChannelStatistic);
 				pReactorChannel->pChannelStatistic = NULL;
 			}
+			rsslFreePreferredHostOpts(&pReactorChannel->preferredHostOptions);
 			return RSSL_RET_FAILURE;
 		}
 
@@ -673,7 +722,7 @@ RTR_C_INLINE RsslRet _rsslChannelCopyConnectionList(RsslReactorChannelImpl *pRea
 						free(pReactorChannel->pChannelStatistic);
 						pReactorChannel->pChannelStatistic = NULL;
 					}
-
+					rsslFreePreferredHostOpts(&pReactorChannel->preferredHostOptions);
 					return RSSL_RET_FAILURE;
 				}
 
@@ -709,6 +758,7 @@ RTR_C_INLINE RsslRet _rsslChannelCopyConnectionList(RsslReactorChannelImpl *pRea
 					free(pReactorChannel->pChannelStatistic);
 					pReactorChannel->pChannelStatistic = NULL;
 				}
+				rsslFreePreferredHostOpts(&pReactorChannel->preferredHostOptions);
 				return RSSL_RET_FAILURE;
 			}
 
@@ -731,6 +781,7 @@ RTR_C_INLINE RsslRet _rsslChannelCopyConnectionList(RsslReactorChannelImpl *pRea
 				free(pReactorChannel->pChannelStatistic);
 				pReactorChannel->pChannelStatistic = NULL;
 			}
+			rsslFreePreferredHostOpts(&pReactorChannel->preferredHostOptions);
 			return RSSL_RET_FAILURE;
 		}
 
@@ -747,6 +798,7 @@ RTR_C_INLINE RsslRet _rsslChannelCopyConnectionList(RsslReactorChannelImpl *pRea
 				free(pReactorChannel->pChannelStatistic);
 				pReactorChannel->pChannelStatistic = NULL;
 			}
+			rsslFreePreferredHostOpts(&pReactorChannel->preferredHostOptions);
 			return RSSL_RET_FAILURE;
 		}
 
@@ -1946,6 +1998,8 @@ RTR_C_INLINE void rsslResetReactorChannel(RsslReactorImpl *pReactorImpl, RsslRea
 
 	pReactorChannel->directWrite = RSSL_FALSE;
 
+	pReactorChannel->isInitialChannelConnect = RSSL_FALSE;
+
 	pReactorChannel->connectionListCount = 0;
 	pReactorChannel->connectionListIter = 0;
 	pReactorChannel->connectionOptList = NULL;
@@ -1982,6 +2036,22 @@ RTR_C_INLINE void rsslResetReactorChannel(RsslReactorImpl *pReactorImpl, RsslRea
 	pReactorChannel->isStartingServerConfig = RSSL_FALSE;
 	pReactorChannel->lastSubmitOptionsTime = 0;
 	pReactorChannel->pWSRecoveryMsgList = NULL;
+	pReactorChannel->isLoggedInForWSB = RSSL_FALSE;
+	pReactorChannel->removedSocketFromlist = RSSL_FALSE;
+	pReactorChannel->isLoggedOutFromWSB = RSSL_FALSE;
+	pReactorChannel->isRsslChannelClosed = RSSL_FALSE;
+
+	/* Preferred host feature */
+	pReactorChannel->reactorParentQueue = NULL;
+	pReactorChannel->connectingToPreferredHost = RSSL_FALSE;
+	pReactorChannel->sentReconnectCompleteEvent = RSSL_FALSE;
+	pReactorChannel->doNotSendShutdownToWorker = RSSL_FALSE;
+	pReactorChannel->nextReconnectShouldBeFallback = RSSL_FALSE;
+	pReactorChannel->pPreferredHostTokenSesion = RSSL_FALSE;
+	pReactorChannel->preferredHostConnectionOpts = NULL;
+	pReactorChannel->preferredHostNextReconnectMs = 0;
+
+	rsslClearRsslPreferredHostOptions(&pReactorChannel->preferredHostOptions);
 }
 
 /* Verify that the given RsslReactorChannel is valid for this RsslReactor */
@@ -2048,6 +2118,7 @@ typedef struct
 	char nameReactorWorker[MAX_THREADNAME_STRLEN]; /* Name of the reactor worker thread */
 	RsslBuffer cpuBindWorkerThread; /*!< Specifies Cpu core in string format (Cpu core id or P:X C:Y T:Z format) for the worker thread binding; if the value is not set, then there is no limit of the binding processor cores for the Reactor worker thread.> */
 	rtr_atomic_val threadStarted; /*!< Describes the starting process of the Reactor worker thread. see RsslReactorWorkerThreadStartingState > */
+	RsslQueue freeInvalidTokenSessions; /* This is used to free invalid token session which has been removed from SessionMgnt */
 } RsslReactorWorker;
 
 typedef enum
@@ -2145,7 +2216,7 @@ struct _RsslReactorImpl
 	RsslBool			doNotNotifyWorkerOnCredentialChange;
 	RsslBool			rsslWorkerStarted;
 	RsslUInt32			restRequestTimeout; /* Keeps the request timeout */
-
+	RsslProxyOpts		restProxyOptions;   /* Keeps proxy settings for Rest requests: service discovery and auth. */
 	
 	RsslBool			jsonConverterInitialized; 	/* This is used to indicate whether the RsslJsonConverter is initialized */
 	RsslJsonConverter	*pJsonConverter; 
@@ -2156,6 +2227,7 @@ struct _RsslReactorImpl
 	RsslErrorInfo		*pJsonErrorInfo; /* Place holder for JSON error messages */
 	RsslBool			closeChannelFromFailure; /* This is used to indicate whether to close the channel from dispatching */
 	RsslBool			restEnableLog;	/* Enable REST interaction debug messages */
+	RsslBool			restVerboseMode;	/* Enable Verbose REST debug messages */
 	FILE				*restLogOutputStream;	/* Set output stream for REST debug message (by default is stdout) */
 	RsslBool			restEnableLogViaCallback;	/* Enable of invoking a callback specified by user to receive Rest logging message (pRestLoggingCallback). */
 	RsslReactorRestLoggingCallback	*pRestLoggingCallback;	/* Sets a callback specified by users to receive Rest logging message. */
@@ -2184,7 +2256,7 @@ RTR_C_INLINE RsslBool isReactorDebugEnabled(RsslReactorImpl *pReactorImpl)
 	return (pReactorImpl->debugLevel != RSSL_RC_DEBUG_LEVEL_NONE);
 }
 
-void _assignConnectionArgsToRequestArgs(RsslConnectOptions *pConnOptions, RsslRestRequestArgs* pRestRequestArgs);
+void _assignConnectionArgsToRequestArgs(RsslConnectOptions *pConnOptions, RsslProxyOpts* pReactorRestProxyOpts, RsslBool restVerboseMode, RsslRestRequestArgs* pRestRequestArgs);
 
 /* Populates the request for v1 token handling */
 RsslRestRequestArgs* _reactorCreateTokenRequestV1(RsslReactorImpl *pReactorImpl, RsslBuffer *pTokenServiceURL, RsslBuffer *pUserName, RsslBuffer *password, RsslBuffer *pNewPassword,
@@ -2199,14 +2271,24 @@ RsslRestRequestArgs* _reactorCreateRequestArgsForServiceDiscovery(RsslReactorImp
 																RsslReactorDiscoveryDataFormatProtocol dataFormat, RsslBuffer *pTokenType, RsslBuffer *pAccessToken,
 																RsslBuffer *pArgsAndHeaderBuf, void *pUserSpecPtr, RsslErrorInfo* pError);
 
-RsslRet _reactorGetAccessTokenAndServiceDiscovery(RsslReactorChannelImpl* pReactorChannelImpl, RsslBool *queryConnectInfo, RsslErrorInfo* pError);
-
 RsslBuffer* getHeaderValue(RsslQueue *pHeaders, RsslBuffer* pHeaderName);
 
 void _cumulativeValue(RsslUInt* destination, RsslUInt32 value);
 
 /* Checks whether the ReactorChannel handles the warm standby feature at its current state */
-RsslBool _reactorHandlesWarmStandby(RsslReactorChannelImpl *pReactorChannelImpl);
+RTR_C_ALWAYS_INLINE RsslBool _reactorHandlesWarmStandby(RsslReactorChannelImpl *pReactorChannelImpl)
+{
+	if (pReactorChannelImpl->pWarmStandByHandlerImpl)
+	{
+		if ((pReactorChannelImpl->pWarmStandByHandlerImpl->warmStandByHandlerState & RSSL_RWSB_STATE_MOVE_TO_CHANNEL_LIST) == 0)
+		{
+			return RSSL_TRUE;
+		}
+	}
+
+	return RSSL_FALSE;
+}
+
 
 RsslReactorErrorInfoImpl *rsslReactorGetErrorInfoFromPool(RsslReactorWorker *pReactorWoker);
 
@@ -2235,10 +2317,16 @@ void _reactorWorkerCleanupReactor(RsslReactorImpl *pReactorImpl);
 /* Write reactor thread function */
 RSSL_THREAD_DECLARE(runReactorWorker, pArg);
 
+RsslRet _reactorWorkerHandlePingTimeout(RsslReactorChannelImpl* pReactorChannel, RsslReactorWorker* pReactorWorker, RsslReactorImpl* pReactorImpl);
+
+RsslRet _reactorWorkerHandlePreferredHostTimeout(RsslReactorChannelImpl* pReactorChannel, RsslReactorWorker* pReactorWorker, RsslReactorImpl* pReactorImpl);
+
+
 /* Estimate encoded message size. */
 RsslUInt32 _reactorMsgEncodedSize(RsslMsg *pMsg);
 
 void _clearRoleSensitiveData(RsslReactorOMMConsumerRole* pRole);
+void _clearOAuthCredentialSensitiveData(RsslReactorOAuthCredential* pCredentials);
 
 /**
 * @brief Print out the given input argument to the output stream.
@@ -2272,6 +2360,25 @@ RsslRet _initReactorDebugInfo(RsslReactorImpl *pReactorImpl, RsslErrorInfo *pErr
 RsslRet _initReactorChannelDebugInfo(RsslReactorImpl *pReactorImpl, RsslReactorChannelImpl *pReactorChannel, RsslErrorInfo *pError);
 
 void _cleanupReactorChannelDebugInfo(RsslReactorChannelImpl *pReactorChannel);
+
+void _assignServiceDiscoveryOptionsToRequestArgs(RsslReactorServiceDiscoveryOptions* pOpts, RsslProxyOpts* pReactorRestProxyOpts, RsslBool restVerboseMode, RsslRestRequestArgs* pRestRequestArgs);
+
+RsslRet _reactorSubmitWatchlistMsg(RsslReactorImpl* pReactorImpl, RsslReactorChannelImpl* pReactorChannel,
+			RsslWatchlistProcessMsgOptions *pOptions, RsslErrorInfo *pError);
+
+/* Preferred Host. */
+/* Checks if the current channel is the preferred one? */
+RsslBool isCurrentReactorChannelPreferred(RsslReactorChannelImpl* pReactorChannelImpl);
+
+/* Calculate the next time to switch over to a preferred host */
+RsslInt64 getNextFallbackPreferredHostTime(RsslPreferredHostOptions* pPreferredHostOpts, RsslInt64 lastRecordedTimeMs);
+
+RsslRet _writeDebugInfoFallbackToPreferredHost(RsslReactorImpl* pReactorImpl, RsslReactorChannelImpl* pReactorChannel, const char* text, RsslErrorInfo* pError);
+
+RsslRet _reactorWatchlistMsgCallback(RsslWatchlist* pWatchlist, RsslWatchlistMsgEvent* pEvent, RsslErrorInfo* pError);
+
+RsslRet _reactorUpdateReactorChannelLoginRequest(RsslReactorImpl* pReactorImpl, RsslReactorChannelImpl* pReactorChannel, RsslReactorConnectInfoImpl* pNewConnectInfo, RsslReactorConnectInfoImpl* pPrevConnectInfo, RsslBool* submitOriginalCredential);
+
 
 #ifdef __cplusplus
 };

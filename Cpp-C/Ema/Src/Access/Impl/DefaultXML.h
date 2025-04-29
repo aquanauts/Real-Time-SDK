@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2021 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -45,6 +45,8 @@ refinitiv::ema::access::EmaString AsciiValues[] = {
 	"ProxyHost",
 	"ProxyPort",
 	"Rate",
+	"RestProxyHostName",
+	"RestProxyPort",
 	"RdmFieldDictionaryFileName",
 	"RdmFieldDictionaryItemName",
 	"RecvAddress",
@@ -54,6 +56,7 @@ refinitiv::ema::access::EmaString AsciiValues[] = {
 	"Server",
 	"ServerCert",
 	"ServerPrivateKey",
+	"SessionChannelSet",
 	"StandbyServerSet",
 	"StartingActiveServer",
 	"StatusText",
@@ -64,7 +67,10 @@ refinitiv::ema::access::EmaString AsciiValues[] = {
 	"XmlTraceFileName",
 	"WsProtocols",
 	"RestLogFileName",
-	"WarmStandbyChannelSet"
+	"WarmStandbyChannelSet",
+	"PHDetectionTimeSchedule",
+	"PreferredChannelName",
+	"PreferredWSBChannelName"
 };
 
 refinitiv::ema::access::EmaString EnumeratedValues[] = {
@@ -84,7 +90,6 @@ refinitiv::ema::access::EmaString EnumeratedValues[] = {
 refinitiv::ema::access::EmaString Int64Values[] = {
 	"DictionaryID",
 	"DispatchTimeoutApiThread",
-	"PipePort",
 	"ReconnectAttemptLimit",
 	"ReconnectMaxDelay",
 	"ReconnectMinDelay",
@@ -128,6 +133,7 @@ refinitiv::ema::access::EmaString UInt64Values[] = {
 	"ItemCountHint",
 	"IsSource",
 	"JsonExpandedEnumFields",
+	"JsonTokenIncrementSize",
 	"LoginRequestTimeOut",
 	"MaxDispatchCountApiThread",
 	"MaxDispatchCountUserThread",
@@ -141,6 +147,7 @@ refinitiv::ema::access::EmaString UInt64Values[] = {
 	"OutputBufferSize",
 	"PacketTTL",
 	"PostAckTimeout",
+	"ProxyConnectionTimeout",
 	"RecoverUserSubmitSourceDirectory",
 	"RefreshFirstRequired",
 	"RemoveItemsOnDisconnect",
@@ -148,11 +155,14 @@ refinitiv::ema::access::EmaString UInt64Values[] = {
 	"RestRequestTimeOut",
 	"RestEnableLog",
 	"RestEnableLogViaCallback",
+	"RestVerboseMode",
 	"ServerSharedSocket",
 	"ServiceCountHint",
 	"ServiceDiscoveryRetryCount",
 	"ServiceId",
 	"ServiceState",
+	"SessionEnhancedItemRecovery",
+	"ShouldInitializeCPUIDlib",
 	"SupportsOutOfBandSnapshots",
 	"SupportsQoSRange",
 	"SysRecvBufSize",
@@ -167,6 +177,7 @@ refinitiv::ema::access::EmaString UInt64Values[] = {
 	"XmlTraceToStdout",
 	"XmlTraceWrite",
 	"XmlTraceDump",
+	"XmlTracePingOnly",
 	"ndata",
 	"nmissing",
 	"nrreq",
@@ -184,6 +195,9 @@ refinitiv::ema::access::EmaString UInt64Values[] = {
 	"OpenWindow",
 	"LoadFactor",
 	"SendJsonConvError",
+	"EnablePreferredHostOptions",
+	"PHDetectionTimeInterval",
+	"PHFallBackWithInWSBGroup"
 };
 
 refinitiv::ema::access::EmaString DoubleValues[] = {
@@ -200,6 +214,7 @@ refinitiv::ema::access::EmaString NodesThatRequireName[] = {
 	"NiProvider",
 	"Server",
 	"Service",
+	"SessionChannel",
 };
 
 #endif //__refinitiv_ema_access_DefaultXML_h

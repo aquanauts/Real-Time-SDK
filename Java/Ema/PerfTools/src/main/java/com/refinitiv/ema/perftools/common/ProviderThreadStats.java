@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022 Refinitiv. All rights reserved.         	  --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022,2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -13,12 +13,14 @@ public class ProviderThreadStats {
     public static final long NOT_DEFINED = -1;
     private final CountStat requestCount;
     private final CountStat refreshCount;
+    private final CountStat itemRefreshCount;
     private final CountStat updateCount;
     private final CountStat closeCount;
     private final CountStat postCount;
     private final CountStat statusCount;
     private final CountStat msgSentCount;
     private final CountStat outOfBuffersCount;
+    private final CountStat updatePackedMsgCount;
     private final TimeRecordQueue genMsgLatencyRecords;
     private long inactiveTime;
     private long firstGenMsgSentTime;
@@ -43,6 +45,7 @@ public class ProviderThreadStats {
 
         this.requestCount = new CountStat();
         this.refreshCount = new CountStat();
+        this.itemRefreshCount = new CountStat();
         this.updateCount = new CountStat();
         this.closeCount = new CountStat();
         this.postCount = new CountStat();
@@ -50,6 +53,7 @@ public class ProviderThreadStats {
         this.msgSentCount = new CountStat();
         this.outOfBuffersCount = new CountStat();
         this.genMsgLatencyRecords = new TimeRecordQueue();
+        this.updatePackedMsgCount = new CountStat();
     }
 
     /**
@@ -203,6 +207,10 @@ public class ProviderThreadStats {
     public CountStat refreshCount() {
         return refreshCount;
     }
+    
+    public CountStat itemRefreshCount() {
+        return itemRefreshCount;
+    }
 
     public CountStat updateCount() {
         return updateCount;
@@ -230,6 +238,10 @@ public class ProviderThreadStats {
 
     public TimeRecordQueue genMsgLatencyRecords() {
         return genMsgLatencyRecords;
+    }
+    
+    public CountStat updatePackedMsgCount() {
+        return updatePackedMsgCount;
     }
 
     /**

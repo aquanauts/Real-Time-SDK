@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the projects LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the projects LICENSE.md for details.
+ *|          Copyright (C) 2023, 2024-2025 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -23,6 +23,7 @@
 #include "DirectoryServiceStore.h"
 #include "ChannelInfoImpl.h"
 #include "OmmInvalidUsageException.h"
+#include "PackedMsgImpl.h"
 
 #include <limits.h>
 
@@ -458,13 +459,7 @@ void OmmNiProviderImpl::loadDirectory()
 		}
 	}
 
-	Channel* pChannel = getLoginCallbackClient().getActiveChannel();
-	if ( pChannel == NULL )
-	{
-		EmaString temp( "No active channel to send message." );
-		handleIue( temp, OmmInvalidUsageException::NoActiveChannelEnum );
-		return;
-	}
+	Channel* pChannel = static_cast<Channel*>(_pReactorChannel->userSpecPtr);
 
 	RsslReactorSubmitMsgOptions submitMsgOpts;
 	rsslClearReactorSubmitMsgOptions( &submitMsgOpts );
@@ -473,7 +468,7 @@ void OmmNiProviderImpl::loadDirectory()
 
 	RsslErrorInfo rsslErrorInfo;
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( rsslReactorSubmitMsg( pChannel->getRsslReactor(), pChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
+	if ( rsslReactorSubmitMsg( _pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
 	{
 		EmaString temp( "Internal error: rsslReactorSubmitMsg() failed in OmmNiProviderImpl::loadDirectory()." );
 		temp.append( CR ).append( pChannel->toString() ).append( CR )
@@ -556,8 +551,6 @@ void OmmNiProviderImpl::reLoadUserSubmitSourceDirectory()
 	RsslRDMDirectoryRefresh directoryRefresh;
 	rsslClearRDMDirectoryRefresh( &directoryRefresh );
 
-	directoryRefresh.filter = RDM_DIRECTORY_SERVICE_INFO_FILTER | RDM_DIRECTORY_SERVICE_STATE_FILTER;
-
 	directoryRefresh.state.text.data = ( char* )"Refresh Complete";
 	directoryRefresh.state.text.length = 16;
 
@@ -581,9 +574,6 @@ void OmmNiProviderImpl::reLoadUserSubmitSourceDirectory()
 
 		if (RSSL_RET_SUCCESS != rsslSetEncodeIteratorBuffer(&eIter, &rsslMsgBuffer))
 		{
-			if (rsslMsgBuffer.data)
-				free(rsslMsgBuffer.data);
-
 			DirectoryServiceStore::freeMemory(directoryRefresh, &rsslMsgBuffer);
 			handleMee("Internal error. Failed to set encode iterator buffer in OmmNiProviderImpl::reLoadUserSubmitSourceDirectory()");
 
@@ -664,7 +654,7 @@ void OmmNiProviderImpl::reLoadUserSubmitSourceDirectory()
 	}
 
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( (retCode = rsslReactorSubmitMsg( _activeChannel->getRsslReactor(), _activeChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo )) != RSSL_RET_SUCCESS )
+	if ( (retCode = rsslReactorSubmitMsg(_pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo )) != RSSL_RET_SUCCESS )
 	{
 		DirectoryServiceStore::freeMemory(directoryRefresh, &rsslMsgBuffer);
 
@@ -736,7 +726,7 @@ void OmmNiProviderImpl::reLoadConfigSourceDirectory()
 
 	RsslErrorInfo rsslErrorInfo;
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( rsslReactorSubmitMsg( _activeChannel->getRsslReactor(), _activeChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
+	if ( rsslReactorSubmitMsg( _pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
 	{
 		EmaString temp( "Internal error: rsslReactorSubmitMsg() failed in OmmNiProviderImpl::reLoadConfigSourceDirectory()." );
 		temp.append( CR ).append( _activeChannel->toString() ).append( CR )
@@ -1170,7 +1160,7 @@ void OmmNiProviderImpl::submit( const RefreshMsg& msg, UInt64 handle )
 
 	RsslErrorInfo rsslErrorInfo;
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( rsslReactorSubmitMsg( _activeChannel->getRsslReactor(), _activeChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
+	if ( rsslReactorSubmitMsg( _pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
 	{
 		if ( bHandleAdded )
 		{
@@ -1449,7 +1439,7 @@ void OmmNiProviderImpl::submit( const UpdateMsg& msg, UInt64 handle )
 
 	RsslErrorInfo rsslErrorInfo;
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( rsslReactorSubmitMsg(_activeChannel->getRsslReactor(), _activeChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
+	if ( rsslReactorSubmitMsg( _pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
 	{
 		if ( bHandleAdded )
 		{
@@ -1689,7 +1679,7 @@ void OmmNiProviderImpl::submit( const StatusMsg& msg, UInt64 handle )
 
 	RsslErrorInfo rsslErrorInfo;
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( rsslReactorSubmitMsg( _activeChannel->getRsslReactor(), _activeChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
+	if ( rsslReactorSubmitMsg( _pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
 	{
 		if ( bHandleAdded )
 		{
@@ -1784,7 +1774,7 @@ void OmmNiProviderImpl::submit( const GenericMsg& msg, UInt64 handle )
 
 	RsslErrorInfo rsslErrorInfo;
 	clearRsslErrorInfo( &rsslErrorInfo );
-	if ( rsslReactorSubmitMsg( _activeChannel->getRsslReactor(), _activeChannel->getRsslChannel(), &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
+	if ( rsslReactorSubmitMsg( _pRsslReactor, _pReactorChannel, &submitMsgOpts, &rsslErrorInfo ) != RSSL_RET_SUCCESS )
 	{
 		EmaString temp( "Internal error: rsslReactorSubmitMsg() failed in OmmNiProviderImpl::submit( const GenericMsg& )." );
 		temp.append( CR ).append( _activeChannel->toString() ).append( CR )
@@ -1805,6 +1795,58 @@ void OmmNiProviderImpl::submit( const GenericMsg& msg, UInt64 handle )
 void OmmNiProviderImpl::submit(const AckMsg&, UInt64)
 {
 	handleIue("Non-interactive provider does not support submitting AckMsg.", OmmInvalidUsageException::InvalidOperationEnum);
+}
+
+void OmmNiProviderImpl::submit(const PackedMsg& packedMsg)
+{
+	_userLock.lock();
+
+	if (!_activeChannel)
+	{
+		_userLock.unlock();
+		EmaString temp("No active channel to send message.");
+		temp.append(CR);
+		handleIue(temp, OmmInvalidUsageException::NoActiveChannelEnum);
+		return;
+	}
+
+	PackedMsgImpl *packedMsgImpl = packedMsg._pImpl;
+	RsslBuffer *transportBuffer = packedMsgImpl->getTransportBuffer();
+	RsslReactorSubmitOptions submitOpts;
+	RsslErrorInfo rsslErrorInfo;
+	RsslRet ret = RSSL_RET_FAILURE;
+
+	if (transportBuffer == NULL)
+	{
+		_userLock.unlock();
+		EmaString temp("Attempt to submit PackedMsg with non init transport buffer");
+		handleIue(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
+	rsslClearReactorSubmitOptions(&submitOpts);
+
+	transportBuffer->length = 0;
+
+	if (ret = rsslReactorSubmit(_pRsslReactor, _pReactorChannel, transportBuffer, &submitOpts, &rsslErrorInfo) < RSSL_RET_SUCCESS)
+	{
+		packedMsgImpl->clear();
+
+		EmaString temp("Internal error: rsslReactorSubmit() failed in OmmNiProviderImpl::submit( const PackedMsg& ).");
+		temp.append(CR).append(_activeChannel->toString()).append(CR)
+			.append("RsslChannel ").append(ptrToStringAsHex(rsslErrorInfo.rsslError.channel)).append(CR)
+			.append("Error Id ").append(rsslErrorInfo.rsslError.rsslErrorId).append(CR)
+			.append("Internal sysError ").append(rsslErrorInfo.rsslError.sysError).append(CR)
+			.append("Error Location ").append(rsslErrorInfo.errorLocation).append(CR)
+			.append("Error Text ").append(rsslErrorInfo.rsslError.text);
+		_userLock.unlock();
+		handleIue(temp, rsslErrorInfo.rsslError.rsslErrorId);
+		return;
+	}
+
+	packedMsgImpl->setTransportBuffer(NULL);
+
+	_userLock.unlock();
 }
 
 void OmmNiProviderImpl::setRsslReactorChannelRole( RsslReactorChannelRole& role)
@@ -1984,21 +2026,20 @@ void OmmNiProviderImpl::getConnectedClientChannelStats(UInt64, ChannelStatistics
 }
 
 void OmmNiProviderImpl::getChannelInformation(ChannelInformation& ci) {
-  Channel* pChannel;
-  RsslReactorChannel* rsslReactorChannel;
-  if ((pChannel = getLoginCallbackClient().getActiveChannel()) == 0 ||
-	  (rsslReactorChannel = pChannel->getRsslChannel()) == 0) {
-	ci.clear();
-	return;
-  }
-  return getChannelInformationImpl(rsslReactorChannel, OmmCommonImpl::NiProviderEnum, ci);
+	RsslReactorChannel* rsslReactorChannel;
+	if ((rsslReactorChannel = _pReactorChannel) == 0) {
+		ci.clear();
+		return;
+	}
+
+	return ChannelInfoImpl::getChannelInformationImpl(rsslReactorChannel, OmmCommonImpl::NiProviderEnum, ci);
 }
 
 void OmmNiProviderImpl::modifyIOCtl(Int32 code, Int32 value, UInt64 handle)
 {
 	_userLock.lock();
 
-	if (_activeChannel == NULL || _activeChannel->getRsslChannel() == NULL)
+	if (_activeChannel == NULL || _pReactorChannel == NULL)
 	{
 		_userLock.unlock();
 		EmaString temp("No active channel to modify I/O option.");
@@ -2007,7 +2048,7 @@ void OmmNiProviderImpl::modifyIOCtl(Int32 code, Int32 value, UInt64 handle)
 	}
 
 	RsslError rsslError;
-	RsslRet ret = rsslIoctl(_activeChannel->getRsslChannel()->pRsslChannel, (RsslIoctlCodes)code, &value, &rsslError);
+	RsslRet ret = rsslIoctl(_pReactorChannel->pRsslChannel, (RsslIoctlCodes)code, &value, &rsslError);
 
 	if (ret != RSSL_RET_SUCCESS)
 	{
@@ -2030,3 +2071,13 @@ void OmmNiProviderImpl::closeChannel(UInt64 clientHandle)
 	throwIueException("NIProvider applications do not support the closeChannel() method", OmmInvalidUsageException::InvalidOperationEnum);
 }
 
+OmmNiProviderImpl::StreamInfoPtr* OmmNiProviderImpl::getStreamInfo(UInt64 handle)
+{
+	_userLock.lock();
+
+	StreamInfoPtr* streamPtr =  const_cast<OmmNiProviderImpl::StreamInfoPtr*>(_handleToStreamInfo.find(handle));
+
+	_userLock.unlock();
+
+	return streamPtr;
+}

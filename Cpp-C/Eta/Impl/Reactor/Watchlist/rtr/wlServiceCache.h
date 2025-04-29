@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #ifndef WL_SERVICE_CACHE_H
@@ -87,22 +87,13 @@ struct WlServiceCache
 	RsslQueue						_serviceList;				/* Full service list. */
 	RsslInt32						_directoryStreamId;			/* Associated Stream ID. */
 	RsslInt32						*_pRsslChannel;				/* Associated RsslChannel. */
-	WlServiceCacheUpdateCallback	*_serviceUpdateCallback;	/* User-specified service update 
-																   event callback. */
-
-	RDMCachedServiceStateChangeCallback *_serviceStateChangeCallback; /* User-specified for a service state changes callback. */
-	WlServiceCacheUpdateCallback		*_serviceCacheInitCallback; /* User-specified for initial service cache callback. */
-	WlServiceCacheUpdateCallback		*_serviceCacheUpdateCallback; /* User-specified for update service cache callback. */
 	RsslBuffer						tempMemBuffer;
 };
 
 typedef struct
 {
 	void *pUserSpec;
-	WlServiceCacheUpdateCallback	*serviceUpdateCallback;
 	RDMCachedServiceStateChangeCallback *serviceStateChangeCallback;
-	WlServiceCacheUpdateCallback	*serviceCacheInitCallback;
-	WlServiceCacheUpdateCallback	*serviceCacheUpdateCallback;
 } WlServiceCacheCreateOptions;
 
 RTR_C_INLINE void wlServiceCacheClearCreateOptions(WlServiceCacheCreateOptions *pOptions)

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2020 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2020-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -15,8 +15,10 @@
 #include "OmmIProviderConfig.h"
 #include "OAuth2Credential.h"
 #include "OmmOAuth2CredentialImpl.h"
+#include "DataDictionary.h"
 
 #include "LoginRdmReqMsgImpl.h"
+#include "HashTable.h"
 
 #include "rtr/rsslTransport.h"
 #include "rtr/rwfNet.h"
@@ -48,7 +50,7 @@
 #define DEFAULT_REISSUE_TOKEN_ATTEMP_INTERVAL			5000
 #define DEFAULT_GUARANTEED_OUTPUT_BUFFERS				100
 #define DEFAULT_PROVIDER_GUARANTEED_OUTPUT_BUFFERS		5000
-#define DEFAULT_NUM_INPUT_BUFFERS					    10
+#define DEFAULT_NUM_INPUT_BUFFERS					    100
 #if defined(_WIN32) || defined(WIN32)
 #define DEFAULT_SYS_SEND_BUFFER_SIZE				    65535
 #define DEFAULT_SYS_RECEIVE_BUFFER_SIZE				    65535
@@ -78,9 +80,8 @@
 #define DEFAULT_MAX_OUTSTANDING_POSTS				    100000
 #define DEFAULT_MSGKEYINUPDATES						    true
 #define DEFAULT_OBEY_OPEN_WINDOW					    1
-#define DEFAULT_PIPE_PORT							    9001
-#define DEFAULT_SERVER_PIPE_PORT					    9009
 #define DEFAULT_POST_ACK_TIMEOUT					    15000
+#define DEFAULT_PROXY_CONNECTION_TIMEOUT			    40
 #define DEFAULT_REACTOR_EVENTFD_PORT				    55000
 #define DEFAULT_RECONNECT_ATTEMPT_LIMIT				    -1
 #define DEFAULT_RECONNECT_MAX_DELAY					    5000
@@ -88,6 +89,12 @@
 #define DEFAULT_REQUEST_TIMEOUT						   15000
 #define DEFAULT_REST_REQUEST_TIMEOUT				   90
 #define DEFAULT_SERVICE_COUNT_HINT					   513
+#define DEFAULT_ENABLE_PREFERRED_HOST				   false
+#define DEFAULT_DETECTION_TIME_SCHEDULE                EmaString( "" )
+#define DEFAULT_DETECTION_TIME_INTERVAL				   0
+#define DEFAULT_CHANNEL_NAME						   EmaString( "" )
+#define DEFAULT_WSB_CHANNEL_NAME					   EmaString( "" )
+#define DEFAULT_FALL_BACK_WITH_IN_WSB_GROUP			   false
 #define DEFAULT_OBJECT_NAME							   EmaString( "" )
 #define DEFAULT_SSL_CA_STORE						   EmaString( "" )
 #define DEFAULT_TCP_NODELAY							   RSSL_TRUE
@@ -113,6 +120,7 @@
 #define DEFAULT_XML_TRACE_HEX						  false
 #define DEFAULT_XML_TRACE_MAX_FILE_SIZE				  100000000
 #define DEFAULT_XML_TRACE_PING						  false
+#define DEFAULT_XML_TRACE_PING_ONLY					  false
 #define DEFAULT_XML_TRACE_READ						  true
 #define DEFAULT_XML_TRACE_TO_FILE					  false
 #define DEFAULT_XML_TRACE_TO_MULTIPLE_FILE			  false
@@ -129,20 +137,23 @@
 #define DEFAULT_SERVICE_ID_FOR_CONVERTER			  1
 #define DEFAULT_JSON_EXPANDED_ENUM_FIELDS			  false
 #define DEFAULT_OUTPUT_BUFFER_SIZE					  (RWF_MAX_16)
+#define DEFAULT_JSON_TOKEN_INCREMENT_SIZE			  500
 #define DEFAULT_ENABLE_RTT							  false
 #define DEFAULT_REST_ENABLE_LOG						  false
+#define DEFAULT_REST_VERBOSE_MODE					  false
 #define DEFAULT_REST_ENABLE_LOG_VIA_CALLBACK		  false
 #define DEFAULT_WSB_DOWNLOAD_CONNECTION_CONFIG		  false;
 #define DEFAULT_WSB_MODE							  RSSL_RWSB_MODE_LOGIN_BASED
+#define DEFAULT_SHOULD_INIT_CPUID_LIB				  true
 
 #define SOCKET_CONN_HOST_CONFIG_BY_FUNCTION_CALL	0x01  /*!< Indicates that host set though EMA interface function calls for RSSL_SOCKET connection type */
 #define SOCKET_SERVER_PORT_CONFIG_BY_FUNCTION_CALL	0x02  /*!< Indicates that server listen port set though EMA interface function call from server client*/
 #define PROXY_HOST_CONFIG_BY_FUNCTION_CALL 0x04  /*!< Indicates that tunneling proxy host set though EMA interface function calls */
-#define PROXY_PORT_CONFIG_BY_FUNCTION_CALL 0x08  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
+#define PROXY_PORT_CONFIG_BY_FUNCTION_CALL 0x08  /*!< Indicates that tunneling proxy port set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
 #define TUNNELING_OBJNAME_CONFIG_BY_FUNCTION_CALL 0x10  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
-#define PROXY_USERNAME_CONFIG_BY_FUNCTION_CALL 0x20  /*!< Indicates that tunneling proxy host set though EMA interface function calls */
-#define PROXY_PASSWD_CONFIG_BY_FUNCTION_CALL 0x40  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
-#define PROXY_DOMAIN_CONFIG_BY_FUNCTION_CALL 0x80  /*!< Indicates that tunneling proxy host set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
+#define PROXY_USERNAME_CONFIG_BY_FUNCTION_CALL 0x20  /*!< Indicates that tunneling proxy user name set though EMA interface function calls */
+#define PROXY_PASSWD_CONFIG_BY_FUNCTION_CALL 0x40  /*!< Indicates that tunneling proxy password set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
+#define PROXY_DOMAIN_CONFIG_BY_FUNCTION_CALL 0x80  /*!< Indicates that tunneling proxy domain set though EMA interface function calls for HTTP/ENCRYPTED connection type*/
 
 namespace refinitiv {
 
@@ -152,6 +163,7 @@ namespace access {
 
 class Channel;
 class WarmStandbyChannelConfig;
+class ConsumerRoutingSessionChannelConfig;
 
 class ChannelConfig
 {
@@ -189,6 +201,7 @@ public :
 	UInt32					sysSendBufSize;
 	UInt32					highWaterMark;
 	Channel*				pChannel;
+	ConsumerRoutingSessionChannelConfig* pRoutingChannelConfig;
 
 private :
 
@@ -252,6 +265,8 @@ public:
 	EmaString						rdmFieldDictionaryItemName;
 	EmaString						enumTypeDefItemName;
 	Dictionary::DictionaryType		dictionaryType;
+	DataDictionary*					dataDictionary;
+	bool							shouldCopyIntoAPI;
 };
 
 class ServiceDictionaryConfig : public ListLinks<ServiceDictionaryConfig>
@@ -289,6 +304,7 @@ public :
 
 	virtual ~SocketChannelConfig();
 
+	void setProxyConnectionTimeout(UInt64 value);
 	void setServiceDiscoveryRetryCount(UInt64 value);
 	void setWsMaxMsgSize(UInt64 value);
 	void clear();
@@ -304,6 +320,7 @@ public :
 	EmaString				proxyUserName;
 	EmaString				proxyPasswd;
 	EmaString				proxyDomain;
+	UInt32					proxyConnectionTimeout;
 	EmaString				sslCAStore;
 	int						securityProtocol;
 	EmaString				location;
@@ -345,6 +362,8 @@ public:
 
 	UInt64			maxFragmentSize;
 	EmaString		wsProtocols;
+
+	int securityProtocol;
 
 private:
 
@@ -467,10 +486,12 @@ public:
 	bool					xmlTraceWrite;
 	bool					xmlTraceRead;
 	bool					xmlTracePing;
+	bool					xmlTracePingOnly;
 	bool					xmlTraceHex;
 	bool					xmlTraceDump;
 	bool					enableRtt;
 	bool					restEnableLog;
+	bool					restVerboseMode;
 	bool					restEnableLogViaCallback;
 	bool					sendJsonConvError;
 	/*ReconnectAttemptLimit,ReconnectMinDelay,ReconnectMaxDelay,MsgKeyInUpdates,XmlTrace... is per Consumer, or per NIProvider
@@ -487,6 +508,7 @@ public:
 	EmaString				traceStr;
 	Double					tokenReissueRatio;
 	EmaString				restLogFileName;
+	bool					shouldInitializeCPUIDlib;
 
 	/* Configure the  RsslReactorJsonConverterOptions */
 	UInt16					defaultServiceIDForConverter;
@@ -495,11 +517,26 @@ public:
 	bool					catchUnknownJsonFids;
 	bool					closeChannelFromFailure;
 	UInt32					outputBufferSize;
+	UInt32					jsonTokenIncrementSize;
 };
+
+typedef const EmaString* EmaStringPtr;
 
 class ActiveConfig : public BaseConfig
 {
 public:
+
+	class EmaStringPtrHasher
+	{
+	public:
+		size_t operator()(const EmaStringPtr&) const;
+	};
+
+	class EmaStringPtrEqual_To
+	{
+	public:
+		bool operator()(const EmaStringPtr&, const EmaStringPtr&) const;
+	};
 
 	ActiveConfig( const EmaString& );
 
@@ -513,10 +550,16 @@ public:
 	void setLoginRequestTimeOut( UInt64 );
 	void setDirectoryRequestTimeOut( UInt64 );
 	void setDictionaryRequestTimeOut( UInt64 );
-	void setReconnectAttemptLimit(Int64 value);
-	void setReconnectMinDelay(Int64 value);
-	void setReconnectMaxDelay(Int64 value);
-	void setRestRequestTimeOut(UInt64 value);
+	void setEnablePreferredHostOptions(UInt64);
+	void setDetectionTimeSchedule ( const EmaString& );
+	void setChannelName( const EmaString& );
+	void setWSBChannelName( const EmaString& );
+	void setDetectionTimeInterval( UInt64 );
+	void setFallBackWithInWSBGroup( UInt64 );
+	void setReconnectAttemptLimit( Int64 value );
+	void setReconnectMinDelay( Int64 value );
+	void setReconnectMaxDelay( Int64 value );
+	void setRestRequestTimeOut( UInt64 value );
 
 	ChannelConfig* findChannelConfig( const Channel* pChannel );
 	static bool findChannelConfig( EmaVector< ChannelConfig* >&, const EmaString&, unsigned int& );
@@ -524,10 +567,11 @@ public:
 	void clearChannelSet();
 	void clearWSBChannelSet();
 	void clearChannelSetForWSB();
+	void clearConsumerRoutingSessionSet();
+	void clearServiceListSet();
 	const EmaString& defaultServiceName() { return _defaultServiceName; }
 	EmaString configTrace();
 
-	Int64			pipePort;
 	UInt32			obeyOpenWindow;
 	UInt32			postAckTimeout;
 	UInt32			maxOutstandingPosts;
@@ -548,11 +592,32 @@ public:
 	EmaVector< WarmStandbyChannelConfig* >  configWarmStandbySet;
 	EmaVector< ChannelConfig* >		configChannelSetForWSB;
 
+	HashTable<EmaStringPtr, ServiceList*, EmaStringPtrHasher, EmaStringPtrEqual_To> serviceListByName;
+
+	EmaVector<ServiceList*> serviceListSet;			// List of copied over service lists, used for deletion.
+
+	EmaVector< ConsumerRoutingSessionChannelConfig* >		consumerRoutingSessionSet;
+
 	LoginRdmReqMsgImpl*		pRsslRDMLoginReq;
 	RsslRequestMsg*			pRsslDirectoryRequestMsg;
 	AdminReqMsg*			pRsslRdmFldRequestMsg;
 	AdminReqMsg*			pRsslEnumDefRequestMsg;
 	AdminRefreshMsg*		pDirectoryRefreshMsg;
+
+	EmaString				restProxyHostName;
+	EmaString				restProxyPort;
+	EmaString				restProxyUserName;
+	EmaString				restProxyPasswd;
+	EmaString				restProxyDomain;
+	bool					consumerRoutingSessionEnhancedItemRecovery;
+
+	// Preferred host
+	bool            enablePreferredHostOptions;
+	EmaString		phDetectionTimeSchedule;
+	UInt32          phDetectionTimeInterval;
+	EmaString       preferredChannelName;
+	EmaString       preferredWSBChannelName;
+	bool			phFallBackWithInWSBGroup;
 
 protected:
 
@@ -573,7 +638,6 @@ public:
 
 	virtual OmmIProviderConfig::AdminControl getDirectoryAdminControl() = 0;
 
-	Int64						pipePort;
 	AdminRefreshMsg*			pDirectoryRefreshMsg;
 
 	ServerConfig*				pServerConfig;
@@ -648,6 +712,7 @@ public:
 
 	enum WarmStandbyMode
 	{
+		None = 0,										// Enum used in Request Routing.
 		LoginBasedEnum = RSSL_RWSB_MODE_LOGIN_BASED,
 		ServiceBasedEnum = RSSL_RWSB_MODE_SERVICE_BASED
 	};
@@ -662,6 +727,7 @@ public:
 	EmaVector<WarmStandbyServerInfoConfig*>		standbyServerSet;
 	bool									downloadConnectionConfig;
 	WarmStandbyMode							warmStandbyMode;
+	ConsumerRoutingSessionChannelConfig*		pRoutingChannelConfig;
 private:
 	WarmStandbyChannelConfig();
 };

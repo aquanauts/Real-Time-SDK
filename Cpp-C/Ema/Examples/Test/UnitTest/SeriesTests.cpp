@@ -1,14 +1,15 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
 #include "TestUtilities.h"
 
 using namespace refinitiv::ema::access;
+using namespace refinitiv::ema::rdm;
 using namespace std;
 
 TEST(SeriesTests, testSeriesContainsFieldListsDecodeAll)
@@ -791,7 +792,7 @@ TEST(SeriesTests, testSeriesContainsXmlDecodeAll)
 		Series series;
 		StaticDecoder::setRsslData( &series, &seriesBuffer, RSSL_DT_SERIES, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, &dictionary );
 
-		EXPECT_TRUE( series.forth() ) << "Series contains Opaque - first forth()" ;
+		EXPECT_TRUE( series.forth() ) << "Series contains Xml - first forth()" ;
 
 		const SeriesEntry& se = series.getEntry();
 		EXPECT_EQ( se.getLoadType(), DataType::XmlEnum ) << "ElementEntry::getLoadType() == DataType::XmlEnum" ;
@@ -803,6 +804,71 @@ TEST(SeriesTests, testSeriesContainsXmlDecodeAll)
 	catch ( const OmmException& )
 	{
 		EXPECT_FALSE( true ) << "Series contains Xml payload - exception not expected" ;
+	}
+}
+
+TEST(SeriesTests, testSeriesContainsJsonDecodeAll)
+{
+
+	RsslDataDictionary dictionary;
+
+	try
+	{
+		RsslBuffer seriesBuffer;
+		seriesBuffer.length = 4096;
+		seriesBuffer.data = ( char* )malloc( sizeof( char ) * 4096 );
+
+		RsslSeries rsslSeries = RSSL_INIT_SERIES;
+		RsslEncodeIterator seriesEncodeIter;
+
+		rsslClearSeries( &rsslSeries );
+		rsslClearEncodeIterator( &seriesEncodeIter );
+		rsslSetEncodeIteratorRWFVersion( &seriesEncodeIter, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION );
+		rsslSetEncodeIteratorBuffer( &seriesEncodeIter, &seriesBuffer );
+		rsslSeries.flags = RSSL_SRF_HAS_TOTAL_COUNT_HINT;
+
+		rsslSeries.containerType = RSSL_DT_JSON;
+		rsslSeries.totalCountHint = 1;
+
+		RsslRet ret = rsslEncodeSeriesInit( &seriesEncodeIter, &rsslSeries, 0, 0 );
+		RsslSeriesEntry seriesEntry;
+
+		rsslClearSeriesEntry( &seriesEntry );
+
+		char buffer[200];
+		RsslBuffer rsslBuf;
+		rsslBuf.data = buffer;
+		rsslBuf.length = 200;
+
+		RsslBuffer jsonValue;
+		jsonValue.data = ( char* )"{\"consumerList\":{\"consumer\":{\"name\":\"\",\"dataType\":\"Ascii\",\"value\":\"Consumer_1\"}}}";
+		jsonValue.length = static_cast<rtrUInt32>( strlen( jsonValue.data ) );
+
+		encodeNonRWFData( &rsslBuf, &jsonValue );
+
+		seriesEntry.encData = rsslBuf;
+
+		ret = rsslEncodeSeriesEntry( &seriesEncodeIter, &seriesEntry );
+
+		ret = rsslEncodeSeriesComplete( &seriesEncodeIter, RSSL_TRUE );
+
+		seriesBuffer.length = rsslGetEncodedBufferLength( &seriesEncodeIter );
+
+		Series series;
+		StaticDecoder::setRsslData( &series, &seriesBuffer, RSSL_DT_SERIES, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, &dictionary );
+
+		EXPECT_TRUE( series.forth() ) << "Series contains Json - first forth()" ;
+
+		const SeriesEntry& se = series.getEntry();
+		EXPECT_EQ( se.getLoadType(), DataType::JsonEnum ) << "ElementEntry::getLoadType() == DataType::JsonEnum" ;
+
+		EmaBuffer compareTo( jsonValue.data, jsonValue.length );
+		EXPECT_STREQ( se.getJson().getBuffer(), compareTo ) << "ElementEntry::getJson().getBuffer()" ;
+
+	}
+	catch ( const OmmException& )
+	{
+		EXPECT_FALSE( true ) << "Series contains Json payload - exception not expected" ;
 	}
 }
 
@@ -1132,13 +1198,79 @@ TEST(SeriesTests, testSeriesContainsFieldListsEncodeDecodeAll)
 	// load dictionary for decoding of the field list
 	RsslDataDictionary dictionary;
 
+	const EmaString seriesString =
+		"Series totalCountHint=\"5\n"
+		"    SummaryData dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    SummaryDataEnd\n"
+		"    SeriesEntry dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    SeriesEntryEnd\n"
+		"    SeriesEntry dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    SeriesEntryEnd\n"
+		"    SeriesEntry dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    SeriesEntryEnd\n"
+		"SeriesEnd\n";
+
 	ASSERT_TRUE(loadDictionaryFromFile( &dictionary )) << "Failed to load dictionary";
 
-	Series seriesEnc;
-	EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+	DataDictionary emaDataDictionary, emaDataDictionaryEmpty;
+
+	try {
+		emaDataDictionary.loadFieldDictionary( "RDMFieldDictionaryTest" );
+		emaDataDictionary.loadEnumTypeDictionary( "enumtypeTest.def" );
+	}
+	catch ( const OmmException& ) {
+		ASSERT_TRUE( false ) << "DataDictionary::loadFieldDictionary() failed to load dictionary information";
+	}
+
+	Series seriesEnc, seriresEmpty;
+	EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n") << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 	seriesEnc.totalCountHint( 5 );
-	EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+	EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n") << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 
 	try
@@ -1150,33 +1282,45 @@ TEST(SeriesTests, testSeriesContainsFieldListsEncodeDecodeAll)
 		EmaEncodeFieldListAll( flEnc );
 
 		seriesEnc.summaryData( flEnc );
-		EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n") << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 
 		//first entry  //FieldList
 		FieldList flEnc1;
 		EmaEncodeFieldListAll( flEnc1 );
 		seriesEnc.add( flEnc1 );
-		EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 		//second entry  //FieldList
 		FieldList flEnc2;
 		EmaEncodeFieldListAll( flEnc2 );
 		seriesEnc.add( flEnc2 );
-		EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 		//third entry  //FieldList
 		seriesEnc.add( flEnc1 );
-		EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
+
+		EXPECT_EQ( seriesEnc.toString( emaDataDictionary ), "\nUnable to decode not completed Series data.\n" ) << "Series.toString() == Unable to decode not completed Series data.";
 
 		seriesEnc.complete();
-		EXPECT_EQ( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( seriesEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Series.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
+		EXPECT_EQ( seriesEnc.toString( emaDataDictionaryEmpty ), "\nDictionary is not loaded.\n" ) << "Series.toString() == Dictionary is not loaded.";
+
+		EXPECT_EQ( seriesEnc.toString( emaDataDictionary ), seriesString ) << "Series.toString() == seriesString";
+
+		seriresEmpty.add( flEnc2 );
+		seriresEmpty.complete();
+		seriresEmpty.clear();
+		EXPECT_EQ( seriresEmpty.toString( emaDataDictionary ), "\nUnable to decode not completed Series data.\n" ) << "Series.toString() == Unable to decode not completed Series data.";
+
+		seriresEmpty.complete();
+		EXPECT_EQ( seriresEmpty.toString( emaDataDictionary ), "Series\nSeriesEnd\n" ) << "Series.toString() == Series\nSeriesEnd\n";
 
 		//Now do EMA decoding of Series
 		StaticDecoder::setData( &seriesEnc, &dictionary );
-		EXPECT_NE( seriesEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Series.toString() != Decoding of just encoded object in the same application is not supported";
-
+		EXPECT_EQ( seriesEnc.toString(), seriesString ) << "Series.toString() == seriesString";
 
 		EXPECT_TRUE( seriesEnc.hasTotalCountHint() ) << "Series contains FieldList - hasTotalCountHint()" ;
 		EXPECT_EQ( seriesEnc.getTotalCountHint(), 5 ) << "Series contains FieldList - getTotalCountHint()" ;
@@ -2181,5 +2325,220 @@ TEST(SeriesTests, testSeriesWithSummaryDataButNoEntry_Encode_Decode)
 	{
 		EXPECT_TRUE(false) << "Fails to encode summary data but no entry - exception not expected with text : " << exp.getText().c_str();
 		return;
+	}
+}
+
+TEST(SeriesTests, testSeriesAddNotCompletedContainer)
+{
+	try
+	{
+		Series series;
+		ElementList elementList;
+
+		series.add(elementList);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series complete while ElementList is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series complete while ElementList is not completed  - exception expected";
+	}
+
+	try
+	{
+		Series series;
+		ElementList elementList;
+		series.add(elementList);
+		elementList.addUInt("test", 64);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series complete while ElementList with data is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series complete while ElementList with data is not completed  - exception expected";
+	}
+
+	try
+	{
+		Series series;
+		ElementList elementList, elementList1;
+		series.add(elementList);
+		series.add(elementList1);
+
+		EXPECT_FALSE(true) << "Series add two not completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series add two not completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		Series series;
+		ElementList elementList, elementList1;
+		series.add(elementList);
+		elementList.complete();
+		series.add(elementList1);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series add first completed and second not completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series add first completed and second not completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		Series series;
+		ElementList elementList, elementList1;
+		series.add(elementList);
+		elementList1.complete();
+		series.add(elementList1);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series add first not completed and second completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series add first not completed and second completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		Series series;
+		ElementList elementList, elementList1;
+		series.add(elementList);
+		elementList.complete();
+		series.complete();
+		series.add(elementList1);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series add first completed ElementLists then complete Vector and add second ElementList - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series add first completed ElementLists then complete Vector and add second ElementList - exception expected";
+	}
+
+	try
+	{
+		Series series;
+		FieldList fieldList;
+
+		fieldList.addInt(1, 2);
+		series.summaryData(fieldList);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series add uncompleted FieldList passed in summaryData - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series add uncompleted FieldList passed in summaryData - exception expected";
+	}
+
+	try
+	{
+		Series series, series1;
+		FieldList fieldList;
+
+		fieldList.complete();
+		series1.add(fieldList);
+		series1.complete();
+		series.summaryData(series1);
+		series.complete();
+
+		EXPECT_TRUE(true) << "Series add completed Series passed in summaryData with nested FieldList - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Series add completed Series passed in summaryData with nested FieldList - exception not expected " << exp.getText();
+	}
+
+	try
+	{
+		Series series, series1;
+		FieldList fieldList;
+
+		fieldList.complete();
+		series1.add(fieldList);
+		series1.complete();
+		series.add(series1);
+		series.complete();
+
+		EXPECT_TRUE(true) << "Series add completed Series with nested FieldList - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Series add completed Series with nested FieldList - exception not expected " << exp.getText();
+	}
+
+	try
+	{
+		Series series;
+		series.add(FieldList().addInt(1, 1).complete());
+		series.add(FieldList().addInt(2, 2).complete());
+		series.complete();
+
+		EXPECT_TRUE(true) << "Series add two FieldList as a separate object - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Series add two FieldList as a separate object - exception not expected with text " << exp.getText();
+	}
+
+	try
+	{
+		Series series;
+		GenericMsg genericMsg;
+
+		genericMsg.streamId(1);
+
+		series.add(genericMsg);
+		series.complete();
+
+		EXPECT_TRUE(true) << "Series add not completed GenericMsg - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Series add not completed GenericMsg - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		Series series;
+		OmmOpaque opaque;
+
+		char* string = const_cast<char*>("OPQRST");
+		EmaBuffer buffer(string, 6);
+		opaque.set(buffer);
+
+		series.add(opaque);
+		series.complete();
+
+		EXPECT_TRUE(true) << "Series add OmmOpaque - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Series add OmmOpaque - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		Series series;;
+		ElementList elementList;
+		GenericMsg genericMsg;
+
+		series.add(genericMsg);
+		series.add(elementList);
+		series.complete();
+
+		EXPECT_FALSE(true) << "Series add not completed ElementList after GenericMsg - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Series add not completed ElementList after GenericMsg - exception expected";
 	}
 }

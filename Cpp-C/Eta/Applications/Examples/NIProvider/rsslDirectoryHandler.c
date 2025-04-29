@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -25,7 +25,7 @@ static char* serviceName;
 static RsslUInt64 serviceId = 1;
 
 /* vendor name */
-static const char* vendorName = "Refinitiv";
+static const char* vendorName = "LSEG";
 /* field dictionary name */
 static const char *fieldDictionaryName = "RWFFld";
 /* enumtype dictionary name */
@@ -136,7 +136,7 @@ RsslRet sendSourceDirectoryResponse(RsslChannel* chnl)
 		srcDirRespInfo.ServiceGeneralInfo.QoS[0].rate = RSSL_QOS_RATE_TICK_BY_TICK;
 		srcDirRespInfo.ServiceGeneralInfo.QoS[0].timeliness = RSSL_QOS_TIME_REALTIME;
 		/* ItemList */
-		snprintf(srcDirRespInfo.ServiceGeneralInfo.ItemList, 256, "");
+		snprintf(srcDirRespInfo.ServiceGeneralInfo.ItemList, 256, "%s", "");
 		/* Service StateInfo Status */
 		srcDirRespInfo.ServiceStateInfo.Status.streamState = RSSL_STREAM_OPEN;
 		srcDirRespInfo.ServiceStateInfo.Status.dataState = RSSL_DATA_OK;

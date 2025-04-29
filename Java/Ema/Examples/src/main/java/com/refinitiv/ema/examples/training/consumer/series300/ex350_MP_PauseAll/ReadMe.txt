@@ -5,8 +5,8 @@ The ex350_MP_PauseAll application is provided as an example of
 OMM Consumer application written to the EMA library.
 
 This application demonstrates basic usage of the EMA library for opening
-login and item streams and pausing item response messages from Refinitiv Data
-Feed Direct (RDF-D), directly from an OMM Provider application, or from
+login and item streams and pausing item response messages from Data
+Feed Direct (LDFD), directly from an OMM Provider application, or from
 an Advanced Distribution Server with login stream.
 
 ex350_MP_PauseAll showcases the pause all feature of OMM Consumer.

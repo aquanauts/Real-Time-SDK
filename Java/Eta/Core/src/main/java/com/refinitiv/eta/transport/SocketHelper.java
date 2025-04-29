@@ -165,6 +165,12 @@ public class SocketHelper
         /* No-op here, used in encrypted case. */
         return true;
     }
+    
+    public String getActiveTLSVersion() throws IOException
+    {
+        /* Used in encrypted case. */
+        return "None";
+    }
 
     public long read(ByteBuffer[] dsts) throws IOException
     {
@@ -194,6 +200,12 @@ public class SocketHelper
     public SocketChannel getSocketChannel()
     {
         return _socket;
+    }
+    
+    public void copy(SocketHelper dstSocket)
+    {
+    	dstSocket._socket = _socket;
+    	dstSocket._completedProxy = _completedProxy;
     }
 
     public void initialize(ConnectOptions options) throws IOException

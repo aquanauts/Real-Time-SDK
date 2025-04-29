@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -20,9 +20,8 @@ using System.Collections.Generic;
 namespace LSEG.Eta.Internal
 {
     internal class SocketProtocol : ProtocolBase
-    {
-        static ReaderWriterLockSlim _slimLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-        static WriteLocker _locker = new WriteLocker(_slimLock);
+    {       
+        static MonitorWriteLocker _locker = new MonitorWriteLocker(new object());
 
         internal static int DefaultSystemBufferSize = 65535;
 
@@ -222,7 +221,7 @@ namespace LSEG.Eta.Internal
                     {
                         ErrorId = TransportReturnCode.FAILURE,
                         SysError = 0,
-                        Text = exp.Message
+                        Text = $"DNS resolution failure for address \"{address}\" with error text \"{exp.Message}\"."
                     };
                 }
 

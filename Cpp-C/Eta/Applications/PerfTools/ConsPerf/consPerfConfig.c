@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2020-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2020-2022, 2025 LSEG. All rights reserved.
 */
 
 /* This provides handling for command-line configuration of ConsPerf. */
@@ -12,7 +12,9 @@
 #include <stdlib.h>
 
 #ifdef WIN32
+#if _MSC_VER < 1900
 #define snprintf _snprintf
+#endif
 #endif
 
 static RsslInt32 defaultThreadCount = 1;
@@ -43,11 +45,11 @@ static void clearConsPerfConfig()
 	consPerfConfig.connectionType = RSSL_CONN_TYPE_SOCKET;
 	consPerfConfig.guaranteedOutputBuffers = 5000;
 	consPerfConfig.numInputBuffers = 15;
-	snprintf(consPerfConfig.interfaceName, sizeof(consPerfConfig.interfaceName), "");
+	snprintf(consPerfConfig.interfaceName, sizeof(consPerfConfig.interfaceName), "%s", "");
 	snprintf(consPerfConfig.hostName, sizeof(consPerfConfig.hostName), "localhost");
 	snprintf(consPerfConfig.portNo, sizeof(consPerfConfig.portNo), "14002");
 	snprintf(consPerfConfig.serviceName, sizeof(consPerfConfig.serviceName), "DIRECT_FEED");
-	snprintf(consPerfConfig.username, sizeof(consPerfConfig.username), "");
+	snprintf(consPerfConfig.username, sizeof(consPerfConfig.username), "%s", "");
 
 	consPerfConfig.ticksPerSec = 1000;
 	consPerfConfig.itemRequestCount = 100000;
@@ -65,23 +67,23 @@ static void clearConsPerfConfig()
 	snprintf(consPerfConfig.itemFilename, sizeof(consPerfConfig.itemFilename), "%s", "350k.xml");
 	snprintf(consPerfConfig.msgFilename, sizeof(consPerfConfig.msgFilename), "%s", "MsgData.xml");
 
-	snprintf(consPerfConfig.caStore, sizeof(consPerfConfig.caStore), "");
+	snprintf(consPerfConfig.caStore, sizeof(consPerfConfig.caStore), "%s", "");
 	consPerfConfig.tlsProtocolFlags = 0;
 
-	snprintf(consPerfConfig.protocolList, sizeof(consPerfConfig.protocolList), "");
+	snprintf(consPerfConfig.protocolList, sizeof(consPerfConfig.protocolList), "%s", "");
 
 	consPerfConfig.tunnelMessagingEnabled = RSSL_FALSE;
-	snprintf(consPerfConfig.tunnelStreamServiceName, sizeof(consPerfConfig.tunnelStreamServiceName), "");
+	snprintf(consPerfConfig.tunnelStreamServiceName, sizeof(consPerfConfig.tunnelStreamServiceName), "%s", "");
 	consPerfConfig.tunnelUseAuthentication = RSSL_FALSE;
 	consPerfConfig.tunnelDomainType = RSSL_DMT_SYSTEM;
 	consPerfConfig.guaranteedOutputTunnelBuffers = 15000;
 	consPerfConfig.tunnelStreamBufsUsed = RSSL_FALSE;
 	consPerfConfig.compressionType = 0;
 
-	snprintf(consPerfConfig.startingHostName, sizeof(consPerfConfig.startingHostName), "");
-	snprintf(consPerfConfig.startingPort, sizeof(consPerfConfig.startingPort), "");
-	snprintf(consPerfConfig.standbyHostName, sizeof(consPerfConfig.standbyHostName), "");
-	snprintf(consPerfConfig.standbyPort, sizeof(consPerfConfig.standbyPort), "");
+	snprintf(consPerfConfig.startingHostName, sizeof(consPerfConfig.startingHostName), "%s", "");
+	snprintf(consPerfConfig.startingPort, sizeof(consPerfConfig.startingPort), "%s", "");
+	snprintf(consPerfConfig.standbyHostName, sizeof(consPerfConfig.standbyHostName), "%s", "");
+	snprintf(consPerfConfig.standbyPort, sizeof(consPerfConfig.standbyPort), "%s", "");
 	consPerfConfig.warmStandbyMode = RSSL_RWSB_MODE_LOGIN_BASED;
 
 	consPerfConfig.convertJSON = RSSL_FALSE;
@@ -297,7 +299,7 @@ void initConsPerfConfig(int argc, char **argv)
 			else if (strcmp("http", argv[iargs]) == 0)
 			{
 #ifdef Linux  
-				printf("Config Error: Encrypted HTTP connection type not supported on Linux.\n", argv[iargs]);
+				printf("Config Error: Encrypted HTTP connection type not supported on Linux \"%s\".\n", argv[iargs]);
 				exitConfigError(argv);
 #else // HTTP connnections spported only through Windows WinInet 
 				consPerfConfig.encryptedConnectionType = RSSL_CONN_TYPE_HTTP;
@@ -409,6 +411,10 @@ void initConsPerfConfig(int argc, char **argv)
 		else if (strcmp("-spTLSv1.2", argv[iargs]) == 0)
 		{
 			++iargs; consPerfConfig.tlsProtocolFlags |= RSSL_ENC_TLSV1_2;
+		}
+		else if (strcmp("-spTLSv1.3", argv[iargs]) == 0)
+		{
+			++iargs; consPerfConfig.tlsProtocolFlags |= RSSL_ENC_TLSV1_3;
 		}
 		else if (strcmp("-tunnel", argv[iargs]) == 0)
 		{
@@ -638,7 +644,7 @@ void initConsPerfConfig(int argc, char **argv)
 	/* If service not specified for tunnel stream, use the service given for other items instead. */
 	if (consPerfConfig.tunnelMessagingEnabled == RSSL_TRUE && consPerfConfig.tunnelStreamServiceName[0] == '\0')
 	{
-		snprintf(consPerfConfig.tunnelStreamServiceName, sizeof(consPerfConfig.tunnelStreamServiceName), consPerfConfig.serviceName);
+		snprintf(consPerfConfig.tunnelStreamServiceName, sizeof(consPerfConfig.tunnelStreamServiceName), "%s", consPerfConfig.serviceName);
 	}
 }
 
@@ -885,6 +891,7 @@ void exitWithUsage()
 			"\n"
 			"  -castore                              File location of the certificate authority store.\n"
 			"  -spTLSv1.2                            Specifies that TLSv1.2 can be used for an OpenSSL-based encrypted connection\n"
+			"  -spTLSv1.3                            Specifies that TLSv1.3 can be used for an OpenSSL-based encrypted connection\n"
 			"\n"
 			"  -tunnel                               Causes the consumer to open a tunnel stream that exchanges basic messages. Require using -reactor or -watchlist.\n"
 			"  -tunnelAuth                           Causes the consumer to enable authentication when opening tunnel streams.\n"

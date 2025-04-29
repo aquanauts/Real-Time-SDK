@@ -89,8 +89,7 @@ public interface TunnelingInfo
 
     /**
      * Type of keystore for certificate file.
-     * Defaults to the property keystore.type in the JDK security properties file (java.security).
-     * Sun JDK default = JKS
+     * RTSDK Default = JKS
      *
      * @param KeystoreType the keystore type
      */
@@ -98,8 +97,7 @@ public interface TunnelingInfo
 
     /**
      * Type of keystore for certificate file.
-     * Defaults to the property keystore.type in the JDK security properties file (java.security).
-     * Sun JDK default = JKS
+     * RTSDK Default = JKS
      * 
      * @return the KeystoreType
      */
@@ -146,6 +144,20 @@ public interface TunnelingInfo
      * @return the SecurityProtocol
      */
     public String SecurityProtocol();
+    
+    /**
+     * Cryptographic protocol versions used for the cryptographic protocol selected. RTSDK Default is {"1.3", "1.2"} used for protocol "TLS".
+     *
+     * @param SecurityProtocolVersions the list of security protocol versions supported
+     */
+    public void SecurityProtocolVersions(String[] SecurityProtocolVersions);
+
+    /**
+     * Cryptographic protocol versions used for the cryptographic protocol selected. RTSDK Default is {"1.3", "1.2"} used for protocol "TLS".
+     * 
+     * @return the SecurityProtocolVersions
+     */
+    public String[] SecurityProtocolVersions();
 
     /**
      * Java Cryptography Package provider.

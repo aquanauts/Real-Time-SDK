@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -46,6 +46,9 @@ class EmaBuffer;
 
 extern refinitiv::ema::access::EmaString g_userName;
 extern refinitiv::ema::access::EmaString g_password;
+
+extern refinitiv::ema::access::EmaString g_proxyHost;
+extern refinitiv::ema::access::EmaString g_proxyPort;
 
 void encodeFieldList( RsslBuffer& rsslBuf, refinitiv::ema::access::EmaString& inText );
 void encodeNonRWFData( RsslBuffer* rsslBuf, RsslBuffer* value );

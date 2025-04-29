@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -19,8 +19,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
     /// </summary>
     sealed public class ServiceLinkInfo
     {
-
-        private const string eol = "\n";
         private const string tab = "\t";
 
         private StringBuilder m_StringBuf = new StringBuilder();
@@ -248,7 +246,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 m_StringBuf.Append(tab);
                 m_StringBuf.Append(tab);
                 m_StringBuf.Append("LinkFilter: ");
-                m_StringBuf.Append(eol);
+                m_StringBuf.AppendLine();
                 m_StringBuf.Append(link.ToString());
             }
 

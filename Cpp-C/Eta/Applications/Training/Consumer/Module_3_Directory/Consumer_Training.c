@@ -1,9 +1,9 @@
 /*
  *|-------------------------------------------------------------------------------
- *| This source code is provided under the Apache 2.0 license and is provided	--
- *| AS IS with no warranty or guarantee of fit for purpose.  See the project's 	--
- *| LICENSE.md for details.														--
- *| Copyright (C) 2019 Refinitiv. All rights reserved.						--
+ *| This source code is provided under the Apache 2.0 license
+ *| AS IS with no warranty or guarantee of fit for purpose.
+ *| See the project's LICENSE.md for details.
+ *| Copyright (C) 2019 LSEG. All rights reserved.
  *|-------------------------------------------------------------------------------
  */
 
@@ -23,8 +23,8 @@
  * In this module, the application initializes the ETA Transport and 
  * connects the client. An OMM consumer application can establish a 
  * connection to other OMM Interactive Provider applications, including 
- * Refinitiv Real-Time Distribution Systems, Refinitiv Data Feed Direct,
- * and Refinitiv Real-Time.
+ * LSEG Real-Time Distribution Systems, Data Feed Direct,
+ * and LSEG Real-Time.
  *
  * Detailed Descriptions:
  * The first step of any ETA consumer application is to establish a 
@@ -261,7 +261,7 @@ int main(int argc, char **argv)
 
 	/* ETA provides clear functions for its structures (e.g., rsslClearDecodeIterator) as well as static initializers
 	 * (e.g., RSSL_INIT_DECODE_ITERATOR). These functions are tuned to be efficient and avoid initializing unnecessary
-	 * structure members, and allow for optimal structure use and reuse. In general, Refinitiv recommends that
+	 * structure members, and allow for optimal structure use and reuse. In general, LSEG recommends that
 	 * you use the clear functions over static initializers, because the clear functions are more efficient.
 	 */
 
@@ -1397,7 +1397,7 @@ RsslRet sendLoginRequest(EtaChannelManagementInfo *etaChannelManagementInfo)
 
 	/* ETA provides clear functions for its structures (e.g., rsslClearEncodeIterator) as well as static initializers
 	 * (e.g., RSSL_INIT_ENCODE_ITERATOR). These functions are tuned to be efficient and avoid initializing unnecessary
-	 * structure members, and allow for optimal structure use and reuse. In general, Refinitiv recommends that
+	 * structure members, and allow for optimal structure use and reuse. In general, LSEG recommends that
 	 * you use the clear functions over static initializers, because the clear functions are more efficient.
 	 */
 	/* Iterator used for encoding throughout the application - we can clear it and reuse it instead of recreating it */
@@ -1649,47 +1649,50 @@ RsslRet processLoginResponse(RsslMsg* msg, RsslDecodeIterator* decodeIter)
 			/* get key */
 			key = (RsslMsgKey *)rsslGetMsgKey(msg);
 
-			/* decode key opaque data */
-			if ((retval = rsslDecodeMsgKeyAttrib(decodeIter, key)) != RSSL_RET_SUCCESS)
+			/* decode key attrib data, if present */
+			if (key->flags & RSSL_MKF_HAS_ATTRIB)
 			{
-				printf("rsslDecodeMsgKeyAttrib() failed with return code: %d\n", retval);
-				return retval;
-			}
-
-			/* decode element list */
-			if ((retval = rsslDecodeElementList(decodeIter, &elementList, NULL)) == RSSL_RET_SUCCESS)
-			{
-				/* decode each element entry in list */
-				while ((retval = rsslDecodeElementEntry(decodeIter, &elementEntry)) != RSSL_RET_END_OF_CONTAINER)
+				/* decode key opaque data */
+				if ((retval = rsslDecodeMsgKeyAttrib(decodeIter, key)) != RSSL_RET_SUCCESS)
 				{
-					if (retval == RSSL_RET_SUCCESS)
-					{
-						/* get login response information */
-						/* ApplicationId */
-						if (rsslBufferIsEqual(&elementEntry.name, &RSSL_ENAME_APPID))
-							printf("\tReceived Login Response for ApplicationId: %.*s\n",elementEntry.encData.length, elementEntry.encData.data);
+					printf("rsslDecodeMsgKeyAttrib() failed with return code: %d\n", retval);
+					return retval;
+				}
 
-						/* ApplicationName */
-						else if (rsslBufferIsEqual(&elementEntry.name, &RSSL_ENAME_APPNAME))
-							printf("\tReceived Login Response for ApplicationName: %.*s\n",elementEntry.encData.length, elementEntry.encData.data);
-
-						/* Position */
-						else if (rsslBufferIsEqual(&elementEntry.name, &RSSL_ENAME_POSITION))
-							printf("\tReceived Login Response for Position: %.*s\n",elementEntry.encData.length, elementEntry.encData.data);
-					}
-					else
+				/* decode element list */
+				if ((retval = rsslDecodeElementList(decodeIter, &elementList, NULL)) == RSSL_RET_SUCCESS)
+				{
+					/* decode each element entry in list */
+					while ((retval = rsslDecodeElementEntry(decodeIter, &elementEntry)) != RSSL_RET_END_OF_CONTAINER)
 					{
-						printf("rsslDecodeElementEntry() failed with return code: %d\n", retval);
-						return retval;
+						if (retval == RSSL_RET_SUCCESS)
+						{
+							/* get login response information */
+							/* ApplicationId */
+							if (rsslBufferIsEqual(&elementEntry.name, &RSSL_ENAME_APPID))
+								printf("\tReceived Login Response for ApplicationId: %.*s\n", elementEntry.encData.length, elementEntry.encData.data);
+
+							/* ApplicationName */
+							else if (rsslBufferIsEqual(&elementEntry.name, &RSSL_ENAME_APPNAME))
+								printf("\tReceived Login Response for ApplicationName: %.*s\n", elementEntry.encData.length, elementEntry.encData.data);
+
+							/* Position */
+							else if (rsslBufferIsEqual(&elementEntry.name, &RSSL_ENAME_POSITION))
+								printf("\tReceived Login Response for Position: %.*s\n", elementEntry.encData.length, elementEntry.encData.data);
+						}
+						else
+						{
+							printf("rsslDecodeElementEntry() failed with return code: %d\n", retval);
+							return retval;
+						}
 					}
 				}
+				else
+				{
+					printf("rsslDecodeElementList() failed with return code: %d\n", retval);
+					return retval;
+				}
 			}
-			else
-			{
-				printf("rsslDecodeElementList() failed with return code: %d\n", retval);
-				return retval;
-			}
-
 			/* get Username */
 			if (key)
 				printf("\nReceived Login Response for Username: %.*s\n", key->name.length, key->name.data);
@@ -1810,7 +1813,7 @@ RsslRet closeLoginStream(EtaChannelManagementInfo *etaChannelManagementInfo)
 
 	/* ETA provides clear functions for its structures (e.g., rsslClearEncodeIterator) as well as static initializers
 	 * (e.g., RSSL_INIT_ENCODE_ITERATOR). These functions are tuned to be efficient and avoid initializing unnecessary
-	 * structure members, and allow for optimal structure use and reuse. In general, Refinitiv recommends that
+	 * structure members, and allow for optimal structure use and reuse. In general, LSEG recommends that
 	 * you use the clear functions over static initializers, because the clear functions are more efficient.
 	 */
 	/* Iterator used for encoding throughout the application - we can clear it and reuse it instead of recreating it */
@@ -1997,7 +2000,7 @@ RsslRet sendSourceDirectoryRequest(EtaChannelManagementInfo *etaChannelManagemen
 
 	/* ETA provides clear functions for its structures (e.g., rsslClearEncodeIterator) as well as static initializers
 	 * (e.g., RSSL_INIT_ENCODE_ITERATOR). These functions are tuned to be efficient and avoid initializing unnecessary
-	 * structure members, and allow for optimal structure use and reuse. In general, Refinitiv recommends that
+	 * structure members, and allow for optimal structure use and reuse. In general, LSEG recommends that
 	 * you use the clear functions over static initializers, because the clear functions are more efficient.
 	 */
 	/* Iterator used for encoding throughout the application - we can clear it and reuse it instead of recreating it */
@@ -2069,7 +2072,7 @@ RsslRet sendSourceDirectoryRequest(EtaChannelManagementInfo *etaChannelManagemen
 	/* Because the Source Directory domain uses an RsslFilterList, a consumer can indicate the specific source related
 	 * information in which it is interested via a msgKey.filter. Each bit-value represented in the filter corresponds
 	 * to an information set that can be provided in response messages.
-	 * Refinitiv recommends that a consumer application minimally request Info, State, and Group filters for the
+	 * LSEG recommends that a consumer application minimally request Info, State, and Group filters for the
 	 * Source Directory:
 	 * - The Info filter contains the service name and serviceId data for all available services. When an appropriate
 	 *   service is discovered by the OMM Consumer, the serviceId associated with the service is used on subsequent

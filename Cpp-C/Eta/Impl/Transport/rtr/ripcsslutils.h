@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -32,7 +32,7 @@ extern "C" {
 
 // define the default cipher list.  This is taken from OWASP's 'B' tier recommendations of broad compatability as of June, 2019:
 // https://github.com/OWASP/CheatSheetSeries/blob/master/cheatsheets/TLS_Cipher_String_Cheat_Sheet.md
-#define CIPHER_LIST "DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!DSS:!RC4:!SEED:!ECDSA:!ADH:!IDEA:!3DES"
+#define CIPHER_LIST "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:!aNULL:!eNULL:!LOW:!3DES:!MD5:!EXP:!PSK:!DSS:!RC4:!SEED:!ADH:!IDEA:!3DES"
 
 /* our Server structure */
 typedef struct {
@@ -87,15 +87,6 @@ void *ripcNewSSLSocket(void *server, RsslSocket fd, RsslInt32 *initComplete, voi
 /* creates and initializes new server structure */
 ripcSSLServer *ripcInitializeSSLServer(RsslServerSocketChannel* chnl, RsslError  *error);
 
-/* creates and initializes new client/session structure */
-ripcSSLSession *ripcInitializeSSLSession(RsslSocket fd, RsslInt32 SSLProtocolVersion, RsslSocketChannel* chnl, RsslError *error);
-
-/* connects session to a server */
-void *ripcSSLConnectTLSv1(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error);
-
-/* connects session to a server */
-void *ripcSSLConnectTLSv11(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error);
-
 /* connects session to a server */
 void *ripcSSLConnectTLSv12(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error);
 
@@ -133,9 +124,9 @@ RSSL_API RsslBool ripcCompareHostNameLen(char* host1, char* host2, unsigned int 
 
 RSSL_API RsslBool ripcVerifyCertHost(char* inputPattern, unsigned int patternLen, char* hostName, RsslError* err);
 
-OPENSSL_SSL_CTX* ripcSSLSetupCTXClient(ripcSSLProtocolFlags version, RsslSocketChannel* chnl, RsslError *error);
+OPENSSL_SSL_CTX* ripcSSLSetupCTXClient(OPENSSL_SSL_CTX *ctx, RsslSocketChannel* chnl, RsslError *error);
 
-OPENSSL_SSL_CTX* ripcSSLSetupCTXServer(ripcSSLProtocolFlags version, RsslServerSocketChannel* chnl, RsslError *error);
+OPENSSL_SSL_CTX* ripcSSLSetupCTXServer(RsslServerSocketChannel* chnl, RsslError *error);
 
 RsslInt32 ripcGetCountInitializeSSLServer();
 

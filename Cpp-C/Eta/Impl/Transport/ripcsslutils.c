@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2024 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -42,11 +42,15 @@ static char* default10SslLibName = "libssl.so.10";
 static char* default10CryptoLibName = "libcrypto.so.10";
 static char* default11SslLibName = "libssl.so.1.1";
 static char* default11CryptoLibName = "libcrypto.so.1.1";
+static char* default3SslLibName = "libssl.so.3";
+static char* default3CryptoLibName = "libcrypto.so.3";
 #else
 static char* default10SslLibName = "ssleay32.dll";
 static char* default10CryptoLibName = "libeay32.dll";
 static char* default11SslLibName = "libssl-1_1-x64.dll";
 static char* default11CryptoLibName = "libcrypto-1_1-x64.dll";
+static char* default3SslLibName = "libssl-3-x64.dll";
+static char* default3CryptoLibName = "libcrypto-3-x64.dll";
 #endif
 
 static RsslOpenSSLAPIVersion openSSLAPI = RSSL_OPENSSL_VNONE;
@@ -67,11 +71,12 @@ ripcCryptoApiFuncs* ripcGetOpenSSLCryptoFuncs()
 
 ripcSSLProtocolFlags ripcGetSupportedProtocolFlags()
 {
-	if (openSSLAPI == RSSL_OPENSSL_V1_0 || openSSLAPI == RSSL_OPENSSL_V1_1)
+	if (openSSLAPI == RSSL_OPENSSL_V1_0 || openSSLAPI == RSSL_OPENSSL_V1_1 || openSSLAPI == RSSL_OPENSSL_V3)
 		return supportedProtocols;
 	else
 		return RIPC_PROTO_SSL_NONE;
 }
+
 int ripcSSLInitError()
 {
 	if (cryptoHandle != 0)
@@ -93,64 +98,107 @@ int ripcSSLInitError()
 	return -1;
 }
 
+#ifdef WIN32
+static HMODULE openSslLib(char* libsslName)
+#else
+static void* openSslLib(char* libsslName)
+#endif
+{
+	/* try given name first */
+	if (libsslName != NULL && (*libsslName != '\0'))
+	{
+		RSSL_LI_RESET_DLERROR;
+		sslHandle = RSSL_LI_DLOPEN(libsslName);
+		return sslHandle;
+	}
+
+	/* try OPENSSL 3 name then */
+	RSSL_LI_RESET_DLERROR;
+	if ((sslHandle = RSSL_LI_DLOPEN(default3SslLibName)) != 0)
+	{
+		return sslHandle;
+	}
+
+	/* try OPENSSL 1.1 name then */
+	RSSL_LI_RESET_DLERROR;
+	if ((sslHandle = RSSL_LI_DLOPEN(default11SslLibName)) != 0)
+	{
+		return sslHandle;
+	}
+
+	/* try OPENSSL 1.0 name then */
+	RSSL_LI_RESET_DLERROR;
+	if ((sslHandle = RSSL_LI_DLOPEN(default10SslLibName)) != 0)
+	{
+		return sslHandle;
+	}
+
+	return sslHandle;
+}
+
+#ifdef WIN32
+static HMODULE openCryptoLib(char* libcryptoName)
+#else
+static void* openCryptoLib(char* libcryptoName)
+#endif
+{
+	/* try given name first */
+	if (libcryptoName != NULL && (*libcryptoName != '\0'))
+	{
+		RSSL_LI_RESET_DLERROR;
+		cryptoHandle = RSSL_LI_DLOPEN(libcryptoName);
+		return cryptoHandle;
+	}
+
+	/* try OPENSSL 3 name then */
+	RSSL_LI_RESET_DLERROR;
+	if ((cryptoHandle = RSSL_LI_DLOPEN(default3CryptoLibName)) != 0)
+	{
+		return cryptoHandle;
+	}
+
+	/* try OPENSSL 1.1 name then */
+	RSSL_LI_RESET_DLERROR;
+	if ((cryptoHandle = RSSL_LI_DLOPEN(default11CryptoLibName)) != 0)
+	{
+		return cryptoHandle;
+	}
+
+	/* try OPENSSL 1.0 name then */
+	RSSL_LI_RESET_DLERROR;
+	if ((cryptoHandle = RSSL_LI_DLOPEN(default10CryptoLibName)) != 0)
+	{
+		return cryptoHandle;
+	}
+
+	return cryptoHandle;
+}
+
 RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 {
-	char* sslLib;
-	char* cryptoLib;
 	RsslInt32 retVal;
 	
 	ripcTransportFuncs SSLfuncs;
 	ripcSSLFuncs funcs;
 	RSSL_LI_ERR_T dlErr = 0;
 
+	RsslBool openSSL_V1_1_0 = RSSL_FALSE;
+
 	memset(&sslFuncs, 0, sizeof(ripcSSLApiFuncs));
 	memset(&cryptoFuncs, 0, sizeof(ripcCryptoApiFuncs));
 
 	supportedProtocols = RIPC_PROTO_SSL_NONE;
 
-	if(libsslName == NULL || (*libsslName == '\0'))
-		sslLib = default11SslLibName;
-	else
-		sslLib = libsslName;
-		
-	if(libcryptoName == NULL || (*libcryptoName == '\0'))
-		cryptoLib = default11CryptoLibName;
-	else
-		cryptoLib = libcryptoName;
-
-
-	RSSL_LI_RESET_DLERROR;
-	if ((sslHandle = RSSL_LI_DLOPEN(sslLib)) == 0)
+	/* load libcrypto first */
+	if ((cryptoHandle = openCryptoLib(libcryptoName)) == 0)
 	{
-		if (libsslName == NULL || (*libsslName == '\0'))
-		{
-			RSSL_LI_RESET_DLERROR;
-			if ((sslHandle = RSSL_LI_DLOPEN(default10SslLibName)) == 0)
-			{
-				return -1;
-			}
-		}
-		else
-			return -1;
+		return -1;
 	}
 
-	RSSL_LI_RESET_DLERROR;
-	if ((cryptoHandle = RSSL_LI_DLOPEN(cryptoLib)) == 0)
+	if ((sslHandle = openSslLib(libsslName)) == 0)
 	{
-		if (libcryptoName == NULL || (*libcryptoName == '\0'))
-		{
-			RSSL_LI_RESET_DLERROR;
-			if ((cryptoHandle = RSSL_LI_DLOPEN(default10CryptoLibName)) == 0)
-			{
-				RSSL_LI_DLCLOSE(sslHandle);
-				return -1;
-			}
-		}
-		else
-		{
-			RSSL_LI_DLCLOSE(sslHandle);
-			return -1;
-		}
+		RSSL_LI_DLCLOSE(cryptoHandle);
+		return -1;
 	}
 
 	/* This function is in the 1.0.X versions, but not 1.1.0 */
@@ -166,9 +214,30 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 		}
 		else
 		{
-			openSSLAPI = RSSL_OPENSSL_V1_1;
-			sslFuncs.version = RSSL_OPENSSL_V1_1;
-			cryptoFuncs.version = RSSL_OPENSSL_V1_1;
+			unsigned long version = (*(sslFuncs.ssl_11_version))();
+			/* version 0xMNNFFPPS: major minor fix patch (the letter) status (development or betas or release) */
+			if ((version & 0xf0000000) == 0x30000000)
+			{
+				openSSLAPI = RSSL_OPENSSL_V3;
+				sslFuncs.version = RSSL_OPENSSL_V3;
+				cryptoFuncs.version = RSSL_OPENSSL_V3;
+			}
+			/* version 0x1010114f is for 1.1.1t release */
+			else if ((version & 0xf0000000) == 0x10000000)
+			{
+				/* version 0x101000bf is for 1.1.0k release */
+				if ((version & 0x0ffff000) == 0x00100000)
+				{
+					openSSL_V1_1_0 = RSSL_TRUE;
+				}
+				openSSLAPI = RSSL_OPENSSL_V1_1;
+				sslFuncs.version = RSSL_OPENSSL_V1_1;
+				cryptoFuncs.version = RSSL_OPENSSL_V1_1;
+			}
+			else
+			{
+				return ripcSSLInitError();
+			}
 		}
 	}
 	else
@@ -178,7 +247,7 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 		cryptoFuncs.version = RSSL_OPENSSL_V1_0;
 	}
 
-	/* These funtions are only used with OpenSSL 1.0.X's interface */
+	/* These functions are only used with OpenSSL 1.0.X's interface */
 	if (openSSLAPI == RSSL_OPENSSL_V1_0)
 	{
 		RSSL_LI_RESET_DLERROR;
@@ -247,20 +316,6 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 			return ripcSSLInitError();
 
 		RSSL_LI_RESET_DLERROR;
-		sslFuncs.TLSv1_client_method = (const OPENSSL_SSL_METHOD* (*)())RSSL_LI_DLSYM(sslHandle, "TLSv1_client_method");
-		if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.TLSv1_client_method, dlErr))
-			sslFuncs.TLSv1_client_method = 0;
-		else
-			supportedProtocols |= RIPC_PROTO_SSL_TLS_V1;
-
-		RSSL_LI_RESET_DLERROR;
-		sslFuncs.TLSv1_1_client_method = (const OPENSSL_SSL_METHOD* (*)())RSSL_LI_DLSYM(sslHandle, "TLSv1_1_client_method");
-		if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.TLSv1_1_client_method, dlErr))
-			sslFuncs.TLSv1_1_client_method = 0;
-		else
-			supportedProtocols |= RIPC_PROTO_SSL_TLS_V1_1;
-
-		RSSL_LI_RESET_DLERROR;
 		sslFuncs.TLSv1_2_client_method = (const OPENSSL_SSL_METHOD* (*)())RSSL_LI_DLSYM(sslHandle, "TLSv1_2_client_method");
 		if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.TLSv1_2_client_method, dlErr))
 			sslFuncs.TLSv1_2_client_method = 0;
@@ -299,8 +354,8 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 			return ripcSSLInitError();
 	}
 	
-	/* These funtions are only defined on the OpenSSL 1.1.X interface */
-	if (openSSLAPI == RSSL_OPENSSL_V1_1)
+	/* These functions are only defined on the OpenSSL 1.1.X interface */
+	if (openSSLAPI == RSSL_OPENSSL_V1_1 || openSSLAPI == RSSL_OPENSSL_V3)
 	{
 		RSSL_LI_RESET_DLERROR;
 		sslFuncs.ssl_get_state = (RSSL_11_OSSL_HANDSHAKE_STATE (*)(const OPENSSL_SSL*))RSSL_LI_DLSYM(sslHandle, "SSL_get_state");
@@ -342,7 +397,17 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 		if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.TLS_client_method, dlErr))
 			return ripcSSLInitError();
 		else
-			supportedProtocols = RIPC_PROTO_SSL_TLS_V1 | RIPC_PROTO_SSL_TLS_V1_1 | RIPC_PROTO_SSL_TLS_V1_2 | RIPC_PROTO_SSL_TLS;
+		{
+			/* OpenSSL 1.1.0 does not support TLS 1.3 */
+			if (openSSL_V1_1_0 == RSSL_TRUE)
+			{
+				supportedProtocols = RIPC_PROTO_SSL_TLS_V1_2;
+			}
+			else
+			{
+				supportedProtocols = RIPC_PROTO_SSL_TLS_V1_2 | RIPC_PROTO_SSL_TLS_V1_3;
+			}
+		}
 
 		RSSL_LI_RESET_DLERROR;
 		sslFuncs.TLS_server_method = (const OPENSSL_SSL_METHOD* (*)())RSSL_LI_DLSYM(sslHandle, "TLS_server_method");
@@ -405,7 +470,12 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 		if (dlErr = RSSL_LI_CHK_DLERROR(cryptoFuncs.RSA_set0_crt_params_11, dlErr))
 			return ripcSSLInitError();
 	}
-	
+
+	RSSL_LI_RESET_DLERROR;
+	sslFuncs.ssl_version = (int (*)(const OPENSSL_SSL*))RSSL_LI_DLSYM(sslHandle, "SSL_version");
+	if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.ssl_version, dlErr))
+		return ripcSSLInitError();
+
 	RSSL_LI_RESET_DLERROR;
 	sslFuncs.get_ex_data = (void* (*)(OPENSSL_SSL*, int))RSSL_LI_DLSYM(sslHandle, "SSL_get_ex_data");
 	if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.get_ex_data, dlErr))
@@ -491,10 +561,23 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 	if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.ssl_free, dlErr))
 		return ripcSSLInitError();
 	
-	RSSL_LI_RESET_DLERROR;
-	sslFuncs.ssl_get_peer_cert = (OPENSSL_X509* (*)(const OPENSSL_SSL*))RSSL_LI_DLSYM(sslHandle, "SSL_get_peer_certificate");
-	if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.ssl_get_peer_cert, dlErr))
-		return ripcSSLInitError();
+	/* SSL_get0_peer_certificate() and SSL_get1_peer_certificate() were added in 3.0.0.
+	   SSL_get_peer_certificate() is an alias of SSL_get1_peer_certificate().
+	   SSL_get_peer_certificate() was deprecated in 3.0.0. */
+	if (openSSLAPI == RSSL_OPENSSL_V3)
+	{
+		RSSL_LI_RESET_DLERROR;
+		sslFuncs.ssl_get_peer_cert = (OPENSSL_X509* (*)(const OPENSSL_SSL*))RSSL_LI_DLSYM(sslHandle, "SSL_get1_peer_certificate");
+		if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.ssl_get_peer_cert, dlErr))
+			return ripcSSLInitError();
+	}
+	else
+	{
+		RSSL_LI_RESET_DLERROR;
+		sslFuncs.ssl_get_peer_cert = (OPENSSL_X509* (*)(const OPENSSL_SSL*))RSSL_LI_DLSYM(sslHandle, "SSL_get_peer_certificate");
+		if (dlErr = RSSL_LI_CHK_DLERROR(sslFuncs.ssl_get_peer_cert, dlErr))
+			return ripcSSLInitError();
+	}
 
 	RSSL_LI_RESET_DLERROR;
 	sslFuncs.ctx_new = (OPENSSL_SSL_CTX* (*)(const OPENSSL_SSL_METHOD*))RSSL_LI_DLSYM(sslHandle, "SSL_CTX_new");
@@ -855,40 +938,21 @@ RsslInt32 ripcInitializeSSL(char* libsslName, char* libcryptoName)
 
 	if (openSSLAPI == RSSL_OPENSSL_V1_0)
 	{
-		if ((supportedProtocols & RIPC_PROTO_SSL_TLS_V1) != 0)
-		{
-			SSLfuncs.newClientConnection = ripcSSLConnectTLSv1; // calls SSL connect on client side
-
-			retVal = ipcSetSSLTransFunc(RIPC_SSL_TLS_V1, &SSLfuncs);
-			if (retVal == 0)
-				return ripcSSLInitError();
-		}
-
-		if ((supportedProtocols & RIPC_PROTO_SSL_TLS_V1_1) != 0)
-		{
-			SSLfuncs.newClientConnection = ripcSSLConnectTLSv11; // calls SSL connect on client side
-
-			retVal = ipcSetSSLTransFunc(RIPC_SSL_TLS_V1_1, &SSLfuncs);
-			if (retVal == 0)
-				return ripcSSLInitError();
-
-		}
-
 		if ((supportedProtocols & RIPC_PROTO_SSL_TLS_V1_2) != 0)
 		{
 			SSLfuncs.newClientConnection = ripcSSLConnectTLSv12; // calls SSL connect on client side
 
-			retVal = ipcSetSSLTransFunc(RIPC_SSL_TLS_V1_2, &SSLfuncs);
+			retVal = ipcSetSSLTransFunc(&SSLfuncs);
 			if (retVal == 0)
 				return ripcSSLInitError();
 
 		}
 	}
-	else if (openSSLAPI == RSSL_OPENSSL_V1_1)
+	else if (openSSLAPI == RSSL_OPENSSL_V1_1 || openSSLAPI == RSSL_OPENSSL_V3)
 	{
 		SSLfuncs.newClientConnection = ripcSSLConnectTLS; // calls SSL connect on client side
 
-		retVal = ipcSetSSLTransFunc(RIPC_SSL_TLS, &SSLfuncs);
+		retVal = ipcSetSSLTransFunc(&SSLfuncs);
 		if (retVal == 0)
 			return ripcSSLInitError();
 	}
@@ -943,7 +1007,7 @@ void ripcSSLErrors(RsslError *error, RsslInt32 initPos)
 
 	while ((l=(*(cryptoFuncs.get_error_line_data))(&file, &line, &data, &flags)) != 0)
 	{
-		if ((strlen(buf) + strlen(file) + cUrl + 30 ) > MAX_RSSL_ERROR_TEXT)
+		if ((strlen(buf) + strlen(file) + cUrl + 30 ) >= MAX_RSSL_ERROR_TEXT)
 			break;
 
 		if (data != NULL && flags & RSSL_SSL_ERR_TXT_STRING)
@@ -966,23 +1030,16 @@ ripcSSLProtocolFlags ripcRemoveHighestSSLVersionFlag(ripcSSLProtocolFlags protoF
 {
 	ripcSSLProtocolFlags tmp = protoFlags;
     
-    if((protoFlags & RIPC_PROTO_SSL_TLS_V1_2) != 0)
+    if((protoFlags & RIPC_PROTO_SSL_TLS_V1_3) != 0)
+	{
+		tmp = protoFlags & (~RIPC_PROTO_SSL_TLS_V1_3);
+	}
+	else if((protoFlags & RIPC_PROTO_SSL_TLS_V1_2) != 0)
 	{
 		tmp = protoFlags & (~RIPC_PROTO_SSL_TLS_V1_2);
 	}
-	else if((protoFlags & RIPC_PROTO_SSL_TLS_V1_1) != 0)
-	{
-		tmp = protoFlags & (~RIPC_PROTO_SSL_TLS_V1_1);
-	}
-	else if((protoFlags & RIPC_PROTO_SSL_TLS_V1) != 0)
-	{
-		tmp = protoFlags & (~RIPC_PROTO_SSL_TLS_V1);
-	}
 
-	if (tmp == RIPC_PROTO_SSL_TLS)
-		return RIPC_PROTO_SSL_NONE;
-	else
-		return tmp;
+	return tmp;
 }
 
 /* case insensitive string comparison.  Inputs are assumed to not be null, 
@@ -1276,87 +1333,64 @@ ripcSSLSession *ripcSSLNewSession(RsslSocket fd, RsslSocketChannel* chnl, ripcSS
 	return session;
 }
 
-
-OPENSSL_SSL_CTX* ripcSSLSetupCTXClient(ripcSSLProtocolFlags version, RsslSocketChannel* chnl, RsslError *error)
+OPENSSL_SSL_CTX* ripcSSLCreateCTXClientV1_0(RsslError *error)
 {
 	OPENSSL_SSL_CTX *ctx = 0;
+
+	if ((ctx = (*(sslFuncs.ctx_new))((*(sslFuncs.TLSv1_2_client_method))())) == NULL)
+	{
+		/* populate error  and return failure */
+		_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
+		snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Error: 2000 ripcSSLSetupCTXClient() failed to create new context (errno %d)", __FILE__, __LINE__, errno);
+		ripcSSLErrors(error, (RsslInt32)strlen(error->text));
+		return NULL;
+	}
+
+	return ctx;
+}
+
+OPENSSL_SSL_CTX* ripcSSLCreateCTXClientV1_1(RsslUInt32 sslProtocolBitmap, RsslError *error)
+{
+	OPENSSL_SSL_CTX *ctx = 0;
+
+	if ((ctx = (*(sslFuncs.ctx_new))((*(sslFuncs.TLS_client_method))())) == NULL)
+	{
+		/* populate error  and return failure */
+		_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
+		snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Error: 2000 ripcSSLSetupCTXClient() failed to create new context (errno %d)", __FILE__, __LINE__, errno);
+		ripcSSLErrors(error, (RsslInt32)strlen(error->text));
+		return NULL;
+	}
+
+	/* Setup the TLS version here, starting with the minimum version */
+	if (sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_2)
+	{
+		(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
+	}
+	else if (sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_3)
+	{
+		(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_3_VERSION, NULL);
+	}
+
+	/* Set the maximum version according to the bitmap */
+	if (sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_3)
+	{
+		(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_3_VERSION, NULL);
+	}
+	else if (sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_2)
+	{
+		(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
+	}
+
+	return ctx;
+}
+
+OPENSSL_SSL_CTX* ripcSSLSetupCTXClient(OPENSSL_SSL_CTX *ctx, RsslSocketChannel* chnl, RsslError *error)
+{
 	RsslInt32 retVal = 0;
 	/* since we dont need to use certificates by default... */
  	RsslInt32 perm = RSSL_SSL_VERIFY_NONE;
 
-	switch(version)
-	{
-		case RIPC_PROTO_SSL_TLS_V1:
-		if ((ctx = (*(sslFuncs.ctx_new))( (*(sslFuncs.TLSv1_client_method))())) == NULL)
-	{
-		/* populate error  and return failure */
-		_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-		snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Error: 2000 ripcSSLSetupCTXClient() failed to create new context (errno %d)", __FILE__,__LINE__,errno);
-		ripcSSLErrors(error, (RsslInt32)strlen(error->text));
-		return NULL;
-	}
-		break;
-		case RIPC_PROTO_SSL_TLS_V1_1:
-		if ((ctx = (*(sslFuncs.ctx_new))( (*(sslFuncs.TLSv1_1_client_method))())) == NULL)
-		{
-			/* populate error  and return failure */
-			_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Error: 2000 ripcSSLSetupCTXClient() failed to create new context (errno %d)", __FILE__,__LINE__,errno);
-			ripcSSLErrors(error, (RsslInt32)strlen(error->text));
-			return NULL;
-		}
-		break;
-		case RIPC_PROTO_SSL_TLS_V1_2:
-		if ((ctx = (*(sslFuncs.ctx_new))( (*(sslFuncs.TLSv1_2_client_method))())) == NULL)
-		{
-			/* populate error  and return failure */
-			_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Error: 2000 ripcSSLSetupCTXClient() failed to create new context (errno %d)", __FILE__,__LINE__,errno);
-			ripcSSLErrors(error, (RsslInt32)strlen(error->text));
-			return NULL;
-		}
-		break;
-		case RIPC_PROTO_SSL_TLS:
-			if ((ctx = (*(sslFuncs.ctx_new))((*(sslFuncs.TLS_client_method))())) == NULL)
-			{
-				/* populate error  and return failure */
-				_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-				snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Error: 2000 ripcSSLSetupCTXClient() failed to create new context (errno %d)", __FILE__, __LINE__, errno);
-				ripcSSLErrors(error, (RsslInt32)strlen(error->text));
-				return NULL;
-			}
-
-			/* Setup the TLS version here, starting with the minimum version */
-			if (chnl->sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1)
-			{
-				(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_VERSION, NULL);
-			}
-			else if (chnl->sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_1)
-			{
-				(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_1_VERSION, NULL);
-			}
-			else if (chnl->sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_2)
-			{
-				(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
-			}
-
-			/* Set the maximum version according to the bitmap */
-			if (chnl->sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_2)
-			{
-				(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
-			}
-			else if (chnl->sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1_1)
-			{
-				(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_1_VERSION, NULL);
-			}
-			else if (chnl->sslProtocolBitmap & RIPC_PROTO_SSL_TLS_V1)
-			{
-				(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_VERSION, NULL);
-			}
-		break;
-	}
-		
-	
 	/* Turn off SSLv2 and SSLv3, since both are insecure.  See:
 		https://www.openssl.org/~bodo/ssl-poodle.pdf
 	*/
@@ -1510,7 +1544,7 @@ OPENSSL_SSL_CTX* ripcSSLSetupCTXClient(ripcSSLProtocolFlags version, RsslSocketC
 }
 
 
-OPENSSL_SSL_CTX* ripcSSLSetupCTXServer(ripcSSLProtocolFlags version, RsslServerSocketChannel* chnl, RsslError *error)
+OPENSSL_SSL_CTX* ripcSSLSetupCTXServer(RsslServerSocketChannel* chnl, RsslError *error)
 {
 	OPENSSL_SSL_CTX *ctx = 0;
 	RsslInt32 retVal = 0;
@@ -1547,10 +1581,24 @@ OPENSSL_SSL_CTX* ripcSSLSetupCTXServer(ripcSSLProtocolFlags version, RsslServerS
 		}
 
 		/* Setup the TLS version here, starting with the minimum version */
-		(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
+		if (chnl->encryptionProtocolFlags & RIPC_PROTO_SSL_TLS_V1_2)
+		{
+			(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
+		}
+		else if (chnl->encryptionProtocolFlags & RIPC_PROTO_SSL_TLS_V1_3)
+		{
+			(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MIN_PROTO_VERSION, RSSL_11_TLS1_3_VERSION, NULL);
+		}
 
 		/* Set the maximum version according to the bitmap */
-		(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
+		if (chnl->encryptionProtocolFlags & RIPC_PROTO_SSL_TLS_V1_3)
+		{
+			(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_3_VERSION, NULL);
+		}
+		else if (chnl->encryptionProtocolFlags & RIPC_PROTO_SSL_TLS_V1_2)
+		{
+			(*(sslFuncs.ctx_ctrl))(ctx, RSSL_11_SSL_CTRL_SET_MAX_PROTO_VERSION, RSSL_11_TLS1_2_VERSION, NULL);
+		}
 
 		(*(sslFuncs.ctx_set_options))(ctx, opts);
 	}
@@ -1738,15 +1786,15 @@ RsslInt32 ripcSSLRead( void *sslSess, char *buf, RsslInt32 max_len, ripcRWFlags 
 				return totalBytes;
 			break;
 			case RSSL_SSL_ERROR_SYSCALL:
+			case RSSL_SSL_ERROR_SSL: /* OpenSSL3.0 returns SSL_ERROR_SSL for recoverable error codes which ETA can try to read again */
 				/* OpenSSL does provide a way to get last error(get_last_socket_error() */
 				if((errno == EAGAIN) || (errno == EINTR) || (errno == _IPC_WOULD_BLOCK))
 					return totalBytes;
 				else
+				{
+					error->text[0] = '\0';
 					return (-1);
-				break;
-			case RSSL_SSL_ERROR_SSL:
-				error->text[0] = '\0';
-				return (-1);
+				}
 			break;
 			case RSSL_SSL_ERROR_ZERO_RETURN:
 				/* this may actually be a transport error worthy of disconnection... */
@@ -1790,15 +1838,15 @@ RsslInt32 ripcSSLWrite( void *sslSess, char *buf, RsslInt32 len, ripcRWFlags fla
 				return totalOut;
 			break;
 			case RSSL_SSL_ERROR_SYSCALL:
+			case RSSL_SSL_ERROR_SSL: /* OpenSSL3.0 returns SSL_ERROR_SSL for recoverable error codes which ETA can try to write again */
 				/* OpenSSL does provide a way to get last error(get_last_socket_error() */
 				if ((errno == EAGAIN) || (errno == EINTR) || (errno == _IPC_WOULD_BLOCK))
 					return totalOut;
 				else
+				{
+					error->text[0] = '\0';
 					return (-1);
-				break;
-			case RSSL_SSL_ERROR_SSL:
-				error->text[0] = '\0';
-				return (-1);
+				}
 			break;
 			case RSSL_SSL_ERROR_ZERO_RETURN:
 				/* this may actually be a transport error worthy of disconnection... */
@@ -1851,6 +1899,23 @@ RsslInt32 ripcShutdownSSLSocket(void *session)
 	return 1;
 }
 
+static int ripcGetProtocolVersion(const OPENSSL_SSL* ssl)
+{
+	int protocol = (*(sslFuncs.ssl_version))(ssl);
+	switch (protocol)
+	{
+	case RSSL_11_TLS1_2_VERSION:
+		return RSSL_ENC_TLSV1_2;
+		break;
+	case RSSL_11_TLS1_3_VERSION:
+		return RSSL_ENC_TLSV1_3;
+		break;
+	default:
+		return RSSL_ENC_NONE;
+		break;
+	}
+}
+
 /* Initializes the OpenSSL session, calling either ssl_accept or ssl_connect depending on if the channel is a server or client, respectively*/
 RsslInt32 ripcSSLInit(void *session, ripcSessInProg *inPr, RsslError *error)
 {
@@ -1883,6 +1948,11 @@ RsslInt32 ripcSSLInit(void *session, ripcSessInProg *inPr, RsslError *error)
 		{
 			if ((*(sslFuncs.ssl_state))(sess->connection) == RSSL_10_SSL_ST_OK)
 			{
+				RsslSocketChannel* chnl = (RsslSocketChannel*)(*(sslFuncs.get_ex_data))(sess->connection, 2);
+				if (chnl != NULL)
+				{
+					chnl->sslCurrentProtocol = ripcGetProtocolVersion(sess->connection);
+				}
 				return 1;
 			}
 			else
@@ -1892,10 +1962,15 @@ RsslInt32 ripcSSLInit(void *session, ripcSessInProg *inPr, RsslError *error)
 				return 0;
 			}
 		}
-		else if(openSSLAPI == RSSL_OPENSSL_V1_1)
+		else if(openSSLAPI == RSSL_OPENSSL_V1_1 || openSSLAPI == RSSL_OPENSSL_V3)
 		{
 			if ((*(sslFuncs.ssl_get_state))(sess->connection) == RSSL_TLS_ST_OK)
 			{
+				RsslSocketChannel* chnl = (RsslSocketChannel*)(*(sslFuncs.get_ex_data))(sess->connection, 2);
+				if (chnl != NULL)
+				{
+					chnl->sslCurrentProtocol = ripcGetProtocolVersion(sess->connection);
+				}
 				return 1;
 			}
 			else
@@ -1962,7 +2037,13 @@ RsslInt32 ripcSSLInit(void *session, ripcSessInProg *inPr, RsslError *error)
 			}
 			else
 			{
-				if (ripcVerifyCert(sess->connection, (*(sslFuncs.get_ex_data))(sess->connection, 0), error) == RSSL_FALSE)
+				RsslSocketChannel* chnl = (RsslSocketChannel*)(*(sslFuncs.get_ex_data))(sess->connection, 2);
+				if (chnl != NULL)
+				{
+					chnl->sslCurrentProtocol = ripcGetProtocolVersion(sess->connection);
+				}
+
+				if (ripcVerifyCert(sess->connection, chnl, error) == RSSL_FALSE)
 				{
 					return -2;
 				}
@@ -1976,12 +2057,11 @@ RsslInt32 ripcSSLInit(void *session, ripcSessInProg *inPr, RsslError *error)
 	return 0;
 }
 
-void *ripcSSLConnectInt(RsslSocket fd, RsslInt32 SSLProtocolVersion, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error)
+void *ripcSSLConnectInt(ripcSSLSession *sess, RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error)
 {
 	RsslInt32 retVal = 0;
 	long ret;
 	struct in_addr addr;
-	ripcSSLSession *sess = ripcInitializeSSLSession(fd, SSLProtocolVersion, (RsslSocketChannel*)userSpecPtr, error);
 	OPENSSL_X509_VERIFY_PARAM* params;
 	RsslSocketChannel* chnl = (RsslSocketChannel*)userSpecPtr;
 
@@ -2024,17 +2104,17 @@ void *ripcSSLConnectInt(RsslSocket fd, RsslInt32 SSLProtocolVersion, RsslInt32 *
 	/* allows us to write part of a buffer and not be required to pass in the same address with the next write call */
 	if (openSSLAPI == RSSL_OPENSSL_V1_0)
 		(*(sslFuncs.ctrl))(sess->connection, RSSL_10_SSL_CTRL_MODE, RSSL_SSL_MODE_ENABLE_PARTIAL_WRITE | RSSL_SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER, NULL);
-	else if (openSSLAPI == RSSL_OPENSSL_V1_1)
+	else if (openSSLAPI == RSSL_OPENSSL_V1_1 || openSSLAPI == RSSL_OPENSSL_V3)
 		(*(sslFuncs.set_options))(sess->connection, RSSL_SSL_MODE_ENABLE_PARTIAL_WRITE | RSSL_SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 	
 	(*(sslFuncs.set_bio))(sess->connection, sess->bio, sess->bio);
 	(*(sslFuncs.set_connect_state))(sess->connection);
 
-	(*(sslFuncs.set_ex_data))(sess->connection, 0, userSpecPtr);  // Set the rsslSocketChannel for this connection.  This contains information for certificate verification
+	(*(sslFuncs.set_ex_data))(sess->connection, 2, userSpecPtr);  // Set the rsslSocketChannel for this connection.  This contains information for certificate verification and set the negotiated TLS protocol version.
 
 	
 	/* Setup hostname validation here */
-	if (openSSLAPI == RSSL_OPENSSL_V1_1)
+	if (openSSLAPI == RSSL_OPENSSL_V1_1 || openSSLAPI == RSSL_OPENSSL_V3)
 	{
 		/* Check to see if the hostname on the channel is an IP Address*/
 		if (inet_pton(AF_INET, ((RsslSocketChannel*)userSpecPtr)->hostName, &addr))
@@ -2123,6 +2203,12 @@ void *ripcSSLConnectInt(RsslSocket fd, RsslInt32 SSLProtocolVersion, RsslInt32 *
 		{
 			return 0;
 		}
+
+		if (chnl != NULL)
+		{
+			chnl->sslCurrentProtocol = ripcGetProtocolVersion(sess->connection);
+		}
+
 		sess->clientConnState = SSL_ACTIVE;
 		*initComplete = 1;
 	}
@@ -2130,24 +2216,50 @@ void *ripcSSLConnectInt(RsslSocket fd, RsslInt32 SSLProtocolVersion, RsslInt32 *
 	return sess;
 }
 
-void *ripcSSLConnectTLSv1(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error)
-{
-	return ripcSSLConnectInt(fd, RIPC_PROTO_SSL_TLS_V1, initComplete, userSpecPtr, error);
-}
-
-void *ripcSSLConnectTLSv11(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error)
-{
-	return ripcSSLConnectInt(fd, RIPC_PROTO_SSL_TLS_V1_1, initComplete, userSpecPtr, error);
-}
-
 void *ripcSSLConnectTLSv12(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error)
 {
-	return ripcSSLConnectInt(fd, RIPC_PROTO_SSL_TLS_V1_2, initComplete, userSpecPtr, error);
+	ripcSSLSession *sess = ripcSSLNewSession(fd, (RsslSocketChannel*)userSpecPtr, NULL, error);
+
+	if (sess == NULL)
+		return NULL;
+
+	sess->ctx = ripcSSLCreateCTXClientV1_0(error);
+
+	if (sess->ctx == NULL)
+		return NULL;
+
+	/* setup the CTX - we are the client */
+	sess->ctx = ripcSSLSetupCTXClient(sess->ctx, (RsslSocketChannel*)userSpecPtr, error);
+
+	if (sess->ctx == NULL)
+		return NULL;
+
+	(*(sslFuncs.ctx_set_ex_data))(sess->ctx, 0, sess);
+
+	return ripcSSLConnectInt(sess, fd, initComplete, userSpecPtr, error);
 }
 
 void* ripcSSLConnectTLS(RsslSocket fd, RsslInt32 *initComplete, void* userSpecPtr, RsslError *error)
 {
-	return ripcSSLConnectInt(fd, RIPC_PROTO_SSL_TLS, initComplete, userSpecPtr, error);
+	ripcSSLSession *sess = ripcSSLNewSession(fd, (RsslSocketChannel*)userSpecPtr, NULL, error);
+
+	if (sess == NULL)
+		return NULL;
+
+	sess->ctx = ripcSSLCreateCTXClientV1_1(((RsslSocketChannel*)userSpecPtr)->sslProtocolBitmap, error);
+
+	if (sess->ctx == NULL)
+		return NULL;
+
+	/* setup the CTX - we are the client */
+	sess->ctx = ripcSSLSetupCTXClient(sess->ctx, (RsslSocketChannel*)userSpecPtr, error);
+
+	if (sess->ctx == NULL)
+		return NULL;
+
+	(*(sslFuncs.ctx_set_ex_data))(sess->ctx, 0, sess);
+
+	return ripcSSLConnectInt(sess, fd, initComplete, userSpecPtr, error);
 }
 
 
@@ -2202,6 +2314,9 @@ void *ripcNewSSLSocket(void *server, RsslSocket fd, RsslInt32 *initComplete, voi
 
 	(*(sslFuncs.set_ex_data))(newsess->connection, 1, newsess);
 	(*(sslFuncs.set_ex_data))(newsess->connection, 0, newsess);
+
+	/* Set the rsslSocketChannel for this connection. This is used to set the negotiated TLS protocol version.*/
+	(*(sslFuncs.set_ex_data))(newsess->connection, 2, userSpecPtr);
 
 	newsess->bio = (*(sslFuncs.BIO_new_socket))((int)fd, RSSL_BIO_NOCLOSE);
 	if (newsess->bio == NULL)
@@ -2274,7 +2389,7 @@ ripcSSLServer *ripcInitializeSSLServer(RsslServerSocketChannel* chnl, RsslError 
 		return 0;
 
 	/* setup the CTX - we are the server */
-	server->ctx = ripcSSLSetupCTXServer(RIPC_PROTO_SSL_TLS_V1_2, chnl,  error);
+	server->ctx = ripcSSLSetupCTXServer(chnl,  error);
 	if (server->ctx == 0)
 	{
 		/* release server */
@@ -2289,24 +2404,6 @@ ripcSSLServer *ripcInitializeSSLServer(RsslServerSocketChannel* chnl, RsslError 
 
 	++countInitializeSSLServer;
 	return server;
-}
-
-ripcSSLSession *ripcInitializeSSLSession(RsslSocket fd, RsslInt32 SSLProtocolVersion, RsslSocketChannel* chnl, RsslError *error)
-{
-	ripcSSLSession *sess = ripcSSLNewSession(fd, chnl, NULL, error);
-
-	if (sess == 0)
-		return 0;
-
-	/* setup the CTX - we are the client */
-	sess->ctx = ripcSSLSetupCTXClient(SSLProtocolVersion, chnl, error);
-
-	if (sess->ctx == NULL)
-		return NULL;
-
-	(*(sslFuncs.ctx_set_ex_data))(sess->ctx, 0, sess);
-
-	return sess;
 }
 
 RsslInt32 ripcGetCountInitializeSSLServer()

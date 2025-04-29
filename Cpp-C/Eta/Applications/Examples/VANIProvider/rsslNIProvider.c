@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 
@@ -92,6 +92,8 @@ static char libcurlName[255];
 
 static char sslCAStore[255];
 
+static RsslEncryptionProtocolTypes tlsProtocol = RSSL_ENC_NONE;
+
 static RsslBool cacheCommandlineOption = RSSL_FALSE;
 RsslVACacheInfo cacheInfo;
 
@@ -133,6 +135,8 @@ void printUsageAndExit(char *appName)
 			" Options for establishing connection(s) and sending requests through a proxy server:\n"
 			"   [ -ph <proxy host> ] [ -pp <proxy port> ] [ -plogin <proxy username> ] [ -ppasswd <proxy password> ] [ -pdomain <proxy domain> ] \n"
 			"\n -castore specifies the filename or directory of the OpenSSL CA store\n"
+			"\n -spTLSv1.2 enable use of cryptographic protocol TLSv1.2 used with linux encrypted connections\n"
+			"\n -spTLSv1.3 enable use of cryptographic protocol TLSv1.3 used with linux encrypted connections\n"
 			"\n -maxEventsInPool size of event pool\n"
 			, appName);
 	exit(-1);
@@ -148,16 +152,16 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
     /* Check usage and retrieve operating parameters */
 	i = 1;
 
-	snprintf(proxyHost, sizeof(proxyHost), "");
-	snprintf(proxyPort, sizeof(proxyPort), "");
-	snprintf(proxyUserName, sizeof(proxyUserName), "");
-	snprintf(proxyPasswd, sizeof(proxyPasswd), "");
-	snprintf(proxyDomain, sizeof(proxyDomain), "");
+	snprintf(proxyHost, sizeof(proxyHost), "%s", "");
+	snprintf(proxyPort, sizeof(proxyPort), "%s", "");
+	snprintf(proxyUserName, sizeof(proxyUserName), "%s", "");
+	snprintf(proxyPasswd, sizeof(proxyPasswd), "%s", "");
+	snprintf(proxyDomain, sizeof(proxyDomain), "%s", "");
 
-	snprintf(libcryptoName, sizeof(libcryptoName), "");
-	snprintf(libsslName, sizeof(libsslName), "");
-	snprintf(libcurlName, sizeof(libcurlName), "");
-	snprintf(sslCAStore, sizeof(sslCAStore), "");
+	snprintf(libcryptoName, sizeof(libcryptoName), "%s", "");
+	snprintf(libsslName, sizeof(libsslName), "%s", "");
+	snprintf(libcurlName, sizeof(libcurlName), "%s", "");
+	snprintf(sslCAStore, sizeof(sslCAStore), "%s", "");
 
 	while(i < argc)
 	{
@@ -167,76 +171,88 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 		}
 		if (strcmp("-libsslName", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(libsslName, 255, "%s", argv[i - 1]);
 		}
 		else if (strcmp("-libcryptoName", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(libcryptoName, 255, "%s", argv[i - 1]);
 		}
 		else if (strcmp("-libcurlName", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(libcurlName, 255, "%s", argv[i - 1]);
 		}
 		else if (strcmp("-castore", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(sslCAStore, 255, "%s", argv[i - 1]);
 			pCommand->cOpts.rsslConnectOptions.encryptionOpts.openSSLCAStore = sslCAStore;
 		}
+		else if (strcmp("-spTLSv1.2", argv[i]) == 0)
+		{
+			i++;
+			tlsProtocol |= RSSL_ENC_TLSV1_2;
+			pCommand->cOpts.rsslConnectOptions.encryptionOpts.encryptionProtocolFlags = tlsProtocol;
+		}
+		else if (strcmp("-spTLSv1.3", argv[i]) == 0)
+		{
+			i++;
+			tlsProtocol |= RSSL_ENC_TLSV1_3;
+			pCommand->cOpts.rsslConnectOptions.encryptionOpts.encryptionProtocolFlags = tlsProtocol;
+		}
 		else if(strcmp("-uname", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(pCommand->username.data, MAX_BUFFER_LENGTH, "%s", argv[i-1]);
 			pCommand->username.length = (RsslUInt32)strlen(pCommand->username.data);
 		}
 		else if(strcmp("-at", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(pCommand->authenticationToken.data, MAX_AUTHN_LENGTH, "%s", argv[i-1]);
 			pCommand->authenticationToken.length = (RsslUInt32)strlen(pCommand->authenticationToken.data);
 		}
 		else if(strcmp("-ax", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(pCommand->authenticationExtended.data, MAX_AUTHN_LENGTH, "%s", argv[i-1]);
 			pCommand->authenticationExtended.length = (RsslUInt32)strlen(pCommand->authenticationExtended.data);
 		}
 		else if(strcmp("-aid", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(pCommand->applicationId.data, MAX_BUFFER_LENGTH, "%s", argv[i-1]);
 			pCommand->applicationId.length = (RsslUInt32)strlen(pCommand->applicationId.data);
 		}
 		else if (strcmp("-ph", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(proxyHost, sizeof(proxyHost), "%s", argv[i - 1]);
 			pCommand->cOpts.rsslConnectOptions.proxyOpts.proxyHostName = proxyHost;
 		}
 		else if (strcmp("-pp", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(proxyPort, sizeof(proxyPort), "%s", argv[i - 1]);
 			pCommand->cOpts.rsslConnectOptions.proxyOpts.proxyPort = proxyPort;
 		}
 		else if (strcmp("-plogin", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(proxyUserName, sizeof(proxyUserName), "%s", argv[i - 1]);
 			pCommand->cOpts.rsslConnectOptions.proxyOpts.proxyUserName = proxyUserName;
 		}
 		else if (strcmp("-ppasswd", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(proxyPasswd, sizeof(proxyPasswd), "%s", argv[i - 1]);
 			pCommand->cOpts.rsslConnectOptions.proxyOpts.proxyPasswd = proxyPasswd;
 		}
 		else if (strcmp("-pdomain", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			snprintf(proxyDomain, sizeof(proxyDomain), "%s", argv[i - 1]);
 			pCommand->cOpts.rsslConnectOptions.proxyOpts.proxyDomain = proxyDomain;
 		}
@@ -244,11 +260,11 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 		{
 			i++;
 			xmlTrace = RSSL_TRUE;
-			snprintf(traceOutputFile, 128, "RsslNIVAProvider\0");
+			snprintf(traceOutputFile, 128, "RsslNIVAProvider");
 		}
 		else if(strcmp("-maxEventsInPool", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			maxEventsInPool = atoi(argv[i-1]);
 		}
 		else if (strcmp("-tcp", argv[i]) == 0)
@@ -266,14 +282,14 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			if (++i >= argc) { printf("Error: -tcp: Missing hostname.\n"); printUsageAndExit(argv[0]); }
 			pToken = strtok(argv[i], ":");
 			if (!pToken) { printf("Error: -tcp: Missing hostname.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->hostName.length = (RsslUInt32)strlen(pCommand->hostName.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.unified.address = pCommand->hostName.data;
 
 			/* Port */
 			pToken = strtok(NULL, ":");
 			if (!pToken) { printf("Error: -tcp: Missing serviceName.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->port.length = (RsslUInt32)strlen(pCommand->port.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.unified.serviceName = pCommand->port.data;
 
@@ -281,7 +297,7 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			i++;
 			pToken = argv[i];
 			if (!pToken) { printf("Error: -tcp: Missing item service name.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->serviceName.length = (RsslUInt32)strlen(pCommand->serviceName.data);
 
 			/* Item List */
@@ -359,14 +375,14 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			if (++i >= argc) { printf("Error: -encryptedSocket: Missing hostname.\n"); printUsageAndExit(argv[0]); }
 			pToken = strtok(argv[i], ":");
 			if (!pToken) { printf("Error: -encryptedSocket: Missing hostname.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->hostName.length = (RsslUInt32)strlen(pCommand->hostName.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.unified.address = pCommand->hostName.data;
 
 			/* Port */
 			pToken = strtok(NULL, ":");
 			if (!pToken) { printf("Error: -encryptedSocket: Missing serviceName.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->port.length = (RsslUInt32)strlen(pCommand->port.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.unified.serviceName = pCommand->port.data;
 
@@ -374,7 +390,7 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			i++;
 			pToken = argv[i];
 			if (!pToken) { printf("Error: -encryptedSocket: Missing item service name.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->serviceName.length = (RsslUInt32)strlen(pCommand->serviceName.data);
 
 			/* Item List */
@@ -455,14 +471,14 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			if (++i >= argc) { printf("Error: -encryptedSocket: Missing hostname.\n"); printUsageAndExit(argv[0]); }
 			pToken = strtok(argv[i], ":");
 			if (!pToken) { printf("Error: -encryptedSocket: Missing hostname.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->hostName.length = (RsslUInt32)strlen(pCommand->hostName.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.unified.address = pCommand->hostName.data;
 
 			/* Port */
 			pToken = strtok(NULL, ":");
 			if (!pToken) { printf("Error: -encryptedSocket: Missing serviceName.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->port.length = (RsslUInt32)strlen(pCommand->port.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.unified.serviceName = pCommand->port.data;
 
@@ -470,7 +486,7 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			i++;
 			pToken = argv[i];
 			if (!pToken) { printf("Error: -encryptedSocket: Missing item service name.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->serviceName.length = (RsslUInt32)strlen(pCommand->serviceName.data);
 
 			/* Item List */
@@ -548,14 +564,14 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			i++;
 			pToken = strtok(argv[i], ":");
 			if (!pToken) { printf("Error: -segmentedMulticast: Missing sendAddress.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->hostName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->hostName.length = (RsslUInt32)strlen(pCommand->hostName.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.segmented.sendAddress = pCommand->hostName.data;
 
 			/* Port */
 			pToken = strtok(NULL, ":");
 			if (!pToken) { printf("Error: -segmentedMulticast: Missing sendPort.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->port.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->port.length = (RsslUInt32)strlen(pCommand->port.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.segmented.sendServiceName = pCommand->port.data;
 				
@@ -568,7 +584,7 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			}
 			else
 			{
-				snprintf(pCommand->interfaceName.data, MAX_BUFFER_LENGTH, pToken);
+				snprintf(pCommand->interfaceName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 				pCommand->interfaceName.length = (RsslUInt32)strlen(pCommand->interfaceName.data);
 				pCommand->cOpts.rsslConnectOptions.connectionInfo.segmented.interfaceName = pCommand->interfaceName.data;
 			}
@@ -577,21 +593,21 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			i++;
 			pToken = strtok(argv[i], ":");
 			if (!pToken) { printf("Error: -segmentedMulticast: Missing recvAddress.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->recvHostName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->recvHostName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->recvHostName.length = (RsslUInt32)strlen(pCommand->recvHostName.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.segmented.recvAddress = pCommand->recvHostName.data;
 				
 			/* Recv Port */
 			pToken = strtok(NULL, ":");
 			if (!pToken) { printf("Error: -segmentedMulticast: Missing recvPort.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->recvPort.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->recvPort.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->recvPort.length = (RsslUInt32)strlen(pCommand->recvPort.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.segmented.recvServiceName = pCommand->recvPort.data;
 				
 			i++;
 			pToken = argv[i];
 			if (!pToken) { printf("Error: -segmentedMulticast: Missing unicast Port.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->unicastServiceName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->unicastServiceName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->unicastServiceName.length = (RsslUInt32)strlen(pCommand->unicastServiceName.data);
 			pCommand->cOpts.rsslConnectOptions.connectionInfo.segmented.unicastServiceName = pCommand->unicastServiceName.data;
 				
@@ -600,7 +616,7 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 			i++;
 			pToken = argv[i];
 			if (!pToken) { printf("Error: -segmentedMulticast: Missing Service Name.\n"); printUsageAndExit(argv[0]); }
-			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, pToken);
+			snprintf(pCommand->serviceName.data, MAX_BUFFER_LENGTH, "%s", pToken);
 			pCommand->serviceName.length = (RsslUInt32)strlen(pCommand->serviceName.data);
 
 			/* Item List */
@@ -657,7 +673,7 @@ void handleConfig(int argc, char **argv, NIChannelCommand *pCommand)
 		}
 		else if(strcmp("-runtime", argv[i]) == 0)
 		{
-			i += 2;
+			i += 2; if (i > argc) printUsageAndExit(argv[0]);
 			timeToRun = atoi(argv[i-1]);
 		}
 		else if (strcmp("-cache", argv[i]) == 0)

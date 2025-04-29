@@ -1,13 +1,14 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
 #include "TestUtilities.h"
 #include "Utilities.h"
+#include "OmmConsumerConfigImpl.h"
 #include <sstream>
 
 using namespace refinitiv::ema::access;
@@ -16,6 +17,7 @@ using namespace std;
 
 const char* fieldDictionaryFileName = "RDMFieldDictionaryTest";
 const char* enumTableFileName = "enumtypeTest.def";
+const char* emaConfigXMLFileName = "EmaConfigTest.xml";
 
 bool
 comparingEnumType( RsslEnumType* rsslEnumType, const EnumType& enumType, bool payloadOnly ) {
@@ -308,6 +310,94 @@ TEST_F(DataDictionaryTest, LoadDictionaryFromInvalidFile) {
   }
 }
 
+TEST_F(DataDictionaryTest, LoadingDictionaryFromObj)
+{
+	try
+	{
+		bool deepCopyDict = false;
+
+		for (int i = 0; i < 2; i++)
+		{
+			DataDictionary dataDictionary;
+			dataDictionary.loadFieldDictionary(fieldDictionaryFileName);
+			dataDictionary.loadEnumTypeDictionary(enumTableFileName);
+
+			EmaString emaConfigFileLocation(emaConfigXMLFileName);
+			OmmConsumerConfigImpl testConfig(emaConfigFileLocation);
+
+			testConfig.dataDictionary(dataDictionary, deepCopyDict);
+
+			/*Check that all data were copied correctly*/
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEnumDisplayTemplateVersion() == dataDictionary.getEnumDisplayTemplateVersion()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::infoEnum_DT_Version";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEnumRecordTemplateVersion() == dataDictionary.getEnumRecordTemplateVersion()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::infoEnum_RT_Version";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getFieldVersion() == dataDictionary.getFieldVersion()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::infoField_Version";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getDictionaryId() == dataDictionary.getDictionaryId()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::info_DictionaryId";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEntries().size() == dataDictionary.getEntries().size()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::numberOfEntries";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEnumTables().size() == dataDictionary.getEnumTables().size()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::enumTableCount";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getMaxFid() == dataDictionary.getMaxFid()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::maxFid";
+
+			EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getMinFid() == dataDictionary.getMinFid()) <<
+				"Comparing refinitiv::eta::rdm::DataDictionaryImpl::RsslDataDictionary::minFid";
+
+			if (!deepCopyDict)
+			{
+
+				/*Ensure that the used dictionary shallowly copied. Clean up the original dictionary object and check up Consumer config.*/
+				dataDictionary.clear();
+
+				EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->isFieldDictionaryLoaded() == dataDictionary.isFieldDictionaryLoaded())<< 
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_loadedFieldDictionary";
+
+				EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->isEnumTypeDefLoaded() == dataDictionary.isEnumTypeDefLoaded()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_loadedEnumTypeDef";
+
+				EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEntries().size()  == dataDictionary.getEntries().size()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_pDictionaryEntryList::_size";
+
+				EXPECT_TRUE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEnumTables().size() == dataDictionary.getEnumTables().size()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_pEnumTypeTableList::_size";
+			}
+			else
+			{
+				/*Ensure that the used dictionary deep copied. Clean up the original dictionary object and check up Consumer config.*/
+				dataDictionary.clear();
+
+				EXPECT_FALSE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->isFieldDictionaryLoaded() == dataDictionary.isFieldDictionaryLoaded()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_loadedFieldDictionary";
+
+				EXPECT_FALSE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->isEnumTypeDefLoaded() == dataDictionary.isEnumTypeDefLoaded()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_loadedEnumTypeDef";
+
+				EXPECT_FALSE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEntries().size() == dataDictionary.getEntries().size()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_pDictionaryEntryList::_size";
+
+				EXPECT_FALSE(((OmmConsumerConfigImpl*)&testConfig)->dataDictionary()->getEnumTables().size() == dataDictionary.getEnumTables().size()) <<
+					"Comparing refinitiv::eta::rdm::DataDictionaryImpl::_pEnumTypeTableList::_size";
+			}
+			deepCopyDict = true;
+		}
+	}
+	catch (const OmmException& excp)
+	{
+		std::cout << "Caught unexpected exception!!!" << std::endl << excp << std::endl;
+		EXPECT_TRUE(false) << "Unexpected exception in testLoadingDictionaryFromObj()";
+	}
+}
+
 TEST_F(DataDictionaryTest, Uninitialized) {
   DataDictionary dataDictionary;
   EXPECT_STREQ( dataDictionary.toString(), "DataDictionary is not initialized" )
@@ -492,7 +582,7 @@ TEST_F( DataDictionaryTest, DictionaryEntryHasEnumTypeGetEnumType ) {
 TEST_F( DataDictionaryTest, DictionaryToString ) {
   const EmaString& toStringValue = globalDataDictionary.toString();
 
-  EXPECT_NE( toStringValue.find("Data Dictionary Dump: MinFid=-19 MaxFid=32766 NumEntries 14488"), -1) << "Calling DataDictionary.toString() to check for summary data";
+  EXPECT_NE( toStringValue.find("Data Dictionary Dump: MinFid=-20 MaxFid=32766 NumEntries 14489"), -1) << "Calling DataDictionary.toString() to check for summary data";
   EXPECT_NE( toStringValue.find("Version=\"4.20.19\""), -1 ) << "Calling DataDictionary.toString() to check field dictionary version";
   EXPECT_NE( toStringValue.find("RT_Version=\"4.20.19\""), -1 ) << "Calling DataDictionary.toString() to check record template version";
   EXPECT_NE( toStringValue.find("DT_Version=\"15.61\""), -1 ) << "Calling DataDictionary.toString() to check display template version";

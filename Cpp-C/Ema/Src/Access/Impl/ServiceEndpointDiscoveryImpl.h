@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -15,6 +15,7 @@
 #include "Access/Include/ServiceEndpointDiscoveryResp.h"
 #include "Access/Include/ServiceEndpointDiscoveryInfo.h"
 #include "Access/Include/ServiceEndpointDiscoveryEvent.h"
+#include "Access/Include/ServiceEndpointDiscoveryConfig.h"
 #include "rtr/rsslReactor.h"
 #include "Mutex.h"
 
@@ -30,8 +31,7 @@ class ServiceEndpointDiscoveryImpl
 {
 public:
 
-	ServiceEndpointDiscoveryImpl(ServiceEndpointDiscovery* pServiceEndpointDiscovery, const EmaString* pTokenServiceURLV1, const EmaString* pTokenServiceURLV2, const EmaString* pServiceDiscoveryURL);
-
+	ServiceEndpointDiscoveryImpl(ServiceEndpointDiscovery* pServiceEndpointDiscovery, const ServiceEndpointDiscoveryConfig* pServiceEndpointDiscoveryConfig);
 
 	void registerClient(const ServiceEndpointDiscoveryOption& params, ServiceEndpointDiscoveryClient& client, void *closure);
 
@@ -48,6 +48,8 @@ private:
 	ServiceEndpointDiscovery	*_pServiceEndpointDiscovery;
 
 	Mutex		_userLock;
+
+	const bool DEFAULT_SHOULD_INIT_CPUID_LIB = true;
 };
 
 }

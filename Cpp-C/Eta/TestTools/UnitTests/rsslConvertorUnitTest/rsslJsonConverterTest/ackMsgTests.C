@@ -2,11 +2,15 @@
 *| This source code is provided under the Apache 2.0 license –
 *| and is provided AS IS with no warranty or guarantee of fit for purpose. –
 *| See the project's LICENSE.md for details. –
-*| Copyright (C) 2020 Refinitiv. All rights reserved. –
+*| Copyright (C) 2020 LSEG. All rights reserved.      –
 *|-----------------------------------------------------------------------------
 */
 
 #include "rsslJsonConverterTestBase.h"
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
+#endif
 
 using namespace std;
 using namespace json; 
@@ -414,7 +418,7 @@ TEST_P(AckMsgMembersTestFixture, AckMsgMembersTest)
 	ASSERT_EQ(params.qualified, rsslAckMsgCheckQualifiedStream(&rsslMsg.ackMsg));
 }
 
-INSTANTIATE_TEST_CASE_P(AckMsgTests, AckMsgMembersTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(AckMsgTests, AckMsgMembersTestFixture, ::testing::Values(
 	/* Test with/without ExtendedHeader, Text, PrivateStream, SeqNum, MsgKey, NakCode, Qualified. */
 
 	/* Defaults */

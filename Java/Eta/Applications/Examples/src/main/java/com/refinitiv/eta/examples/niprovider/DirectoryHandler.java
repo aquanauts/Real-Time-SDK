@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -41,7 +41,7 @@ public class DirectoryHandler
 {
     private static final int SRCDIR_STREAM_ID = -1;
     private static final int OPEN_LIMIT = 5;
-    private static final String VENDOR = "Refinitiv";
+    private static final String VENDOR = "LSEG";
     private static final String LINK_NAME = "NI_PUB";
 
     private static final long FILTER_TO_REFRESH = Directory.ServiceFilterFlags.INFO

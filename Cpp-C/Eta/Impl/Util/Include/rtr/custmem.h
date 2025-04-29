@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -20,12 +20,7 @@
 
 RTR_C_ALWAYS_INLINE void *MemCopyByByte(void *dest, const void *src, size_t size)
 {
-#if defined(LinuxVersion) && LinuxVersion <= 4
-	return( (size <= MEM_CHG) ? doSimpleMemCopy(dest,src,size) :
-			memcpy(dest, src, size) );
-#else
 	return memcpy(dest, src, size);
-#endif
 }
 /*****************************************/
 
@@ -34,13 +29,7 @@ RTR_C_ALWAYS_INLINE void *MemCopyByByte(void *dest, const void *src, size_t size
 /* MemCopyByInt() works on quad boundaries */
 RTR_C_ALWAYS_INLINE void *MemCopyByInt(void *dest, const void *src, size_t size)
 {
-#if defined(LinuxVersion) && LinuxVersion <= 4
-	return ( (size < 8) ? doSimpleMemCopy(dest,src,size) :
-			 ((size <= 128) ? doNonSimpleMemCopy4(dest,src,size) :
-			 	memcpy(dest, src, size) )  );
-#else
 	return memcpy(dest, src, size);		// The memcpy with Linux 5 and 6 is much faster, windows memcpy is faster too
-#endif
 }
 /*****************************************/
 
@@ -48,13 +37,7 @@ RTR_C_ALWAYS_INLINE void *MemCopyByInt(void *dest, const void *src, size_t size)
 /* MemCopyLongLong() works on quad boundaries, but copies long long 8 bytes */
 RTR_C_ALWAYS_INLINE void *MemCopyByLongLong(void *dest, const void *src, size_t size)
 {
-#if defined(LinuxVersion) && LinuxVersion <= 4
-	return ( (size < 8) ? doSimpleMemCopy(dest,src,size) :
-			 ((size <= 128) ? doNonSimpleMemCopy8(dest,src,size) :
-			 	memcpy(dest, src, size) )  );
-#else
 	return memcpy(dest, src, size);
-#endif
 }
 /*****************************************/
 

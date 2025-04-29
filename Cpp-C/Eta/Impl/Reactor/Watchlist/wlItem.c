@@ -2,11 +2,12 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #include "rtr/wlItem.h"
 #include "rtr/wlSymbolList.h"
+#include "rtr/rsslReactorImpl.h"
 #include <limits.h>
 
 /* Saves extra item request info, such as encDataBody and extendedHeader. 
@@ -355,6 +356,7 @@ RsslRet wlItemStreamInit(WlItemStream *pItemStream, WlStreamAttributes *pStreamA
 	pItemStream->nextPartNum = 0;
 	pItemStream->pRequestWithExtraInfo = NULL;
 	wlMsgReorderQueueInit(&pItemStream->bufferedMsgQueue);
+	pItemStream->itemIsClosedForAllStandby = RSSL_FALSE;
 
 	return RSSL_RET_SUCCESS;
 }
@@ -1564,7 +1566,7 @@ RsslRet wlItemRequestSendMsgEvent(WlBase *pBase,
 			&& (!(pItemRequest->flags & WL_IRQF_PROV_DRIVEN) || 
 				pItemRequest->flags & WL_IRQF_HAS_PROV_KEY))
 	{
-		if ((ret = (*pBase->config.msgCallback) (&pBase->watchlist, pEvent, pErrorInfo)) 
+		if ((ret = _reactorWatchlistMsgCallback(&pBase->watchlist, pEvent, pErrorInfo))
 				!= RSSL_RET_SUCCESS)
 			return ret;
 	}
@@ -1645,7 +1647,7 @@ RsslRet wlItemRequestSendMsgEvent(WlBase *pBase,
 				break;
 		}
 		
-		if ((ret = (*pBase->config.msgCallback) (&pBase->watchlist, pEvent, pErrorInfo)) 
+		if ((ret = _reactorWatchlistMsgCallback(&pBase->watchlist, pEvent, pErrorInfo))
 				!= RSSL_RET_SUCCESS)
 			return ret;
 		pEvent->pRsslMsg = pRsslMsg;

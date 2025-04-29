@@ -120,6 +120,7 @@ public class ElementNames
     /** @deprecated due to spelling error
      * 				use {@link #SOURCE_MIRROR_MODE}
      */
+    @Deprecated
     public static final Buffer SOURCE_MIROR_MODE = CodecFactory.createBuffer();
     /** SourceMirroringMode */
     public static final Buffer SOURCE_MIRROR_MODE = CodecFactory.createBuffer();
@@ -241,7 +242,7 @@ public class ElementNames
     // Request Message Payload - Well known Element Names
     // Because these span domains, they are namespaced
     // <namespace>:<element name>
-    // Refinitiv claims empty namespace (e.g. :ItemList is TR namespace)
+    // LSEG claims empty namespace (e.g. :ItemList is LSEG/Refinitiv namespace)
     // Customers can define and namespace using other values as they need
     /** :ItemList */
     public static final Buffer BATCH_ITEM_LIST = CodecFactory.createBuffer();
@@ -477,7 +478,7 @@ public class ElementNames
         // Request Message Payload - Well known Element Names
         // Because these span domains, they are namespaced
         // <namespace>:<element name>
-        // Refinitiv claims empty namespace (e.g. :ItemList is TR namespace)
+        // LSEG claims empty namespace (e.g. :ItemList is LSEG/Refinitiv namespace)
         // Customers can define and namespace using other values as they need
         /** :ItemList */
         BATCH_ITEM_LIST.data(":ItemList");

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -10,6 +10,7 @@
 #include "TestUtilities.h"
 
 using namespace refinitiv::ema::access;
+using namespace refinitiv::ema::rdm;
 using namespace std;
 
 TEST(VectorTests, testVectorContainsFieldListsDecodeAll)
@@ -812,6 +813,76 @@ TEST(VectorTests, testVectorContainsXmlDecodeAll)
 	catch ( const OmmException& )
 	{
 		EXPECT_FALSE( true ) << "Vector Decode with Xml payload - exception not expected" ;
+	}
+}
+
+TEST(VectorTests, testVectorContainsJsonDecodeAll)
+{
+
+	try
+	{
+		RsslBuffer vectorBuffer;
+		vectorBuffer.length = 4096;
+		vectorBuffer.data = ( char* )malloc( sizeof( char ) * 4096 );
+
+		RsslVector rsslVector = RSSL_INIT_VECTOR;
+		RsslEncodeIterator vectorEncodeIter;
+
+		rsslClearVector( &rsslVector );
+		rsslClearEncodeIterator( &vectorEncodeIter );
+		rsslSetEncodeIteratorRWFVersion( &vectorEncodeIter, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION );
+		rsslSetEncodeIteratorBuffer( &vectorEncodeIter, &vectorBuffer );
+		rsslVector.flags = RSSL_VTF_HAS_TOTAL_COUNT_HINT;
+
+		rsslVector.containerType = RSSL_DT_JSON;
+		rsslVector.totalCountHint = 1;
+
+		rsslEncodeVectorInit( &vectorEncodeIter, &rsslVector, 0, 0 );
+
+		RsslVectorEntry vectorEntry;
+
+		rsslClearVectorEntry( &vectorEntry );
+
+		char buffer[200];
+		RsslBuffer rsslBuf1;
+		rsslBuf1.data = buffer;
+		rsslBuf1.length = 200;
+
+		RsslBuffer jsonValue;
+		jsonValue.data = ( char* )"{\"consumerList\":{\"consumer\":{\"name\":\"\",\"dataType\":\"Ascii\",\"value\":\"Consumer_1\"}}}";
+		jsonValue.length = static_cast<rtrUInt32>( strlen( jsonValue.data ) );
+
+		encodeNonRWFData( &rsslBuf1, &jsonValue );
+
+		vectorEntry.index = 0;
+		vectorEntry.flags = RSSL_VTEF_NONE;
+		vectorEntry.action = RSSL_VTEA_SET_ENTRY;
+		vectorEntry.encData = rsslBuf1;
+		rsslEncodeVectorEntry( &vectorEncodeIter, &vectorEntry );
+
+		rsslEncodeVectorComplete( &vectorEncodeIter, RSSL_TRUE );
+
+		vectorBuffer.length = rsslGetEncodedBufferLength( &vectorEncodeIter );
+
+		Vector vector;
+		StaticDecoder::setRsslData( &vector, &vectorBuffer, RSSL_DT_VECTOR, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, 0 );
+
+		EXPECT_TRUE( vector.forth() ) << "Vector contains Json - first vector forth()" ;
+
+		const VectorEntry& ve = vector.getEntry();
+
+		EXPECT_EQ( ve.getPosition(), 0 ) << "ve.getPosition()" ;
+		EXPECT_EQ( ve.getAction(), VectorEntry::SetEnum ) << "VectorEntry::getAction() == VectorEntry::SetEnum" ;
+		EXPECT_EQ( ve.getLoad().getDataType(), DataType::JsonEnum ) << "VectorEntry::getLoad().getDataType() == DataType::JsonEnum" ;
+
+		EmaBuffer compareTo( jsonValue.data, jsonValue.length );
+		EXPECT_STREQ( ve.getJson().getBuffer(), compareTo ) << "VectorEntry::getJson().getBuffer()" ;
+
+		free( vectorBuffer.data );
+	}
+	catch ( const OmmException& )
+	{
+		EXPECT_FALSE( true ) << "Vector Decode with Json payload - exception not expected" ;
 	}
 }
 
@@ -2249,24 +2320,67 @@ TEST(VectorTests, testVectorAddEntryAfterCallingComplete_Encode)
 
 TEST(VectorTests, testVectorClear_Encode_Decode)
 {
+    // load dictionary for decoding of the field list
+    RsslDataDictionary dictionary;
+
+	const EmaString vectorString =
+		"Vector sortable=\"true\"\n"
+		"    VectorEntry action=\"Delete index=\"2\" dataType=\"NoData\"\n"
+		"        NoData\n"
+		"        NoDataEnd\n"
+		"    VectorEntryEnd\n"
+		"    VectorEntry action=\"Clear index=\"3\" dataType=\"NoData\"\n"
+		"        NoData\n"
+		"        NoDataEnd\n"
+		"    VectorEntryEnd\n"
+		"VectorEnd\n";
+
+    ASSERT_TRUE(loadDictionaryFromFile(&dictionary)) << "Failed to load dictionary";
+
+	DataDictionary emaDataDictionary, emaDataDictionaryEmpty;
+
+	try {
+		emaDataDictionary.loadFieldDictionary( "RDMFieldDictionaryTest" );
+		emaDataDictionary.loadEnumTypeDictionary( "enumtypeTest.def" );
+	}
+	catch ( const OmmException& ) {
+		ASSERT_TRUE( false ) << "DataDictionary::loadFieldDictionary() failed to load dictionary information";
+	}
+
 	try
 	{
 		FieldList fieldList;
 		fieldList.addUInt(1, 3056).complete();
 
-		Vector vector;
-		EXPECT_EQ( vector.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Vector.toString() == Decoding of just encoded object in the same application is not supported";
+		Vector vector, vectorEmpty;
+		EXPECT_EQ( vector.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n") << "Vector.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
-		vector.totalCountHint(1).sortable(false)
-			.add(1, VectorEntry::InsertEnum, fieldList)
-			.clear().sortable(true)
-			.add(2, VectorEntry::DeleteEnum)
-			.add(3, VectorEntry::ClearEnum)
-			.complete();
-		EXPECT_EQ( vector.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Vector.toString() == Decoding of just encoded object in the same application is not supported";
+        vector.totalCountHint(1).sortable(false)
+            .add(1, VectorEntry::InsertEnum, fieldList)
+            .clear().sortable(true)
+            .add(2, VectorEntry::DeleteEnum)
+            .add(3, VectorEntry::ClearEnum);
+
+		EXPECT_EQ( vector.toString( emaDataDictionary ), "\nUnable to decode not completed Vector data.\n" ) << "Vector.toString() == Unable to decode not completed Vector data.";
+
+        vector.complete();
+
+		EXPECT_EQ( vector.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Vector.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
+
+		EXPECT_EQ( vector.toString( emaDataDictionaryEmpty ), "\nDictionary is not loaded.\n" ) << "Vector.toString() != Dictionary is not loaded.";
+
+		EXPECT_EQ( vector.toString( emaDataDictionary ), vectorString ) << "Vector.toString() == vectorString";
+
+		vectorEmpty.add( 1, VectorEntry::InsertEnum, fieldList );
+		vectorEmpty.complete();
+		vectorEmpty.clear();
+		EXPECT_EQ( vectorEmpty.toString( emaDataDictionary ), "\nUnable to decode not completed Vector data.\n" ) << "Vector.toString() == Unable to decode not completed Vector data.";
+
+		vectorEmpty.complete();
+		EXPECT_EQ( vectorEmpty.toString( emaDataDictionary ), "Vector sortable=\"false\"\nVectorEnd\n" ) << "Vector.toString() == Vector sortable=\"false\"\nVectorEnd\n";
 
 		StaticDecoder::setData(&vector, NULL);
-		EXPECT_NE( vector.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Vector.toString() != Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( vector.toString(), vectorString ) << "Vector.toString() == vectorString";
 
 		EXPECT_FALSE(vector.hasTotalCountHint()) << "Check has total count hint attribute";
 		EXPECT_TRUE(vector.getSortable()) << "Check the sortable attribute";
@@ -2347,3 +2461,219 @@ TEST(VectorTests, testVectorWithSummaryDataButNoEntry_Encode_Decode)
 		return;
 	}
 }
+
+TEST(VectorTests, testVectorAddNotCompletedContainer)
+{
+	try
+	{
+		Vector vector;
+		ElementList elementList;
+
+		vector.add(1, VectorEntry::InsertEnum, elementList);
+		vector.complete();
+
+		EXPECT_FALSE(true) << "Vector complete while ElementList is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector complete while ElementList is not completed  - exception expected";
+	}
+
+	try
+	{
+		Vector vector;
+		ElementList elementList;
+		vector.add(1, VectorEntry::InsertEnum, elementList);
+		elementList.addUInt("test", 64);
+		vector.complete();
+
+		EXPECT_FALSE(true) << "Vector complete while ElementList with data is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector complete while ElementList with data is not completed  - exception expected";
+	}
+
+	try
+	{
+		Vector vector;
+		ElementList elementList, elementList1;
+		vector.add(1, VectorEntry::InsertEnum, elementList);
+		vector.add(2, VectorEntry::InsertEnum, elementList1);
+
+		EXPECT_FALSE(true) << "Vector add two not completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector add two not completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		Vector vector;
+		ElementList elementList, elementList1;
+		vector.add(1, VectorEntry::InsertEnum, elementList);
+		elementList.complete();
+		vector.add(1, VectorEntry::InsertEnum, elementList1);
+		vector.complete();
+
+		EXPECT_FALSE(true) << "Vector add first completed and second not completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector add first completed and second not completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		Vector vector;
+		ElementList elementList, elementList1;
+		vector.add(1, VectorEntry::InsertEnum, elementList);
+		elementList1.complete();
+		vector.add(1, VectorEntry::InsertEnum, elementList1);
+		vector.complete();
+
+		EXPECT_FALSE(true) << "Vector add first not completed and second completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector add first not completed and second completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		Vector vector;
+		ElementList elementList, elementList1;
+		vector.add(1, VectorEntry::InsertEnum, elementList);
+		elementList.complete();
+		vector.complete();
+		vector.add(1, VectorEntry::InsertEnum, elementList1);
+		vector.complete();
+		
+		EXPECT_FALSE(true) << "Vector add first completed ElementLists then complete Vector and add second ElementList - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector add first completed ElementLists then complete Vector and add second ElementList - exception expected";
+	}
+
+	try
+	{
+		Vector vector;
+		FieldList fieldList;
+
+		fieldList.addInt(1, 2);
+		vector.summaryData(fieldList);
+		vector.complete();
+
+		EXPECT_FALSE(true) << "Vector add uncompleted FieldList passed in summaryData - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector add uncompleted FieldList passed in summaryData - exception expected";
+	}
+
+	try
+	{
+		Vector vector, vector1;
+		FieldList fieldList;
+
+		fieldList.complete();
+		vector1.add(1, VectorEntry::SetEnum, fieldList);
+		vector1.complete();
+		vector.summaryData(vector1);
+		vector.complete();
+
+		EXPECT_TRUE(true) << "Vector add completed Vector passed in summaryData with nested FieldList - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Vector add completed Vector passed in summaryData with nested FieldList - exception not expected " << exp.getText();
+	}
+
+	try
+	{
+		Vector vector, vector1;
+		FieldList fieldList;
+
+		fieldList.complete();
+		vector1.add(1, VectorEntry::SetEnum, fieldList);
+		vector1.complete();
+		vector.add(1, VectorEntry::SetEnum, vector1);
+		vector.complete();
+
+		EXPECT_TRUE(true) << "Vector add completed Vector with nested FieldList - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Vector add completed Vector with nested FieldList - exception not expected " << exp.getText();
+	}
+
+	try
+	{
+		Vector vector;
+		vector.add(1, VectorEntry::SetEnum, FieldList().addInt(1, 1).complete());
+		vector.add(1, VectorEntry::SetEnum, FieldList().addInt(2, 2).complete());
+		vector.complete();
+
+		EXPECT_TRUE(true) << "Vector add two FieldList as a separate object - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Vector add two FieldList as a separate object - exception not expected with text " << exp.getText();
+	}
+
+	try
+	{
+		Vector vector;
+		GenericMsg genericMsg;
+
+		genericMsg.streamId(1);
+
+		vector.add(1, VectorEntry::InsertEnum, genericMsg);
+		vector.complete();
+
+		EXPECT_TRUE(true) << "Vector add not completed GenericMsg - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Vector add not completed GenericMsg - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		Vector vector;
+		OmmOpaque opaque;
+
+		char* string = const_cast<char*>("OPQRST");
+		EmaBuffer buffer(string, 6);
+		opaque.set(buffer);
+
+		vector.add(1, VectorEntry::InsertEnum, opaque);
+		vector.complete();
+
+		EXPECT_TRUE(true) << "Vector add OmmOpaque - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Vector add OmmOpaque - exception not expected with text:" << exp.getText();
+	}
+
+	try
+	{
+		Vector vector;
+		ElementList elementList;
+		GenericMsg genericMsg;
+
+		vector.add(1, VectorEntry::InsertEnum, genericMsg);
+		vector.add(2, VectorEntry::InsertEnum, elementList);
+		vector.complete();
+
+		EXPECT_FALSE(true) << "Vector add not completed ElementList after GenericMsg - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Vector add not completed ElementList after GenericMsg - exception expected";
+	}
+}
+

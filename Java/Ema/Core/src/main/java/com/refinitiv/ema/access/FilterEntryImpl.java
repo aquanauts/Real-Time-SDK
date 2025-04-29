@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -81,7 +81,7 @@ class FilterEntryImpl extends EntryImpl implements FilterEntry
 	public String toString()
 	{
 		if ( _load == null )
-			return "\nDecoding of just encoded object in the same application is not supported\n";
+			return "\nEntity is not encoded yet. Complete encoding to use this method.\n";
 		
 		_toString.setLength(0);
 		_toString.append("FilterEntry ")
@@ -277,6 +277,18 @@ class FilterEntryImpl extends EntryImpl implements FilterEntry
 
 	@Override
 	public FilterEntry xml(int filterId, int action, OmmXml value, ByteBuffer permissionData)
+	{
+		return entryValue(filterId, action, (DataImpl) value, permissionData);
+	}
+
+	@Override
+	public FilterEntry json(int filterId, int action, OmmJson value)
+	{
+		return entryValue(filterId, action, (DataImpl) value, null);
+	}
+
+	@Override
+	public FilterEntry json(int filterId, int action, OmmJson value, ByteBuffer permissionData)
 	{
 		return entryValue(filterId, action, (DataImpl) value, permissionData);
 	}

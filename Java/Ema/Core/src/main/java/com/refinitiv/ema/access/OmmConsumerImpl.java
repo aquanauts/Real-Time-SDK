@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|          Copyright (C) 2019-2022, 2024 LSEG. All rights reserved.
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -11,11 +11,14 @@ import com.refinitiv.eta.codec.DataDictionary;
 import com.refinitiv.eta.valueadd.reactor.*;
 import com.refinitiv.eta.valueadd.reactor.ReactorOAuthCredentialRenewalOptions.RenewalModes;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.refinitiv.ema.access.ConfigManager.ConfigAttributes;
 import com.refinitiv.ema.access.ConfigManager.ConfigElement;
+import com.refinitiv.ema.access.OmmIProviderConfig.OperationModel;
 import com.refinitiv.ema.access.OmmException.ExceptionType;
 import com.refinitiv.ema.access.OmmLoggerClient.Severity;
 import com.refinitiv.eta.transport.Channel;
@@ -44,6 +47,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_activeConfig = new OmmConsumerActiveConfig();
 		_adminClient = null;
 		_adminClosure = null;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 	}
 	
@@ -57,6 +61,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 			_activeConfig = new OmmConsumerActiveConfig();
 			_adminClient = null;
 			_adminClosure = null;
+			_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 			super.initializeForTest(_activeConfig, (OmmConsumerConfigImpl)config);
 		}
 	}
@@ -69,6 +74,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClient = null;
 		_adminClosure = null;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -82,6 +88,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClient = null;
 		_adminClosure = closure;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -94,6 +101,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		/* the client needs to be set before calling initialize, so the proper item callbacks are set */
 		_adminClient = client;
 		_adminClosure = null;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 	}
 	
@@ -105,9 +113,10 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClient = adminClient;
 		_adminClosure = null;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
-		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
+		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);
 	}
 	
 	OmmConsumerImpl(OmmConsumerConfig config, OmmConsumerClient adminClient, OmmOAuth2ConsumerClient OAuthClient, Object closure)
@@ -118,6 +127,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClient = adminClient;
 		_adminClosure = closure;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -130,7 +140,8 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		/* the client needs to be set before calling initialize, so the proper item callbacks are set */
 		_adminClient = client;
 		_adminClosure = closure;
-		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);		
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
+		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 	}
 
 	OmmConsumerImpl(OmmConsumerConfig config, OmmConsumerErrorClient client)
@@ -138,6 +149,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		super();
 		_activeConfig = new OmmConsumerActiveConfig();
 		_consumerErrorClient = client;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -152,6 +164,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClosure = null;
 		_consumerErrorClient = client;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -166,6 +179,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClosure = closure;
 		_consumerErrorClient = client;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -179,6 +193,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClient = adminClient;
 		_adminClosure = null;
 		_consumerErrorClient = client;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -193,6 +208,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClosure = closure;
 		_consumerErrorClient = client;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -207,6 +223,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClosure = null;
 		_consumerErrorClient = client;
 		_OAuthConsumerClient = OAuthClient;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -220,6 +237,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_adminClient = adminClient;
 		_adminClosure = closure;
 		_consumerErrorClient = client;
+		_serviceListMap = ((OmmConsumerConfigImpl)config).serviceListMap();
 		super.initialize(_activeConfig, (OmmConsumerConfigImpl)config);
 		
 		_rsslSubmitOptions.writeArgs().priority(WritePriorities.HIGH);		
@@ -322,6 +340,12 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		default:
 			break;
 		}
+	}
+
+	@Override
+	void onDispatchError(String text, int errorCode)
+	{
+		_consumerErrorClient.onDispatchError(text, errorCode);
 	}
 
 	@Override
@@ -470,28 +494,13 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 			if (_eventTimeout)
 			{
 				strBuilder().append("directory retrieval failed (timed out after waiting ")
-						.append(_activeConfig.directoryRequestTimeOut).append(" milliseconds) for ");
-				ChannelInfo loginChanInfo = _loginCallbackClient.activeChannelInfo();
-				if( loginChanInfo._channelConfig.rsslConnectionType  == ConnectionTypes.SOCKET ||
-						loginChanInfo._channelConfig.rsslConnectionType  == ConnectionTypes.WEBSOCKET)
-				{
-					SocketChannelConfig channelConfig = (SocketChannelConfig) loginChanInfo._channelConfig;
-					_strBuilder.append(channelConfig.hostName).append(":").append(channelConfig.serviceName)
-							.append(")");
-				}
-				else if (loginChanInfo._channelConfig.rsslConnectionType == ConnectionTypes.HTTP || 
-						 loginChanInfo._channelConfig.rsslConnectionType == ConnectionTypes.ENCRYPTED)
-				{
-					HttpChannelConfig channelConfig = ((HttpChannelConfig) loginChanInfo._channelConfig);
-					_strBuilder.append(channelConfig.hostName).append(":").append(channelConfig.serviceName)
-							.append(")");
-				}
-				
-				String excepText = _strBuilder.toString();
-				
+						.append(_activeConfig.directoryRequestTimeOut).append(" milliseconds) ");
+
+				String excepText = createExceptionMessage();
+
 				if (loggerClient().isErrorEnabled())
 					loggerClient().error(formatLogMessage(_activeConfig.instanceName, excepText, Severity.ERROR));
-	
+
 				throw ommIUExcept().message(excepText, OmmInvalidUsageException.ErrorCode.DIRECTORY_REQUEST_TIME_OUT);
 			} else
 				timeoutEvent.cancel();
@@ -512,28 +521,13 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 	
 			while (!_eventTimeout && !dictionaryCallbackClient().isDictionaryReady())
 				rsslReactorDispatchLoop(_activeConfig.dispatchTimeoutApiThread, _activeConfig.maxDispatchCountApiThread);
-	
+
 			if (_eventTimeout)
 			{
 				strBuilder().append("dictionary retrieval failed (timed out after waiting ")
-						.append(_activeConfig.dictionaryRequestTimeOut).append(" milliseconds) for ");
-				ChannelInfo loginChanInfo = _loginCallbackClient.activeChannelInfo();
-				if( loginChanInfo._channelConfig.rsslConnectionType  == ConnectionTypes.SOCKET ||
-						loginChanInfo._channelConfig.rsslConnectionType  == ConnectionTypes.WEBSOCKET)
-				{
-					SocketChannelConfig channelConfig = (SocketChannelConfig) loginChanInfo._channelConfig;
-					_strBuilder.append(channelConfig.hostName).append(":").append(channelConfig.serviceName)
-							.append(")");
-				}
-				else if (loginChanInfo._channelConfig.rsslConnectionType == ConnectionTypes.HTTP || 
-						 loginChanInfo._channelConfig.rsslConnectionType == ConnectionTypes.ENCRYPTED)
-				{
-					HttpChannelConfig channelConfig = ((HttpChannelConfig) loginChanInfo._channelConfig);
-					_strBuilder.append(channelConfig.hostName).append(":").append(channelConfig.serviceName)
-							.append(")");
-				}
-	
-				String excepText = _strBuilder.toString();
+						.append(_activeConfig.dictionaryRequestTimeOut).append(" milliseconds) ");
+
+				String excepText = createExceptionMessage();
 				
 				if (loggerClient().isErrorEnabled())
 					loggerClient().error(formatLogMessage(_activeConfig.instanceName, excepText, Severity.ERROR));
@@ -542,6 +536,34 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 			} else
 				timeoutEvent.cancel();
 		}
+	}
+
+	private String createExceptionMessage() {
+		ChannelInfo loginChanInfo = _loginCallbackClient.activeChannelInfo();
+		if (loginChanInfo != null) {
+			if( loginChanInfo._channelConfig.rsslConnectionType  == ConnectionTypes.SOCKET ||
+					loginChanInfo._channelConfig.rsslConnectionType  == ConnectionTypes.WEBSOCKET)
+			{
+				SocketChannelConfig channelConfig = (SocketChannelConfig) loginChanInfo._channelConfig;
+				_strBuilder.append("for ")
+						.append(channelConfig.hostName)
+						.append(":")
+						.append(channelConfig.serviceName)
+						.append(")");
+			}
+			else if (loginChanInfo._channelConfig.rsslConnectionType == ConnectionTypes.HTTP ||
+					loginChanInfo._channelConfig.rsslConnectionType == ConnectionTypes.ENCRYPTED)
+			{
+				HttpChannelConfig channelConfig = ((HttpChannelConfig) loginChanInfo._channelConfig);
+				_strBuilder.append("for ")
+						.append(channelConfig.hostName)
+						.append(":")
+						.append(channelConfig.serviceName)
+						.append(")");
+			}
+		}
+
+		return _strBuilder.toString();
 	}
 
 	@Override
@@ -571,6 +593,20 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		
 		_loginCallbackClient = new LoginCallbackClientConsumer(this);;
 		_loginCallbackClient.initialize();
+		
+		/* Checks whether the session channel is enabled */
+		if (activeConfig().configSessionChannelSet.size() > 0)
+		{
+			new ConsumerSession<OmmConsumerClient>(this, _serviceListMap);
+			
+			/* Turn on SingleOpen feature in the watchlist as it is needed to recover items for the WSB feature */
+			_loginCallbackClient.rsslLoginRequest().attrib().applyHasSingleOpen();
+			_loginCallbackClient.rsslLoginRequest().attrib().singleOpen(1);
+			_loginCallbackClient.rsslLoginRequest().attrib().applyHasAllowSuspectData();
+			_loginCallbackClient.rsslLoginRequest().attrib().allowSuspectData(1);
+			
+			consumerSession().enableSingleOpen(true);
+		}
 
 		_dictionaryCallbackClient = new DictionaryCallbackClientConsumer(this);
 		_dictionaryCallbackClient.initialize();
@@ -631,9 +667,19 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_channelCallbackClient = new ChannelCallbackClient<>(this,_rsslReactor);
 		_channelCallbackClient.initializeConsumerRole(_loginCallbackClient.rsslLoginRequest(), _directoryCallbackClient.rsslDirectoryRequest(), config, reactorOAuthCallback);
 
-		handleLoginReqTimeout();
-		loadDirectory();
-		loadDictionary();
+		if(consumerSession() != null)
+		{
+			consumerSession().handleLoginReqTimeout();
+			consumerSession().loadDirectory();
+			consumerSession().loadDictionary();
+			consumerSession().reorderSessionChannelInfoForSessionDirectory();
+		}
+		else
+		{	
+			handleLoginReqTimeout();
+			loadDirectory();
+			loadDictionary();
+		}
 	}
 	
 	@Override
@@ -668,7 +714,9 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 			if (userLock().isLocked()) {
 				userLock().unlock();
 			}
-			throw (ommJCExcept().message(sessionInfo, errorCode, text));
+			if (_activeConfig.userDispatch != OperationModel.API_DISPATCH) {
+				throw (ommJCExcept().message(sessionInfo, errorCode, text));
+			}
 		}
 	}
 
@@ -693,6 +741,14 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 	@Override
 	public void channelInformation(ChannelInformation channelInformation)
 	{
+		if(consumerSession() != null)
+		{
+			StringBuilder temp = strBuilder();
+			temp.append("The request routing feature do not support the channelInformation method. The sessionChannelInfo() must be used instead.");
+			handleInvalidUsage(temp.toString(), OmmInvalidUsageException.ErrorCode.INVALID_OPERATION);
+			return;
+		}
+		
 		if (_loginCallbackClient == null || _loginCallbackClient.loginChannelList().isEmpty()) {
 			channelInformation.clear();
 			return;
@@ -732,6 +788,15 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 				else {
 					channelInformation.componentInfo(rci.channelInfo().componentInfo().get(0).componentVersion().toString());
 				}
+				if (rci.channelInfo() == null ||
+					rci.channelInfo().securityProtocol() == null ||
+					rci.channelInfo().securityProtocol().isEmpty())
+				{
+					channelInformation.securityProtocol("unavailable");
+				}
+				else {
+					channelInformation.securityProtocol(rci.channelInfo().securityProtocol());
+				}
 			}
 			
 			Channel channel = reactorChannel.channel();
@@ -743,6 +808,7 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 				channelInformation.majorVersion(channel.majorVersion());
 				channelInformation.minorVersion(channel.minorVersion());
 				channelInformation.pingTimeout(channel.pingTimeout());
+				channelInformation.encryptedConnectionType(channel.encryptedConnectionType());
 			}
 			else {
 				channelInformation.channelState(ChannelState.INACTIVE);
@@ -778,46 +844,59 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 	{
 		super.userLock().lock();
 		
-		int ret;
-		if(_inOAuth2Callback == false)
+		try
 		{
+			int ret;
+			if(_inOAuth2Callback == false)
+			{
+				
+				strBuilder().append("Cannot call submitOAuthCredentialRenewal outside of a callback.");
+				handleInvalidUsage(_strBuilder.toString(), OmmInvalidUsageException.ErrorCode.INVALID_OPERATION);
+				return;	
+			}
 			
-			strBuilder().append("Cannot call submitOAuthCredentialRenewal outside of a callback.");
-			super.userLock().unlock();
-			handleInvalidUsage(_strBuilder.toString(), OmmInvalidUsageException.ErrorCode.INVALID_OPERATION);
-			return;
+			boolean noActiveChannel = false;
 			
+			if(consumerSession() != null)
+			{
+				noActiveChannel = !consumerSession().hasActiveChannel();
+			}
+			else
+			{
+				noActiveChannel = ( _loginCallbackClient.activeChannelInfo() == null ||  _loginCallbackClient.activeChannelInfo().rsslReactorChannel() == null);
+			}
+			
+			if(noActiveChannel)
+			{
+				strBuilder().append("No active channel to submit credential change.");
+				handleInvalidUsage(_strBuilder.toString(), OmmInvalidUsageException.ErrorCode.NO_ACTIVE_CHANNEL);
+				return;
+			}
+			
+			ReactorOAuthCredentialRenewal creds = ((OAuth2CredentialRenewalImpl)credentials).getReactorOAuthCredentialRenewal();
+			
+			if(creds.newPassword().length() != 0)
+			{
+				_OAuthRenewalOpts.renewalModes(RenewalModes.PASSWORD_CHANGE);
+			}
+			else
+			{
+				_OAuthRenewalOpts.renewalModes(RenewalModes.PASSWORD);
+			}
+			
+			ret =  _rsslReactor.submitOAuthCredentialRenewal(_OAuthRenewalOpts, creds, _rsslErrorInfo);
+			if(ret != TransportReturnCodes.SUCCESS)
+			{
+				strBuilder().append("Failed to update OAuth credentials. Error text: ")
+				.append(_rsslErrorInfo.error().text());
+				handleInvalidUsage(_strBuilder.toString(), OmmInvalidUsageException.ErrorCode.FAILURE);
+				return;
+			}
 		}
-		if( _loginCallbackClient.activeChannelInfo() == null ||  _loginCallbackClient.activeChannelInfo().rsslReactorChannel() == null)
+		finally
 		{
-			strBuilder().append("No active channel to submit credential change.");
 			super.userLock().unlock();
-			handleInvalidUsage(_strBuilder.toString(), OmmInvalidUsageException.ErrorCode.NO_ACTIVE_CHANNEL);
-			return;
 		}
-		
-		ReactorOAuthCredentialRenewal creds = ((OAuth2CredentialRenewalImpl)credentials).getReactorOAuthCredentialRenewal();
-		
-		if(creds.newPassword().length() != 0)
-		{
-			_OAuthRenewalOpts.renewalModes(RenewalModes.PASSWORD_CHANGE);
-		}
-		else
-		{
-			_OAuthRenewalOpts.renewalModes(RenewalModes.PASSWORD);
-		}
-		
-		ret =  _loginCallbackClient.activeChannelInfo().rsslReactorChannel().reactor().submitOAuthCredentialRenewal(_OAuthRenewalOpts, creds, _rsslErrorInfo);
-		if(ret != TransportReturnCodes.SUCCESS)
-		{
-			strBuilder().append("Failed to update OAuth credentials. Error text: ")
-			.append(_rsslErrorInfo.error().text());
-			super.userLock().unlock();
-			handleInvalidUsage(_strBuilder.toString(), OmmInvalidUsageException.ErrorCode.FAILURE);
-			return;
-		}
-		
-		return;
 	}
 	
 	public int reactorOAuthCredentialEventCallback(ReactorOAuthCredentialEvent reactorOAuthCredentialEvent)
@@ -829,5 +908,73 @@ class OmmConsumerImpl extends OmmBaseImpl<OmmConsumerClient> implements OmmConsu
 		_OAuthConsumerClient.onOAuth2CredentialRenewal(_OAuthEvent);
 		
 		return ReactorCallbackReturnCodes.SUCCESS;
+	}
+	
+	private void populateChannelInfomation(ChannelInformationImpl channelInfoImpl, ReactorChannel reactorChannel, ChannelInfo channelInfo)
+	{
+		if (reactorChannel != null) {
+			channelInfoImpl.set(reactorChannel);
+			
+			if(channelInfo != null)
+			{
+				SessionChannelInfo<OmmConsumerClient> sessionChannelInfo = channelInfo.sessionChannelInfo();
+				
+				channelInfoImpl.channelName(channelInfo._channelConfig.name);
+				
+				if(sessionChannelInfo != null)
+				{
+					channelInfoImpl.sessionChannelName(sessionChannelInfo.sessionChannelConfig().name);
+				}
+			}
+			
+			channelInfoImpl.ipAddress("not available for OmmConsumer connections");
+			channelInfoImpl.port(reactorChannel.port());
+		}
+	}
+
+	@Override
+	public void sessionChannelInfo(List<ChannelInformation> sessionChannelInfo)
+	{
+		if(sessionChannelInfo == null)
+			return;
+		
+		userLock().lock();
+		
+		try
+		{
+		
+			sessionChannelInfo.clear();
+			
+			ChannelInfo channelInfo = null;
+			ChannelInformationImpl channelInfoImpl;
+			
+			if(consumerSession() != null)
+			{
+				List<SessionChannelInfo<OmmConsumerClient>> sessionChannelInfoList = consumerSession().sessionChannelList();
+				
+				for(SessionChannelInfo<OmmConsumerClient> sessionChInfo : sessionChannelInfoList)
+				{
+					ReactorChannel reactorChannel = sessionChInfo.reactorChannel();
+					
+					if(reactorChannel != null)
+					{
+						channelInfo = (ChannelInfo)reactorChannel.userSpecObj();
+						
+						if(channelInfo != null)
+						{
+							channelInfoImpl = new ChannelInformationImpl();
+							
+							populateChannelInfomation(channelInfoImpl, reactorChannel, channelInfo);
+							
+							sessionChannelInfo.add(channelInfoImpl);
+						}
+					}
+				}
+			}
+		}
+		finally
+		{
+			userLock().unlock();
+		}
 	}
 }

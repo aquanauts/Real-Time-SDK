@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019, 2024 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -251,6 +251,67 @@ TEST(RefreshMsgTests, testRefreshMsgWithXml)
 	}
 }
 
+TEST(RefreshMsgTests, testRefreshMsgWithJson)
+{
+
+	RsslDataDictionary dictionary;
+
+	try
+	{
+		RsslRefreshMsg refresh;
+		rsslClearRefreshMsg( &refresh );
+
+		RsslMsgKey msgKey;
+		rsslClearMsgKey( &msgKey );
+
+		RsslBuffer nameBuffer;
+		nameBuffer.data = const_cast<char*>("ABCDEF");
+		nameBuffer.length = 6;
+
+		msgKey.name = nameBuffer;
+		rsslMsgKeyApplyHasName( &msgKey );
+
+		msgKey.nameType = 1;
+		rsslMsgKeyApplyHasNameType( &msgKey );
+
+		msgKey.serviceId = 2;
+		rsslMsgKeyApplyHasServiceId( &msgKey );
+
+		msgKey.identifier = 4;
+		rsslMsgKeyApplyHasIdentifier( &msgKey );
+
+		refresh.msgBase.msgKey = msgKey;
+		rsslRefreshMsgApplyHasMsgKey( &refresh );
+
+		char buffer[200];
+		RsslBuffer rsslBuf;
+		rsslBuf.data = buffer;
+		rsslBuf.length = 200;
+
+		RsslBuffer jsonValue;
+		jsonValue.data = ( char* )"{\"consumerList\":{\"consumer\":{\"name\":\"\",\"dataType\":\"Ascii\",\"value\":\"Consumer_1\"}}}";
+		jsonValue.length = static_cast<rtrUInt32>( strlen( jsonValue.data ) );
+
+		encodeNonRWFData( &rsslBuf, &jsonValue );
+
+		refresh.msgBase.encDataBody = rsslBuf;
+		refresh.msgBase.containerType = RSSL_DT_JSON;
+
+		RefreshMsg respMsg;
+
+		StaticDecoder::setRsslData( &respMsg, ( RsslMsg* )&refresh, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, &dictionary );
+
+		EXPECT_EQ( respMsg.getPayload().getDataType(), DataType::JsonEnum ) << "respMsg.getPayload().getDataType() == DataType::JsonEnum" ;
+
+		EmaBuffer compareTo( jsonValue.data, jsonValue.length );
+		EXPECT_STREQ( respMsg.getPayload().getJson().getBuffer(), compareTo ) << "respMsg.getPayload().getJson().getBuffer()" ;
+	}
+	catch ( const OmmException& )
+	{
+		EXPECT_FALSE( true ) << "RefreshMsg Decode with Json payload - exception not expected" ;
+	}
+}
+
 TEST(RefreshMsgTests, testRefreshMsgWithAnsiPage)
 {
 
@@ -319,11 +380,72 @@ TEST(RefreshMsgTests, testRefreshMsgEncodeDecode)
 	// load dictionary for decoding of the field list
 	RsslDataDictionary dictionary;
 
+	const EmaString refreshMsgString = 
+		"RefreshMsg\n"
+		"    streamId=\"1\"\n"
+		"    domain=\"MarketPrice Domain\"\n"
+		"    state=\"Open / Ok / None / 'Status Text'\"\n"
+		"    itemGroup=\"32 39\"\n"
+		"    name=\"TRI.N\"\n"
+		"    nameType=\"1\"\n"
+		"    filter=\"8\"\n"
+		"    id=\"4\"\n"
+		"    Attrib dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"\n"
+		"    AttribEnd\n"
+		"    ExtendedHeader\n"
+		"        65 78 74 65 6E 64\n"
+		"    ExtendedHeaderEnd\n"
+		"    Payload dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"\n"
+		"    PayloadEnd\n"
+		"RefreshMsgEnd\n";
+
+	const EmaString refreshMsgEmptyString =
+		"RefreshMsg\n"
+		"    streamId=\"0\"\n"
+		"    domain=\"MarketPrice Domain\"\n"
+		"    state=\"Open / Ok / None / ''\"\n"
+		"    itemGroup=\"00 00\"\n"
+		"RefreshMsgEnd\n";
+
 	ASSERT_TRUE(loadDictionaryFromFile( &dictionary )) << "Failed to load dictionary";
+
+	DataDictionary emaDataDictionary, emaDataDictionaryEmpty;
+
+	try {
+		emaDataDictionary.loadFieldDictionary("RDMFieldDictionaryTest");
+		emaDataDictionary.loadEnumTypeDictionary("enumtypeTest.def");
+	}
+	catch (const OmmException&) {
+		ASSERT_TRUE(false) << "DataDictionary::loadFieldDictionary() failed to load dictionary information";
+	}
 
 	try
 	{
-		RefreshMsg refresh;
+		RefreshMsg refresh, refreshEmpty;
 
 		FieldList flEnc;
 		EmaEncodeFieldListAll( flEnc );
@@ -348,14 +470,21 @@ TEST(RefreshMsgTests, testRefreshMsgEncodeDecode)
 		refresh.extendedHeader( extendedHeader );
 		refresh.attrib( flEnc );
 		refresh.payload( flEnc );
-		EXPECT_EQ( refresh.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "RefreshMsg.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( refresh.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "RefreshMsg.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
+		EXPECT_EQ( refresh.toString( emaDataDictionaryEmpty ), "\nDictionary is not loaded.\n") << "RefreshMsg.toString() == Dictionary is not loaded.";
 
-		//1st time
-		//Now do EMA decoding of RespMsg
-		StaticDecoder::setData( &refresh, &dictionary );
-		EXPECT_NE( refresh.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "RefreshMsg.toString() != Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( refreshEmpty.toString( emaDataDictionary ), refreshMsgEmptyString ) << "RefreshMsg.toString() == refreshMsgEmptyString";
 
+		EXPECT_EQ( refresh.toString( emaDataDictionary ), refreshMsgString ) << "RefreshMsg.toString() == refreshMsgString";
+
+		StaticDecoder::setData(&refresh, &dictionary);
+
+		RefreshMsg refreshClone( refresh );
+		refreshClone.clear();
+		EXPECT_EQ( refreshClone.toString( emaDataDictionary ), refreshMsgEmptyString) << "RefreshMsg.toString() == refreshMsgEmptyString";
+
+		EXPECT_EQ( refresh.toString(), refreshMsgString ) << "RefreshMsg.toString() == refreshMsgString";
 
 		EXPECT_TRUE( refresh.hasMsgKey() ) << "RefreshMsg::hasMsgKey() == true" ;
 

@@ -34,6 +34,18 @@ if (BUILD_WITH_PREBUILT_ETA_EMA_LIBRARIES)
                         )
 else()
 
+    find_package(Python3 REQUIRED)
+
+    add_custom_command(
+        OUTPUT Impl/EmaConfigImplSchemaByteData.cpp
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/Impl/ # Create output directory
+        COMMAND ${Python3_EXECUTABLE} "EmaConfigImplSchemaByteData.py"
+                         > ${CMAKE_CURRENT_BINARY_DIR}/Impl/EmaConfigImplSchemaByteData.cpp
+        DEPENDS ${Ema_SOURCE_DIR}/EmaConfig.xsd
+        WORKING_DIRECTORY ${Ema_SOURCE_DIR}/Src/Access/Impl
+        COMMENT "Generating EmaConfigImplSchemaByteData .... "
+        VERBATIM)
+
     set(EmaSrcFiles
             Impl/AckMsg.cpp Impl/Attrib.cpp
             Impl/AckMsgDecoder.cpp Impl/AckMsgDecoder.h
@@ -45,6 +57,10 @@ else()
             Impl/ChannelStatistics.cpp Impl/ChannelStatsImpl.h
             Impl/ClientSession.cpp Impl/ClientSession.h
             Impl/ComplexType.cpp Impl/ConfigErrorHandling.h
+			Impl/ConsumerRoutingChannel.cpp Impl/ConsumerRoutingChannel.h
+			Impl/ConsumerRoutingService.cpp Impl/ConsumerRoutingService.h
+			Impl/ConsumerRoutingSession.cpp Impl/ConsumerRoutingSession.h
+			Impl/ConsumerRoutingWatchlist.cpp Impl/ConsumerRoutingWatchlist.h
 	    Impl/ConsumerSessionInfo.cpp
             # Impl/D....
             Impl/Data.cpp Impl/DataType.cpp
@@ -65,6 +81,7 @@ else()
             Impl/EmaBufferInt.cpp Impl/EmaBufferInt.h
             Impl/EmaBufferU16.cpp Impl/EmaBufferU16Int.cpp Impl/EmaBufferU16Int.h
             Impl/EmaConfigImpl.cpp Impl/EmaConfigImpl.h
+            Impl/EmaConfigImplSchemaByteData.cpp
             Impl/EmaList.h
             Impl/EmaPool.cpp Impl/EmaPool.h
             Impl/EmaStaticCombined.cpp
@@ -170,6 +187,8 @@ else()
             Impl/OmmProviderErrorClient.cpp
             Impl/OmmProviderEvent.cpp
             Impl/OmmProviderImpl.cpp Impl/OmmProviderImpl.h
+            Impl/PackedMsg.cpp
+            Impl/PackedMsgImpl.cpp Impl/PackedMsgImpl.h
             Impl/OmmQos.cpp Impl/OmmQosDecoder.cpp Impl/OmmQosDecoder.h
             Impl/OmmReal.cpp Impl/OmmRealDecoder.cpp Impl/OmmRealDecoder.h
             Impl/OmmRmtes.cpp Impl/OmmRmtesDecoder.cpp Impl/OmmRmtesDecoder.h
@@ -185,13 +204,17 @@ else()
             Impl/OmmUtf8.cpp Impl/OmmUtf8Decoder.cpp Impl/OmmUtf8Decoder.h
             Impl/OmmXml.cpp Impl/OmmXmlDecoder.cpp Impl/OmmXmlDecoder.h
             Impl/OmmXmlEncoder.cpp Impl/OmmXmlEncoder.h
+            Impl/OmmJson.cpp Impl/OmmJsonDecoder.cpp Impl/OmmJsonDecoder.h
+            Impl/OmmJsonEncoder.cpp Impl/OmmJsonEncoder.h
             # Impl/R,P...
 			Impl/Parser.cpp Impl/Payload.cpp
             Impl/Pipe.cpp Impl/Pipe.h
             Impl/PostMsg.cpp Impl/PostMsgDecoder.cpp Impl/PostMsgDecoder.h
             Impl/PostMsgEncoder.cpp Impl/PostMsgEncoder.h
+            Impl/PreferredHostOptions.cpp
+            Impl/PreferredHostInfo.cpp
             Impl/ProgrammaticConfigure.cpp Impl/ProgrammaticConfigure.h
-	    Impl/ProviderSessionInfo.cpp
+            Impl/ProviderSessionInfo.cpp
             Impl/RefreshMsg.cpp Impl/RefreshMsgDecoder.cpp Impl/RefreshMsgDecoder.h
             Impl/RefreshMsgEncoder.cpp Impl/RefreshMsgEncoder.h
             Impl/ReqMsg.cpp Impl/ReqMsgDecoder.cpp Impl/ReqMsgDecoder.h
@@ -205,11 +228,13 @@ else()
             Impl/ServiceEndpointDiscovery.cpp
             Impl/ServiceEndpointDiscoveryImpl.cpp Impl/ServiceEndpointDiscoveryImpl.h
             Impl/ServiceEndpointDiscoveryClient.cpp
+            Impl/ServiceEndpointDiscoveryConfig.cpp
             Impl/ServiceEndpointDiscoveryEvent.cpp
             Impl/ServiceEndpointDiscoveryInfo.cpp
             Impl/ServiceEndpointDiscoveryOption.cpp
             Impl/ServiceEndpointDiscoveryResp.cpp    
             Impl/ServerChannelHandler.cpp Impl/ServerChannelHandler.h
+			Impl/ServiceList.cpp
             Impl/StaticDecoder.cpp Impl/StaticDecoder.h
             Impl/StatusMsg.cpp Impl/StatusMsgDecoder.cpp Impl/StatusMsgDecoder.h
             Impl/StatusMsgEncoder.cpp Impl/StatusMsgEncoder.h
@@ -246,6 +271,7 @@ else()
             Include/EmaBufferU16.h
             Include/EmaString.h
             Include/EmaVector.h
+            Include/EmaConfig.h
             Include/FieldEntry.h
             Include/FieldList.h
             Include/FilterEntry.h
@@ -254,6 +280,7 @@ else()
             Include/GetTime.h
             Include/IOCtlCode.h
             Include/IOCtlReactorCode.h
+            Include/IOCtlReactorChannelCode.h
             Include/Key.h
             Include/LoginMsgCredentialRenewal.h
             Include/Map.h
@@ -275,6 +302,7 @@ else()
             Include/OmmConsumerRestLoggingEvent.h
             Include/OmmDate.h
             Include/OmmDateTime.h
+            Include/DispatchError.h
             Include/OmmDouble.h
             Include/OmmEnum.h
             Include/OmmError.h
@@ -286,6 +314,7 @@ else()
             Include/OmmInvalidHandleException.h
             Include/OmmInvalidUsageException.h
             Include/OmmIProviderConfig.h
+            Include/OmmJson.h
             Include/OmmJsonConverterException.h
             Include/OmmMemoryExhaustionException.h
             Include/OmmNiProviderConfig.h
@@ -309,9 +338,12 @@ else()
             Include/OmmUtf8.h
             Include/OmmXml.h
             Include/Parser.h
+            Include/PackedMsg.h
             Include/Payload.h
             Include/PostMsg.h
+            Include/PreferredHostOptions.h
             Include/ProviderSessionInfo.h
+            Include/PreferredHostInfo.h
             Include/RefreshMsg.h
             Include/ReqMsg.h
             Include/RmtesBuffer.h
@@ -319,10 +351,12 @@ else()
             Include/SeriesEntry.h
             Include/ServiceEndpointDiscovery.h
             Include/ServiceEndpointDiscoveryClient.h
+            Include/ServiceEndpointDiscoveryConfig.h
             Include/ServiceEndpointDiscoveryEvent.h
             Include/ServiceEndpointDiscoveryInfo.h
             Include/ServiceEndpointDiscoveryOption.h
             Include/ServiceEndpointDiscoveryResp.h
+			Include/ServiceList.h
             Include/SessionInfo.h
             Include/StatusMsg.h
             Include/SummaryData.h

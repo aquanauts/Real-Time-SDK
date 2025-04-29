@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -43,7 +43,7 @@ public :
 
 		NoBuffersEnum = -4,                     /*!< There are no buffers available from the buffer pool. */
 
-		BufferTooSmallEnum = -21,               /*!< The buffer provided does not have sufficient space to perform the operation. */
+		BufferTooSmallEnum = -21,               /*!< The buffer provided (or the remaining buffer space for message packing) does not have sufficient space to perform the operation. */
 
 		InvalidArgumentEnum = -22,              /*!< An invalid argument was provided. */
 

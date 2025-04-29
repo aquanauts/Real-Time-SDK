@@ -1,8 +1,8 @@
 #[=============================================================================[
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024, 2025 LSEG. All rights reserved.
 #]=============================================================================]
 
 if (_rcdevSystemInfoInclude)
@@ -147,76 +147,18 @@ endmacro()
 
 
 function(get_lsb_release_info _relid _relnum)
-	# For now, this will only support identifying Linux flavors via
-	# lsb_release.  As new/older platforms arise which do not have lsb_release
-	# a condition will be added to check its /etc/???-release for info.
-	find_program(_lsb_binary lsb_release)
-	if (_lsb_binary)
-		set(_lsb_binary "${_lsb_binary}" CACHE INTERNAL "")
-		execute_process(COMMAND ${_lsb_binary} -si 
-						RESULT_VARIABLE _retval
-						OUTPUT_VARIABLE _id
-						OUTPUT_STRIP_TRAILING_WHITESPACE
-						ERROR_STRIP_TRAILING_WHITESPACE)
-		if (_retval EQUAL 0)
-			set(${_relid} "${_id}" PARENT_SCOPE)
-		endif()
-		unset(_retval)
-		execute_process(COMMAND ${_lsb_binary} -sr 
-						RESULT_VARIABLE _retval
-						OUTPUT_VARIABLE _num
-						OUTPUT_STRIP_TRAILING_WHITESPACE
-						ERROR_STRIP_TRAILING_WHITESPACE)
-		if (_retval EQUAL 0)
-			set(${_relnum} "${_num}" PARENT_SCOPE)
-		endif()
+	cmake_host_system_information(RESULT _id QUERY DISTRIB_NAME)
+	string(REGEX REPLACE " " "" _id "${_id}")
+	set(${_relid} "${_id}" PARENT_SCOPE)
 
-		unset(_lsb_binary CACHE)
-	else()
-		#[========================================================[
-		# if /etc/os-release then freedesktop.org and systemd
-			if (EXISTS "/etc/os-release")
-		# For some versions of Debian/Ubuntu without lsb_release command
-			elseif(EXISTS "/etc/lsb-release")
-		# Older Debian/Ubuntu/etc.
-			elseif("/etc/debian_version")
-		# Older SuSE/etc.
-			elseif("/etc/SuSe-release")
-		# Older Red Hat, CentOS, etc.
-			elseif("/etc/redhat-release")
-		# Fall back to uname, e.g. "Linux <version>", also works for BSD, etc.
-			else()
-		endif()
-		#]========================================================]
-		find_program(_uname_binary uname)
-		if (_uname_binary)
-			set(_uname_binary "${_uname_binary}" CACHE INTERNAL "")
-			execute_process(COMMAND ${_uname_binary} -s 
-				RESULT_VARIABLE _retval
-				OUTPUT_VARIABLE _id
-				OUTPUT_STRIP_TRAILING_WHITESPACE
-				ERROR_STRIP_TRAILING_WHITESPACE)
-			if (_retval EQUAL 0)
-				set(${_relid} "${_id}" PARENT_SCOPE)
-			endif()
-			
-			execute_process(COMMAND ${_uname_binary} -r
-				RESULT_VARIABLE _retval
-				OUTPUT_VARIABLE _num
-				OUTPUT_STRIP_TRAILING_WHITESPACE
-				ERROR_STRIP_TRAILING_WHITESPACE)
-			if (_retval EQUAL 0)
-				set(${_relnum} "${_num}" PARENT_SCOPE)
-			endif()
-			
-			unset(_uname_binary CACHE)
-		endif()
-	endif()
-	
-	unset(_retval)
+	cmake_host_system_information(RESULT _num QUERY DISTRIB_VERSION_ID)
+	string(STRIP "${_num}" _num)
+	string(REGEX REPLACE "[a-zA-Z]" "" _num "${_num}")
+	string(REGEX REPLACE "\\.0"  "." _num "${_num}")
+	set(${_relnum} "${_num}" PARENT_SCOPE)
+
 	unset(_id)
 	unset(_num)
-
 endfunction()
 
 # Because of some legacy static path definitions, some paths
@@ -236,6 +178,8 @@ macro(rcdev_normalize_compiler)
 			set(_compilerVer "482")
 		elseif(RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 8)
 			set(_compilerVer "831")
+		elseif(RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 9)
+			set(_compilerVer "1141")
 		endif()
 	endif()
 	if(_compilerVer)
@@ -258,8 +202,19 @@ function(rcdev_get_normalized_platform_suffix suffix)
 			rcdev_get_platform_suffix(_sfx "gcc" "centOS")
 		elseif ( ((RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "CENTOS") OR
 				 (RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "REDHATLINUX")) AND 
-				 (RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 8 ) )
+				((RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 8 ) OR (RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 9)) )
 			rcdev_get_platform_suffix(_sfx "gcc" "rhel")
+		elseif ((RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "AMAZON") AND
+				(RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 2023 ))
+			rcdev_get_platform_suffix(_sfx "rhel9" "compiler_rhel9")
+		elseif ((RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "AMAZON") AND
+				(RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 2 ))
+			rcdev_get_platform_suffix(_sfx "rhel8" "compiler_rhel8")
+		elseif ((RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "UBUNTU") AND
+				(RCDEV_HOST_SYSTEM_FLAVOR_REL GREATER_EQUAL 22 ))
+			rcdev_get_platform_suffix(_sfx "rhel9" "compiler_rhel9")
+		elseif ((RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "UBUNTU") OR (RCDEV_HOST_SYSTEM_FLAVOR_U MATCHES "KYLIN"))
+			rcdev_get_platform_suffix(_sfx "rhel8" "compiler_rhel8")
 		else()
 			rcdev_get_platform_suffix(_sfx "gcc" )
 		endif()
@@ -267,6 +222,8 @@ function(rcdev_get_normalized_platform_suffix suffix)
 	set(${suffix} "${_sfx}" PARENT_SCOPE)		
 endfunction()
 
+# For the current release, all Ubuntu releases are getting normalized on RHEL8
+# This will be updated as Ubuntu versions come out.
 function(rcdev_get_platform_suffix suffix)
 
 	set(_abbrev ${RCDEV_HOST_SYSTEM_NAME_ABREV})
@@ -281,11 +238,20 @@ function(rcdev_get_platform_suffix suffix)
 				string (TOUPPER "${_arg}" _arg_U)
 				if (${_arg_U} MATCHES "GCC")
 					set(_compiler "GCC${RCDEV_HOST_COMPILER_VER}")
-				endif()
-				if (${_arg_U} MATCHES "RHEL")
+				elseif (${_arg_U} MATCHES "COMPILER_RHEL8")
+					set(_compiler "GCC831")
+				elseif (${_arg_U} MATCHES "COMPILER_RHEL9")
+					set(_compiler "GCC1141")
+				elseif (${_arg_U} MATCHES "RHEL8")
+					set(_abbrev "RHEL8")
+				elseif (${_arg_U} MATCHES "RHEL9")
+					set(_abbrev "RHEL9")
+				elseif (${_arg_U} MATCHES "RHEL")
 					set(_abbrev  "RHEL${RCDEV_HOST_SYSTEM_FLAVOR_REL}")
 				elseif (${_arg_U} MATCHES "CENTOS")
 					set(_abbrev  "OL${RCDEV_HOST_SYSTEM_FLAVOR_REL}")
+				elseif (${_arg_U} MATCHES "UBUNTU")
+					set(_abbrev "RHEL8")
 				endif()
 			endforeach()
 		endif()
@@ -494,6 +460,8 @@ if (UNIX)
 				set(_compilerVer "482")
 			elseif(RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 8)
 				set(_compilerVer "831")
+			elseif(RCDEV_HOST_SYSTEM_FLAVOR_REL EQUAL 9)
+				set(_compilerVer "1141")
 			endif()
 		endif()
 	endif()
@@ -539,7 +507,8 @@ elseif (CMAKE_HOST_WIN32)
 	set(RCDEV_HOST_COMPILER_L ${RCDEV_HOST_COMPILER_L})
 	if (MSVC)
 		DEBUG_PRINT(MSVC_TOOLSET_VERSION)
-		if (MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS_EQUAL 1939)
+		# Checks MSVC_VERSION according to https://cmake.org/cmake/help/latest/variable/MSVC_VERSION.html
+		if (MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS_EQUAL 1949)
 			set(_compilerVer "143")
 			set(_msvcVer "17")
 			set(_msvcYear "2022")

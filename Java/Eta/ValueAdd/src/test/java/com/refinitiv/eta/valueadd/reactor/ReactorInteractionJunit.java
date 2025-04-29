@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.eta.valueadd.reactor;
@@ -487,9 +487,9 @@ public class ReactorInteractionJunit
     public void VerifyNIProviderRoleMsgCopyTest()
     {
         /* Verify message attached to the NIProviderRole are copied. */
-        
+    	
         /* Create dummy ReactorChannel for test. */
-        ReactorChannel reactorChannel = ReactorFactory.createReactorChannel();
+        ReactorChannel reactorChannel = new ReactorChannel();
         
         /* Create user NIProviderRole, initialize default messages and set on dummy ReactorChannel. */
         NIProviderRole userNIProviderRole = ReactorFactory.createNIProviderRole();

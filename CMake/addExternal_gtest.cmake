@@ -1,21 +1,36 @@
 #[=============================================================================[
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license 
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.   
+ *|           Copyright (C) 2022, 2024, 2025 LSEG. All rights reserved.
 #]=============================================================================]
 
 
 include(rcdevExternalUtils)
 
-if(NOT gtest_url)
-	set(gtest_url "https://github.com/abseil/googletest/archive/release-1.8.1.tar.gz")
-endif()
-if(NOT gtest_hash)
-	set(gtest_hash "MD5=2e6fbeb6a91310a16efe181886c59596")
-endif()
-if(NOT gtest_version)
-	set(gtest_version "1.8.1")
+set(gtest_version_cpp98 "1.8.1" CACHE STRING "")
+set(gtest_version_cpp11 "1.12.1" CACHE STRING "")
+
+if( UNIX AND (RCDEV_HOST_SYSTEM_FLAVOR_REL LESS_EQUAL 7) )
+	if(NOT gtest_url)
+		set(gtest_url "https://github.com/abseil/googletest/archive/release-${gtest_version_cpp98}.tar.gz")
+	endif()
+	if(NOT gtest_hash)
+		set(gtest_hash "MD5=2e6fbeb6a91310a16efe181886c59596")
+	endif()
+	if(NOT gtest_version)
+		set(gtest_version "${gtest_version_cpp98}")
+	endif()
+else()
+	if(NOT gtest_url)
+		set(gtest_url "https://github.com/abseil/googletest/archive/release-${gtest_version_cpp11}.tar.gz")
+	endif()
+	if(NOT gtest_hash)
+		set(gtest_hash "MD5=e82199374acdfda3f425331028eb4e2a")
+	endif()
+	if(NOT gtest_version)
+		set(gtest_version "${gtest_version_cpp11}")
+	endif()
 endif()
 
 # If the option for using the system installed 
@@ -187,52 +202,6 @@ if(NOT TARGET GTest::GTest)
 		  RELEASE build type.
 		#]========================================================]
 
-if (CMAKE_VERSION VERSION_LESS 3.20)
-		get_property(_pval TARGET GTest::GTest PROPERTY IMPORTED_LOCATION_RELEASE SET)
-		if (NOT _pval)
-			if (EXISTS "${GTEST_LIBRARY}") 
-				set(GTEST_LIBRARY_RELEASE "${GTEST_LIBRARY}" CACHE FILEPATH "")
-			endif()
-			set_target_properties(GTest::GTest PROPERTIES 
-												IMPORTED_LOCATION_RELEASE ${GTEST_LIBRARY_RELEASE})
-		endif()
-		unset(_pval)
-
-		get_property(_pval TARGET GTest::Main PROPERTY IMPORTED_LOCATION_RELEASE SET)
-		if (NOT _pval)
-			if (EXISTS "${GTEST_MAIN_LIBRARY}") 
-				set(GTEST_MAIN_LIBRARY_RELEASE "${GTEST_MAIN_LIBRARY}" CACHE FILEPATH "")
-			endif()
-			set_target_properties(GTest::Main PROPERTIES 
-												IMPORTED_LOCATION_RELEASE ${GTEST_MAIN_LIBRARY_RELEASE})
-		endif()
-		unset(_pval)
-
-		get_property(_pval TARGET GTest::GTest PROPERTY IMPORTED_CONFIGURATIONS SET)
-		if (_pval)
-			get_target_property(_pval GTest::GTest IMPORTED_CONFIGURATIONS)
-			if (NOT (("Release" IN_LIST _pval) OR ("RELEASE" IN_LIST _pval)) ) 
-				set_property(TARGET GTest::GTest APPEND PROPERTY 
-										 				IMPORTED_CONFIGURATIONS RELEASE)
-			endif()
-		endif()
-		unset(_pval)
-
-		get_property(_pval TARGET GTest::Main PROPERTY IMPORTED_CONFIGURATIONS SET)
-		if (_pval)
-			get_target_property(_pval GTest::Main IMPORTED_CONFIGURATIONS)
-			if (NOT (("Release" IN_LIST _pval) OR ("RELEASE" IN_LIST _pval)) ) 
-				set_property(TARGET GTest::Main APPEND PROPERTY 
-										 				IMPORTED_CONFIGURATIONS RELEASE)
-			endif()
-		endif()
-		unset(_pval)
-
-		# Will Map Release => Release_MD, Debug => Debug_Mdd
-
-		rcdev_map_imported_ep_types(GTest::GTest)
-		rcdev_map_imported_ep_types(GTest::Main)
-else()
 		get_property(_pval TARGET GTest::gtest PROPERTY IMPORTED_LOCATION_RELEASE SET)
 		if (NOT _pval)
 			if (EXISTS "${GTEST_LIBRARY}") 
@@ -277,8 +246,6 @@ else()
 
 		rcdev_map_imported_ep_types(GTest::gtest)
 		rcdev_map_imported_ep_types(GTest::gtest_main)
-		add_library(GTest::Main ALIAS GTest::gtest)
-endif()
 	endif()
 
 	# If the gtest CMake find module starts to set a version number

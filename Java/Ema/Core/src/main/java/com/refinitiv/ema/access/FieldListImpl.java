@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -14,13 +14,16 @@ import java.util.LinkedList;
 
 import com.refinitiv.ema.access.DataType.DataTypes;
 import com.refinitiv.ema.access.OmmError.ErrorCode;
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.eta.codec.Buffer;
+import com.refinitiv.eta.codec.Codec;
 import com.refinitiv.eta.codec.CodecReturnCodes;
 
 class FieldListImpl extends CollectionDataImpl implements FieldList
 {
-	private com.refinitiv.eta.codec.FieldList	_rsslFieldList = com.refinitiv.eta.codec.CodecFactory.createFieldList();
+	private com.refinitiv.eta.codec.FieldList _fieldList = com.refinitiv.eta.codec.CodecFactory.createFieldList();
 	private LinkedList<FieldEntry> _fieldListCollection = new LinkedList<FieldEntry>(); 
+	private FieldListIterImpl _fieldListIterImpl = null;
 	DataDictionaryImpl _dataDictionaryImpl;
 	
 	FieldListImpl() 
@@ -31,10 +34,10 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 	FieldListImpl(EmaObjectManager objManager)
 	{
 		super(objManager);
-		
+
 		_dataDictionaryImpl = new DataDictionaryImpl(false);
 	} 
-			
+	
 	@Override
 	public int dataType()
 	{
@@ -44,7 +47,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 	@Override
 	public boolean hasInfo()
 	{
-		return _rsslFieldList.checkHasInfo();
+		return _fieldList.checkHasInfo();
 	}
 
 	@Override
@@ -53,7 +56,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		if (!hasInfo())
 			throw ommIUExcept().message("Attempt to infoFieldListNum() while FieldList Info is NOT set.", OmmInvalidUsageException.ErrorCode.INVALID_OPERATION);
 		
-		return _rsslFieldList.fieldListNum();
+		return _fieldList.fieldListNum();
 	}
 
 	@Override
@@ -62,7 +65,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		if (!hasInfo())
 			throw ommIUExcept().message("Attempt to infoDictionaryId() while FieldList Info is NOT set.", OmmInvalidUsageException.ErrorCode.INVALID_OPERATION);
 
-		return _rsslFieldList.dictionaryId();
+		return _fieldList.dictionaryId();
 	}
 
 	@Override
@@ -74,9 +77,9 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		if (fieldListNum < -32768 || fieldListNum > 32767)
 			throw ommOORExcept().message("fieldListNum is out of range [(-32768) - 32767].");
 
-		_rsslFieldList.dictionaryId(dictionaryId);
-		_rsslFieldList.fieldListNum(fieldListNum);
-		_rsslFieldList.applyHasInfo();
+		_fieldList.dictionaryId(dictionaryId);
+		_fieldList.fieldListNum(fieldListNum);
+		_fieldList.applyHasInfo();
 		
 		return this;
 	}
@@ -100,8 +103,21 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		
 		return new EmaIterator<FieldEntry>(_fieldListCollection.iterator());
 	}
+	
+	@Override
+	public Iterator<FieldEntry> iteratorByRef()
+	{
+		if (_fieldListIterImpl == null)
+			_fieldListIterImpl = new FieldListIterImpl(this);
+		else
+			_fieldListIterImpl.clear();
+		return _fieldListIterImpl;
+	}
 
 	@Override
+	// TODO when we change this, this will be expensive
+	// We have to copy the message and iterate entirely through it to count the entries
+	// Warn users this is expensive.
 	public int size()
 	{
 		if (_fillCollection)
@@ -125,7 +141,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		{
 			super.clear();
 		
-			_rsslFieldList.clear();
+			_fieldList.clear();
 			
 			int collectionSize = _fieldListCollection.size();
 			if (collectionSize > 0)
@@ -210,9 +226,35 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		_dataDictionaryImpl.rsslDataDictionary(null);
 		_dataDictionaryImpl.clearFlags();
 	}
-	
+
+	@Override
+	public String toString(DataDictionary dictionary)
+	{
+		if (!dictionary.isFieldDictionaryLoaded() || !dictionary.isEnumTypeDefLoaded())
+			return "\nDictionary is not loaded.\n";
+
+		if (_objManager == null)
+		{
+			_objManager = new EmaObjectManager();
+			_objManager.initialize(((DataImpl)this).dataType());
+		}
+
+		FieldList fieldList = new FieldListImpl(_objManager);
+
+		((CollectionDataImpl) fieldList).decode(((DataImpl)this).encodedData(), Codec.majorVersion(), Codec.minorVersion(), ((DataDictionaryImpl)dictionary).rsslDataDictionary(), null);
+		if (_errorCode != ErrorCode.NO_ERROR)
+		{
+			return "\nFailed to decode FieldList with error: " + ((CollectionDataImpl) fieldList).errorString() + "\n";
+		}
+
+		return fieldList.toString();
+	}
+	// TODO for decoding, we iterate through all entries and print similar to what we do now
 	String toString(int indent)
 	{
+		if ( _objManager == null )
+			return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
+
 		_toString.setLength(0);
 		Utilities.addIndent(_toString, indent).append("FieldList");
 				
@@ -237,8 +279,8 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 		{
 			load = (DataImpl) fieldEntry.load();
 			if ( load == null )
-				return "\nDecoding of just encoded object in the same application is not supported\n";
-			
+				return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
+
 			loadDataType = load.dataType();
 			Utilities.addIndent(_toString.append("\n"), indent).append("FieldEntry fid=\"")
 																  .append(fieldEntry.fieldId())
@@ -304,12 +346,12 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 			return;
 		}
 		
-		retCode = _rsslFieldList.decode(_rsslDecodeIter, _rsslLocalFLSetDefDb);
+		retCode = _fieldList.decode(_rsslDecodeIter, _rsslLocalFLSetDefDb);
 		switch (retCode)
 		{
 		case com.refinitiv.eta.codec.CodecReturnCodes.NO_DATA :
 			_errorCode = ErrorCode.NO_ERROR;
-			_rsslFieldList.flags(0);
+			_fieldList.flags(0);
 			_fillCollection = false;
 			clearCollection();
 			break;
@@ -405,7 +447,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 			return _rsslBuffer; 
 		
 		if (!_fieldListCollection.isEmpty())
-			_rsslFieldList.applyHasStandardData();
+			_fieldList.applyHasStandardData();
 
 		int ret = _rsslEncodeIter.setBufferAndRWFVersion(_rsslBuffer, _rsslMajVer, _rsslMinVer);
 	    if (ret != CodecReturnCodes.SUCCESS)
@@ -416,7 +458,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 	    	throw ommIUExcept().message(errText, ret);
 	    }
 	 
-	    while (( ret = _rsslFieldList.encodeInit(_rsslEncodeIter, null, 0)) == CodecReturnCodes.BUFFER_TOO_SMALL)
+	    while (( ret = _fieldList.encodeInit(_rsslEncodeIter, null, 0)) == CodecReturnCodes.BUFFER_TOO_SMALL)
 	    {
 	    	_rsslBuffer = Utilities.realignBuffer(_rsslEncodeIter, _rsslBuffer.capacity() * 2);
 	    }
@@ -443,7 +485,7 @@ class FieldListImpl extends CollectionDataImpl implements FieldList
 			 }
 		 }
 		 
-		ret =  _rsslFieldList.encodeComplete(_rsslEncodeIter, true);
+		ret =  _fieldList.encodeComplete(_rsslEncodeIter, true);
 	    if (ret != CodecReturnCodes.SUCCESS)
 	    {
 	    	String errText = errorString().append("Failed to complete encoding on rssl fieldlist. Reason='")

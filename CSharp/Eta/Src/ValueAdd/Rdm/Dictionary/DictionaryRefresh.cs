@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -487,33 +487,33 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             StringBuilder stringBuilder = PrepareStringBuilder();
-            stringBuilder.Insert(0, "DictionaryRefresh: \n");
+            stringBuilder.Insert(0, $"DictionaryRefresh: {NewLine}");
 
             stringBuilder.Append(tab);
             stringBuilder.Append("dictionaryName: ");
             stringBuilder.Append(DictionaryName);
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
 
             stringBuilder.Append(tab);
             stringBuilder.Append(State);
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
 
             stringBuilder.Append(tab);
             stringBuilder.Append("serviceId: ");
             stringBuilder.Append(ServiceId);
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
 
             stringBuilder.Append(tab);
             stringBuilder.Append("isRefreshComplete: " + RefreshComplete);
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
 
             stringBuilder.Append(tab);
             stringBuilder.Append("isClearCache: " + ClearCache);
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
 
             stringBuilder.Append(tab);
             stringBuilder.Append("isSolicited: " + Solicited);
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
 
             stringBuilder.Append(tab);
             stringBuilder.Append("verbosity: ");
@@ -543,7 +543,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuilder.Append("VERBOSE");
             }
 
-            stringBuilder.Append(eol);
+            stringBuilder.AppendLine();
             return stringBuilder.ToString();
         }
     }

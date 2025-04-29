@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 /*
@@ -296,9 +296,10 @@ RsslReactorCallbackRet directoryMsgCallback(RsslReactor *pReactor, RsslReactorCh
 			loginRequest.applicationId = appId;
 			rsslClearReactorSubmitMsgOptions(&submitMsgOpts);
 			submitMsgOpts.pRDMMsg = (RsslRDMMsg*)&loginRequest;
-			if ((ret = rsslReactorSubmitMsg(pReactor,pChannel,&submitMsgOpts,&rsslErrorInfo)) != RSSL_RET_SUCCESS )
+			if ((ret = rsslReactorSubmitMsg(pReactor, pChannel, &submitMsgOpts, &rsslErrorInfo)) != RSSL_RET_SUCCESS)
 			{
 				printf("APIQA: rsslReactorSubmitMsg failed when attempting to send RESUME ALL:  %d(%s)\n", ret, rsslErrorInfo.rsslError.text);
+				break;
 			}
 			printf("APIQA: sending RESUME ALL\n");
 		}

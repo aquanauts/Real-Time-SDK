@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2020-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2020-2025 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -42,6 +42,7 @@
 #include "Access/Include/OmmError.h"
 #include "Access/Include/OmmFloat.h"
 #include "Access/Include/OmmInt.h"
+#include "Access/Include/OmmJson.h"
 #include "Access/Include/OmmOpaque.h"
 #include "Access/Include/OmmQos.h"
 #include "Access/Include/OmmReal.h"
@@ -82,6 +83,7 @@
 #include "Access/Include/ReqMsg.h"
 #include "Access/Include/StatusMsg.h"
 #include "Access/Include/UpdateMsg.h"
+#include "Access/Include/PackedMsg.h"
 
 #include "Access/Include/OmmException.h"
 #include "Access/Include/OmmUnsupportedDomainTypeException.h"
@@ -93,6 +95,7 @@
 #include "Access/Include/OmmOutOfRangeException.h"
 #include "Access/Include/OmmSystemException.h"
 #include "Access/Include/OmmJsonConverterException.h"
+#include "Access/Include/DispatchError.h"
 
 #include "Access/Include/OAuth2CredentialRenewal.h"
 #include "Access/Include/OmmOAuth2ConsumerClient.h"
@@ -101,6 +104,7 @@
 #include "Access/Include/LoginMsgCredentialRenewal.h"
 #include "Access/Include/OmmLoginCredentialConsumerClient.h"
 
+#include "Access/Include/ServiceList.h"
 
 #include "Access/Include/OmmConsumer.h"
 #include "Access/Include/OmmConsumerClient.h"
@@ -133,6 +137,7 @@
 
 #include "Access/Include/ServiceEndpointDiscovery.h"
 #include "Access/Include/ServiceEndpointDiscoveryClient.h"
+#include "Access/Include/ServiceEndpointDiscoveryConfig.h"
 #include "Access/Include/ServiceEndpointDiscoveryEvent.h"
 #include "Access/Include/ServiceEndpointDiscoveryInfo.h"
 #include "Access/Include/ServiceEndpointDiscoveryOption.h"
@@ -140,11 +145,17 @@
 
 #include "Access/Include/IOCtlCode.h"
 #include "Access/Include/IOCtlReactorCode.h"
+#include "Access/Include/IOCtlReactorChannelCode.h"
 
 #include "Access/Include/SessionInfo.h"
 #include "Access/Include/ConsumerSessionInfo.h"
 #include "Access/Include/ProviderSessionInfo.h"
 
 #include "Access/Include/GetTime.h"
+
+#include "Access/Include/EmaConfig.h"
+
+#include "Access/Include/PreferredHostOptions.h"
+#include "Access/Include/PreferredHostInfo.h"
 
 #endif // __refinitiv_ema_Ema_h

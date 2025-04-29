@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,8 @@
 #ifdef WIN32
 #include "direct.h"
 #endif
+
+#include <memory>
 
 #include "ConfigErrorHandling.h"
 #include "OmmLoggerClient.h"
@@ -33,7 +35,7 @@
 #include "rtr/rsslRDMLoginMsg.h"
 #include "rtr/rsslReactor.h"
 #include "libxml/parser.h"
-
+#include "libxml/xmlschemas.h"
 
 #define DEFAULT_CONS_NAME							  EmaString("EmaConsumer")
 #define DEFAULT_IPROV_NAME							  EmaString("EmaIProvider")
@@ -1025,7 +1027,7 @@ class EmaConfigBaseImpl
 public:
 
 	EmaConfigBaseImpl( const EmaString & );
-	~EmaConfigBaseImpl();
+	virtual ~EmaConfigBaseImpl();
 
 	void clear();
 
@@ -1116,11 +1118,15 @@ public:
 
 	virtual void config(const Data&);
 
+	void securityProtocol(int);
+
 	void getLoggerName(const EmaString&, EmaString&) const;
 
 	OmmLoggerClient::Severity readXMLconfiguration(const EmaString&);
 
-	bool extractXMLdataFromCharBuffer(const EmaString&, const char*, int);
+	bool validateXMLdata(xmlDocPtr xmlDoc);
+
+	bool extractXMLdataFromCharBuffer(const EmaString&, const char*, size_t);
 
 	void processXMLnodePtr(XMLnode*, const xmlNodePtr&);
 
@@ -1138,7 +1144,7 @@ public:
 
 	ProgrammaticConfigure* getProgrammaticConfigure()
 	{
-		return _pProgrammaticConfigure;
+		return _pProgrammaticConfigure.get();
 	}
 
 	const EmaString& getInstanceNodeName() const
@@ -1151,6 +1157,10 @@ public:
 	virtual EmaString getConfiguredName() = 0;
 
 	static void setDefaultConfigFileName(const EmaString&);
+
+	static const char* getSchemaData();
+
+	static size_t getSchemaDataLen();
 
 	const EmaString& getCpuWorkerThreadBind()
 	{
@@ -1166,10 +1176,31 @@ public:
 
 	void setCpuApiThreadBind(const EmaString&);
 
+	bool isUserSetShouldInitializeCPUIDlib()
+	{
+		return _userSetShouldInitializeCPUIDlib;
+	}
+
+	bool getShouldInitializeCPUIDlib()
+	{
+		return _shouldInitializeCPUIDlib;
+	}
+
+	void setShouldInitializeCPUIDlib(bool shouldInitializeCPUIDlib)
+	{
+		_shouldInitializeCPUIDlib = shouldInitializeCPUIDlib;
+		_userSetShouldInitializeCPUIDlib = true;
+	}
+
+	const int getUserSpecifiedSecurityProtocol() const
+	{
+		return _securityProtocolSetViaFunctionCall;
+	}
+
 protected:
 
-	XMLnode*				_pEmaConfig;
-	ProgrammaticConfigure*	_pProgrammaticConfigure;
+	std::unique_ptr<XMLnode> _pEmaConfig;
+	std::unique_ptr<ProgrammaticConfigure>	_pProgrammaticConfigure;
 
 	EmaString				_instanceNodeName;
 	EmaString				_configSessionName;
@@ -1177,10 +1208,20 @@ protected:
 	EmaString				_cpuWorkerThreadBind;
 	EmaString				_cpuApiThreadBind;
 
+	bool					_userSetShouldInitializeCPUIDlib;
+	bool					_shouldInitializeCPUIDlib;
+	int						_securityProtocolSetViaFunctionCall;
+
 private:
+
+	using BufferPtrT = std::unique_ptr<char, decltype(std::free)*>;
 
 	HashTable< EmaString, ConfigElement::ConfigElementType> nameToValueHashTable;
 	static EmaString		defaultEmaConfigXMLFileName;
+	static EmaString		defaultEmaSchemaXMLFileName;
+
+	OmmLoggerClient::Severity readFileToMemory (const EmaString&, const EmaString&, EmaString&, BufferPtrT&, size_t&);
+	static void errorHandler(void *userData, xmlErrorPtr error);
 };
 
 class EmaConfigImpl : public EmaConfigBaseImpl
@@ -1216,7 +1257,13 @@ public:
 
 	void getChannelName( const EmaString&, EmaString& ) const;
 
+	bool getConsumerRoutingSessionChannelSetName(const EmaString&, EmaString&) const;
+
 	void getWarmStandbyChannelName( const EmaString&, EmaString&, bool& foundProgrammaticCfg ) const;
+
+
+	// Gets the routing session name
+	void getRoutingChannelName(const EmaString&, EmaString&) const;
 
 	void getServerName(const EmaString&, EmaString&) const;
 
@@ -1226,13 +1273,14 @@ public:
 
 	void proxyHostName(const EmaString&);
 	void proxyPort(const EmaString&);
-	void securityProtocol(int);
 	void proxyUserName(const EmaString&);
 	void proxyPasswd(const EmaString&);
 	void proxyDomain(const EmaString&);
 	void objectName(const EmaString&);
 	void libsslName(const EmaString&);
 	void libcryptoName(const EmaString&);
+	void channelType(RsslConnectionTypes);
+	void encryptedProtocolTypes(RsslConnectionTypes);
 
 	void addOAuth2Credential(const OAuth2Credential&);
 
@@ -1251,10 +1299,16 @@ public:
 
 	void sslCAStore(const EmaString&);
 
-	void connectionType(const RsslConnectionTypes&);
-	void encryptedConnectionType(const RsslConnectionTypes&);
-
 	void protocolList(const EmaString& protocolList);
+
+	void restProxyHostName(const EmaString&);
+	void restProxyPort(const EmaString&);
+	void restProxyUserName(const EmaString&);
+	void restProxyPasswd(const EmaString&);
+	void restProxyDomain(const EmaString&);
+
+	void addServiceList(const ServiceList&);
+
 
 	RsslRDMLoginRequest* getLoginReq();
 
@@ -1279,6 +1333,16 @@ public:
 		return _portSetViaFunctionCall;
 	}
 
+	const RsslConnectionTypes getUserSpecifiedChannelType() const
+	{
+		return _channelTypeViaFunctionCall;
+	}
+
+	const RsslConnectionTypes getUserSpecifiedEncryptedProtocolType() const
+	{
+		return _encryptedProtocolTypeViaFunctionCall;
+	}
+
 	const EmaString& getUserSpecifiedProxyHostname() const
 	{
 		return _proxyHostnameSetViaFunctionCall;
@@ -1287,11 +1351,6 @@ public:
 	const EmaString& getUserSpecifiedProxyPort() const
 	{
 		return _proxyPortSetViaFunctionCall;
-	}
-
-	const int getUserSpecifiedSecurityProtocol() const
-	{
-		return _securityProtocolSetViaFunctionCall;
 	}
 
 	const EmaString& getUserSpecifiedObjectName()
@@ -1359,6 +1418,11 @@ public:
 		return _LoginRequestMsgs;
 	}
 
+	EmaVector < ServiceList* > getServiceListVector()
+	{
+		return _serviceLists;
+	}
+
 	LoginRdmReqMsgImpl& getLoginRdmReqMsg();
 
 
@@ -1368,6 +1432,31 @@ public:
 
 	virtual void* getRestLoggingClosure() const {
 		return ((void*)NULL);
+	}
+
+	const EmaString& getUserSpecifiedRestProxyHostname() const
+	{
+		return _restProxyHostnameSetViaFunctionCall;
+	}
+
+	const EmaString& getUserSpecifiedRestProxyPort() const
+	{
+		return _restProxyPortSetViaFunctionCall;
+	}
+
+	const EmaString& getUserSpecifiedRestProxyUserName() const
+	{
+		return _restProxyUserNameSetViaFunctionCall;
+	}
+
+	const EmaString& getUserSpecifiedRestProxyPasswd() const
+	{
+		return _restProxyPasswdSetViaFunctionCall;
+	}
+
+	const EmaString& getUserSpecifiedRestProxyDomain() const
+	{
+		return _restProxyDomainSetViaFunctionCall;
 	}
 
 protected:
@@ -1389,7 +1478,8 @@ protected:
 	EmaString				_proxyPasswdSetViaFunctionCall;
 	EmaString				_proxyDomainSetViaFunctionCall;
 	EmaString				_sslCAStoreSetViaFunctionCall;
-	int						_securityProtocolSetViaFunctionCall;
+	RsslConnectionTypes		_channelTypeViaFunctionCall;
+	RsslConnectionTypes		_encryptedProtocolTypeViaFunctionCall;
 
 	void addLoginReqMsg( RsslRequestMsg* );
 
@@ -1401,8 +1491,6 @@ protected:
 
 	PortSetViaFunctionCall		_portSetViaFunctionCall;
 
-	const EmaString configFilePath;
-
 	EmaString		_objectName;
 	EmaString		_libSslName;
 	EmaString		_libCryptoName;
@@ -1411,9 +1499,17 @@ protected:
 	EmaString		_serviceDiscoveryUrl;
 	EmaString		_libcurlName;
 
+	EmaString		_restProxyHostnameSetViaFunctionCall;
+	EmaString		_restProxyPortSetViaFunctionCall;
+	EmaString		_restProxyUserNameSetViaFunctionCall;
+	EmaString		_restProxyPasswdSetViaFunctionCall;
+	EmaString		_restProxyDomainSetViaFunctionCall;
+
 	EmaVector < OmmOAuth2CredentialImpl* > _oAuth2Credentials;
 
 	EmaVector < LoginRdmReqMsgImpl* > _LoginRequestMsgs;
+
+	EmaVector <ServiceList* > _serviceLists;
 
 };
 
@@ -1421,7 +1517,7 @@ class EmaConfigServerImpl : public EmaConfigBaseImpl
 {
 public:
 
-	EmaConfigServerImpl( const EmaString & path );
+	EmaConfigServerImpl( const EmaString& );
 	virtual ~EmaConfigServerImpl();
 
 	void clear();

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -107,8 +107,6 @@ namespace LSEG.Eta.Codec
         internal GlobalElementSetDefDb _elementSetDefDb;
 
         private bool _isVersionSet; // flag that tracks whether or not version is set
-
-        private ByteBuffer _readBuffer = new ByteBuffer(1024);
 
         /// <summary>
         /// Creates <see cref="DecodeIterator"/>.

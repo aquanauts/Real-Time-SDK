@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022,2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -52,6 +52,7 @@ import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginMsgType;
 import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginRequest;
 import com.refinitiv.eta.valueadd.domainrep.rdm.login.LoginRequestFlags;
 import com.refinitiv.eta.valueadd.reactor.ReactorAuthTokenInfo.TokenVersion;
+import com.refinitiv.eta.valueadd.reactor.ReactorTokenSession.SessionState;
 
 /**
  * Channel representing a connection handled by a Reactor.
@@ -119,6 +120,7 @@ public class ReactorChannel extends VaNode
     LoginConsumerConnectionStatus _loginConsumerStatus = (LoginConsumerConnectionStatus)LoginMsgFactory.createMsg();
     DirectoryConsumerStatus _directoryConsumerStatus = (DirectoryConsumerStatus)DirectoryMsgFactory.createMsg();
     ConsumerStatusService _serviceConsumerStatus = DirectoryMsgFactory.createConsumerStatusService();
+    boolean sendReqFromQueue = false; /* This is used in the submitWSBRequestQueue() method to check whether a ReactorChannel is already handled in the method. */
 
 	// Original Login Request Information
 	Buffer userName;
@@ -256,6 +258,37 @@ public class ReactorChannel extends VaNode
         _restConnectOptions.proxyLocalHostName(reactorConnectInfo.connectOptions().credentialsInfo().HTTPproxyLocalHostname());
         _restConnectOptions.proxyKRB5ConfigFile(reactorConnectInfo.connectOptions().credentialsInfo().HTTPproxyKRB5configFile());
 
+        // Check if rest Proxy options exist and overwrite proxy options here if so
+        if (_reactor._reactorOptions.restProxyOptions() != null &&
+        		_reactor._reactorOptions.restProxyOptions().proxyHostName() != null && 
+        		_reactor._reactorOptions.restProxyOptions().proxyHostName().length() > 0 &&
+        		_reactor._reactorOptions.restProxyOptions().proxyPort() != null && 
+        		_reactor._reactorOptions.restProxyOptions().proxyPort().length() > 0)
+        {
+    		_restConnectOptions.proxyHost(_reactor._reactorOptions.restProxyOptions().proxyHostName().toString());
+    		_restConnectOptions.proxyPort(Integer.valueOf(_reactor._reactorOptions.restProxyOptions().proxyPort().toString()));
+        	if (_reactor._reactorOptions.restProxyOptions().proxyUserName() != null)
+        	{
+        		_restConnectOptions.proxyUserName(_reactor._reactorOptions.restProxyOptions().proxyUserName().toString());
+        	}
+        	if (_reactor._reactorOptions.restProxyOptions().proxyPassword() != null)
+        	{
+        		_restConnectOptions.proxyPassword(_reactor._reactorOptions.restProxyOptions().proxyPassword().toString());
+        	}
+        	if (_reactor._reactorOptions.restProxyOptions().proxyDomain() != null)
+        	{
+        		_restConnectOptions.proxyDomain(_reactor._reactorOptions.restProxyOptions().proxyDomain().toString());
+        	}
+        	if (_reactor._reactorOptions.restProxyOptions().proxyLocalHostName() != null)
+        	{
+        		_restConnectOptions.proxyLocalHostName(_reactor._reactorOptions.restProxyOptions().proxyLocalHostName().toString());
+        	}
+        	if (_reactor._reactorOptions.restProxyOptions().proxyKrb5ConfigFile() != null)
+        	{
+        		_restConnectOptions.proxyKRB5ConfigFile(_reactor._reactorOptions.restProxyOptions().proxyKrb5ConfigFile().toString());
+        	}
+        }
+        
         return _restConnectOptions;
     }
 
@@ -358,6 +391,7 @@ public class ReactorChannel extends VaNode
         standByGroupListIndex = -1;
         isActiveServer = false;
         isStartingServerConfig = false;
+        sendReqFromQueue = false;
         _currentConnectOptionsInfo = null;
         
         if(_wsbDirectoryUpdate == null)
@@ -944,7 +978,7 @@ public class ReactorChannel extends VaNode
      */
     public TransportBuffer getBuffer(int size, boolean packedBuffer, ReactorErrorInfo errorInfo)
     {
-        if (errorInfo == null || _reactor == null)
+        if (errorInfo == null || _reactor == null || channel() == null)
             return null;
 
         if(channel().protocolType() == Codec.JSON_PROTOCOL_TYPE && packedBuffer)
@@ -2011,6 +2045,28 @@ public class ReactorChannel extends VaNode
                 resetCurrentChannelRetryCount();
             }
             ReactorErrorInfo errorInfo = ReactorFactory.createReactorErrorInfo();
+            
+            if(_tokenSession.authTokenInfo().tokenVersion() == TokenVersion.V2)
+            {
+            	_tokenSession.resetSessionMgntState();
+            	
+            	/* This is used to check whether to callback in order to renew user's credential with ReactorOAuthCredentialEventCallback*/
+            	_tokenSession.HandleTokenRenewalCallbackForOAuthV2();
+            }
+            else
+            {
+            	/* Clears the previous access token in order to get a new one via V1 token reissue when this is not initial request. */
+            	if(_tokenSession.sessionMgntState() != SessionState.UNKNOWN && _state == State.DOWN_RECONNECTING)
+            	{
+            		_tokenSession.authTokenInfo().accessToken("");
+            		
+            		String refreshToken = _tokenSession.authTokenInfo().refreshToken();
+            		if(refreshToken != null && !refreshToken.isEmpty()) // Ensure that is a refresh token to perform token reissue.
+            		{
+            			_tokenSession.handleTokenReissue();
+            		}
+            	}
+            }
 
             /* Checks and changes the state of Reactor channel either State.EDP_RT or State.EDP_RT_DONE */
             if (_reactor.sessionManagementStartup(_tokenSession, _currentConnectInfo, _role, this, false, errorInfo) != ReactorReturnCodes.SUCCESS)

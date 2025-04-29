@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -34,15 +34,21 @@ namespace LSEG.Eta.Transports
         /// <returns><see cref="TransportReturnCode"/></returns>
         public TransportReturnCode DumpBuffer(IChannel channel, int protocolType, ITransportBuffer buffer, DataDictionary dataDictionary, StringBuilder msgBuilder, out Error error)
         {
+            if (channel == null)
+            {
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: $"Input Channel must not be null.{NewLine}");
+                return TransportReturnCode.FAILURE;
+            }
+
             if (buffer == null)
             {
-                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Input TransportBuffer must not be null.\n");
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: $"Input TransportBuffer must not be null.{NewLine}");
                 return TransportReturnCode.FAILURE;
             }
 
             if (buffer.Length() <= 0)
             {
-                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Buffer of length zero cannot be dumped.\n");
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: $"Buffer of length zero cannot be dumped.{NewLine}");
                 return TransportReturnCode.FAILURE;
             }
 
@@ -54,7 +60,7 @@ namespace LSEG.Eta.Transports
                 result = xmlDumpMsg.DecodeToXml(xmlDumpIterator, dataDictionary);
             } else
             {
-                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Unsupported protocol type: " + protocolType + "\n");
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Unsupported protocol type: " + protocolType + NewLine);
                 return TransportReturnCode.FAILURE;
             }
 
@@ -78,13 +84,13 @@ namespace LSEG.Eta.Transports
         {
             if (buffer == null)
             {
-                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Input TransportBuffer must not be null.\n");
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: $"Input TransportBuffer must not be null.{NewLine}");
                 return TransportReturnCode.FAILURE;
             }
 
             if (buffer.GetLength() <= 0)
             {
-                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Buffer of length zero cannot be dumped.\n");
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: $"Buffer of length zero cannot be dumped.{NewLine}");
                 return TransportReturnCode.FAILURE;
             }
 
@@ -97,7 +103,7 @@ namespace LSEG.Eta.Transports
             }
             else
             {
-                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Unsupported protocol type: " + protocolType + "\n");
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: "Unsupported protocol type: " + protocolType + NewLine);
                 return TransportReturnCode.FAILURE;
             }
 

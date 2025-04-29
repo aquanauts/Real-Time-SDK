@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -22,7 +22,7 @@ namespace LSEG.Eta.Codec
     /// <seealso cref="IUpdateMsg"/>
 	sealed public class PostUserInfo
 	{
-		private StringBuilder _strBldr = new StringBuilder();
+		private StringBuilder _strBldr;
 
 
         /// <summary>
@@ -101,6 +101,10 @@ namespace LSEG.Eta.Codec
 		[MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
 		public string UserAddrToString(long addrInt)
 		{
+			if (_strBldr == null)
+			{
+				_strBldr = new StringBuilder();
+			}
             _strBldr.Clear();
             _strBldr.Append((addrInt >> 24) & 0xFF);
 			_strBldr.Append(".");

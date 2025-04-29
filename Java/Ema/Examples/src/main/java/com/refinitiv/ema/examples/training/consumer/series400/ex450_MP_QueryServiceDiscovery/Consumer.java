@@ -1,8 +1,8 @@
 ///*|----------------------------------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license                             --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.                         --
-// *|                See the project's LICENSE.md for details.                                         --
-// *|           Copyright (C) 2020-2022 Refinitiv. All rights reserved.                                --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2020-2022 LSEG. All rights reserved.     
 ///*|----------------------------------------------------------------------------------------------------
 
 package com.refinitiv.ema.examples.training.consumer.series400.ex450_MP_QueryServiceDiscovery;
@@ -147,6 +147,8 @@ public class Consumer
 	    		+ "  -pdomain Proxy Domain (optional).\n"
 	    		+ "  -krbfile KRB File location and name. Needed for Negotiate/Kerberos \r\n" 
 	    		+ "\tand Kerberos authentications (optional).\n"
+	    		+ "  -spTLSv1.2 Enable TLS 1.2 security protocol. Default enables both TLS 1.2 and TLS 1.3 (optional). \n"
+	    		+ "  -spTLSv1.3 Enable TLS 1.3 security protocol. Default enables both TLS 1.2 and TLS 1.3 (optional). \n"
 	    		+ "\n");
 	}
 	
@@ -155,6 +157,8 @@ public class Consumer
 	    try
 	    {
 	        int argsCount = 0;
+	        boolean tls12 = false;
+	        boolean tls13 = false;
 
 	        while (argsCount < args.length)
 	        {
@@ -217,7 +221,6 @@ public class Consumer
     			else if ("-keyfile".equals(args[argsCount]))
     			{
     				config.tunnelingKeyStoreFile(argsCount < (args.length-1) ? args[++argsCount] : null);
-    				config.tunnelingSecurityProtocol("TLS");
     				++argsCount;				
     			}	
     			else if ("-keypasswd".equals(args[argsCount]))
@@ -311,12 +314,39 @@ public class Consumer
 					}
 					++argsCount;
 				}
+    			else if ("-spTLSv1.2".equals(args[argsCount]))	   
+    			{
+    				tls12 = true;
+    				++argsCount;
+    			}
+    			else if ("-spTLSv1.3".equals(args[argsCount]))
+    			{
+    				tls13 = true;
+    				++argsCount;
+    			}
     			else // unrecognized command line argument
     			{
     				printHelp();
     				return false;
     			}			
     		}
+	        
+	        // Set security protocol versions of TLS based on configured values, with default having TLS 1.2 and 1.3 enabled
+	        if ((tls12 && tls13) || (!tls12 && !tls13))
+	        {
+	        	config.tunnelingSecurityProtocol("TLS");
+	        	config.tunnelingSecurityProtocolVersions(new String[] {"1.2", "1.3"});
+	        }
+	        else if (tls12)
+	        {
+	        	config.tunnelingSecurityProtocol("TLS");
+	        	config.tunnelingSecurityProtocolVersions(new String[]{"1.2"});
+	        }
+	        else if (tls13)
+	        {
+	        	config.tunnelingSecurityProtocol("TLS");
+	        	config.tunnelingSecurityProtocolVersions(new String[]{"1.3"});
+	        }
 	        
 	        if ( userName == null || password == null)
 			{
@@ -347,7 +377,7 @@ public class Consumer
 		
 		if(connectWebSocket)
 		{
-			// Use FileDictionary instead of ChannelDictionary as WebSocket connection has issue to download dictionary from Refinitiv Data Platform
+			// Use FileDictionary instead of ChannelDictionary as WebSocket connection has issue to download dictionary from Delivery Platform
 			innerElementList.add(EmaFactory.createElementEntry().ascii("Dictionary", "Dictionary_1"));
 		}
 		
@@ -454,7 +484,7 @@ public class Consumer
 			
 			if ( host == null || port == null )
 			{
-				System.out.println("Both hostname and port are not avaiable for establishing a connection with Refinitiv Real-Time - Optimized. Exiting...");
+				System.out.println("Both hostname and port are not avaiable for establishing a connection with Real-Time - Optimized. Exiting...");
 				return;
 			}
 			

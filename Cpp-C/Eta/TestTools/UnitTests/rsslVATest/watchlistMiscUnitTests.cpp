@@ -1,13 +1,17 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
 #include "watchlistTestFramework.h"
 #include "gtest/gtest.h"
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
+#endif
 
 /* watchlistMiscTest_SeqNumCompare tests the rsslSeqNumCompare function used internally
  * by the watchlist. */
@@ -68,7 +72,7 @@ TEST_P(WatchlistMiscUnitTest, AdminRsslMsgs)
 	watchlistMiscTest_AdminRsslMsgs(GetParam());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
 	TestingWatchlistMiscUnitTests,
 	WatchlistMiscUnitTest,
 	::testing::Values(

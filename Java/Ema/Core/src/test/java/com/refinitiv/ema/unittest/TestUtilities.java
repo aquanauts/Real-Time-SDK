@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.unittest;
@@ -123,7 +123,16 @@ public final class TestUtilities extends TestCase
 	{
 		return dictionary;
 	}
-	
+	public static  String getFieldDictionaryFileName()
+	{
+		return fieldDictionaryFileName;
+	}
+
+	public static  String getEnumTableFileName()
+	{
+		return enumTableFileName;
+	}
+
 	public static void printTestHead(String title, String detail)
 	{
 		_strBuilder.setLength(0);
@@ -182,6 +191,12 @@ public final class TestUtilities extends TestCase
 		real.value(11, RealHints.EXPONENT_2);
 		rsslFEntry.encode( iter, real );
 
+		// blank array
+		rsslFEntry.dataType( com.refinitiv.eta.codec.DataTypes.ARRAY);
+		rsslFEntry.fieldId( 30013); // HDLN_PE
+		com.refinitiv.eta.codec.Array array = CodecFactory.createArray();
+		rsslFEntry.encodeBlank( iter);
+
 		rsslFL.encodeComplete(iter, true);
 	}
 
@@ -238,6 +253,11 @@ public final class TestUtilities extends TestCase
 		Real real = CodecFactory.createReal();
 		real.value(11, RealHints.EXPONENT_2);
 		rsslFEntry.encode( iter, real );
+
+		// seventh blank array
+		rsslFEntry.dataType( com.refinitiv.eta.codec.DataTypes.ARRAY);
+		rsslFEntry.name().data("MY_ARRAY");
+		rsslFEntry.encodeBlank(iter);
 
 		rsslFL.encodeComplete(iter, true);
 	}
@@ -8875,7 +8895,32 @@ public final class TestUtilities extends TestCase
         checkResult(CodecReturnCodes.SUCCESS, msg.encodeComplete(encodeIter, true));
     }
 
-    
+	public static int eta_EncodeNonRWFData(com.refinitiv.eta.codec.Buffer destBuf, com.refinitiv.eta.codec.Buffer sourceBuf) {
+		// used to store and check return values
+		int retVal;
+
+		int majorVersion = Codec.majorVersion();  // This should be initialized to the MAJOR version of RWF being encoded
+		int minorVersion = Codec.minorVersion();  // This should be initialized to the MINOR version of RWF being encoded
+
+		// Create and clear iterator to prepare for encoding
+		com.refinitiv.eta.codec.EncodeIterator encodeIter = CodecFactory.createEncodeIterator();
+		encodeIter.clear();
+
+		// Associate buffer and iterator and set proper protocol version information on iterator.
+		if ((retVal = encodeIter.setBufferAndRWFVersion(destBuf, majorVersion, minorVersion)) < CodecReturnCodes.SUCCESS)
+		{
+			System.out.println("Error " + CodecReturnCodes.toString(retVal) + "(" + retVal + " encountered with setBufferAndRWFVersion. "
+					+ " Error Text: " + CodecReturnCodes.info(retVal));
+			return retVal;
+		}
+
+		encodeIter.encodeNonRWFInit(destBuf);
+		destBuf.data().put(sourceBuf.data().array(), sourceBuf.position(), sourceBuf.length());
+		encodeIter.encodeNonRWFComplete(destBuf, true);
+
+		return CodecReturnCodes.SUCCESS;
+	}
+
 	// This method returns a preencoded buffer containing an encoded UInt type.
 	// Assuming encUInt is a ETA Buffer with length and data properly populated.
 	private static int eta_getPreEncodedUIntBuffer(com.refinitiv.eta.codec.Buffer encUInt, com.refinitiv.eta.codec.UInt uInt)

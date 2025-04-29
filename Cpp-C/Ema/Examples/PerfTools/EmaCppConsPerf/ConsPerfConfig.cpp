@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2020-2022 Refinitiv. All rights reserved.         --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2020-2022 LSEG. All rights reserved.              --
 ///*|-----------------------------------------------------------------------------
 
 #include "ConsPerfConfig.h"
@@ -12,7 +12,8 @@ statsFilename("ConsStats"), writeStatsInterval(5), displayStats(true), logLatenc
 itemRequestCount(100000), commonItemCount(0), itemRequestsPerSec(35000), requestSnapshots(false),
 serviceName("DIRECT_FEED"), useServiceId(false), itemFilename("350k.xml"),
 msgFilename("MsgData.xml"), postsPerSec(0), latencyPostsPerSec(0), genMsgsPerSec(0), latencyGenMsgsPerSec(0),
-consumerName(""), websocketProtocol(NoWebSocketEnum)
+consumerName(""), websocketProtocol(NoWebSocketEnum),
+securityProtocol(OmmConsumerConfig::ENC_NONE)
 {
 }
 void ConsPerfConfig::clearPerfConfig()
@@ -48,6 +49,8 @@ void ConsPerfConfig::clearPerfConfig()
 	useUserDispatch = false;
 	consumerName = "";
 	websocketProtocol = NoWebSocketEnum;
+
+	securityProtocol = OmmConsumerConfig::ENC_NONE;
 }
 
 ConsPerfConfig::~ConsPerfConfig()

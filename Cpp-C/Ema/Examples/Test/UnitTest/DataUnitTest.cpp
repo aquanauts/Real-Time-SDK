@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -505,6 +505,9 @@ void decode( const FieldList& fl, EmaString& outText )
 			case DataType::XmlEnum :
 				outText.append( "Xml: " ).append( fe.getXml().toString() ).append( "\n" );
 				break;
+			case DataType::JsonEnum :
+				outText.append( "Json: " ).append( fe.getJson().toString() ).append( "\n" );
+				break;
 			case DataType::AnsiPageEnum :
 				outText.append( "AnsiPage: " ).append( fe.getAnsiPage().toString() ).append( "\n" );
 				break;
@@ -604,6 +607,9 @@ void decode( const ElementList& el, EmaString& outText )
 				break;
 			case DataType::XmlEnum :
 				outText.append( ee.getName() ).append( " Xml: " ).append( ee.getXml().toString() ).append( "\n" );
+				break;
+			case DataType::JsonEnum :
+				outText.append( ee.getName() ).append( " Json: " ).append( ee.getJson().toString() ).append( "\n" );
 				break;
 			case DataType::AnsiPageEnum :
 				outText.append( ee.getName() ).append( " AnsiPage: " ).append( ee.getAnsiPage().toString() ).append( "\n" );
@@ -1278,21 +1284,37 @@ TEST(DataUnitTest, testDoNothing)
 EmaString g_userName;
 EmaString g_password;
 
+EmaString g_proxyHost;
+EmaString g_proxyPort;
+
 int main(int argc, char** argv) {
   int i = 1;
 
   for(; i < argc; i++)
   {
-	if( strcmp("-uname", argv[i]) == 0 )
+	if (0 == strcmp("-uname", argv[i]))
 	{
-		i += 2;
-		g_userName.set(argv[i - 1]);
+		if (++i == argc)
+			break;
+		g_userName.set(argv[i]);
 	}
-
-	if ( ( i + 1 < argc ) && (strcmp("-passwd", argv[i]) == 0) )
+	else if (0 == strcmp("-passwd", argv[i]))
 	{
-		i += 2;
-		g_password.set(argv[i - 1]);
+		if (++i == argc)
+			break;
+		g_password.set(argv[i]);
+	}
+	else if (0 == strcmp("-ph", argv[i]))
+	{
+		if (++i == argc)
+			break;
+		g_proxyHost.set(argv[i]);
+	}
+	else if (0 == strcmp("-pp", argv[i]))
+	{
+		if (++i == argc)
+			break;
+		g_proxyPort.set(argv[i]);
 	}
   }
 

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -218,7 +218,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         }
 
         /// <summary>
-        /// Encodes this Directory Status message using the provided <c>encodeIter</c>.
+        /// Encodes this Directory Update message using the provided <c>encodeIter</c>.
         /// </summary>
         /// <param name="encodeIter">Encode iterator that has a buffer set to encode into.</param>
         /// <returns><see cref="CodecReturnCode"/> indicating success or failure.</returns>
@@ -289,7 +289,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         }
 
         /// <summary>
-        /// Decodes this Directory Status using the provided <c>decodeIter</c> and the incoming <c>msg</c>.
+        /// Decodes this Directory Update message using the provided <c>decodeIter</c> and the incoming <c>msg</c>.
         /// </summary>
         /// <param name="decodeIter">Decode iterator that has already decoded the initial message.</param>
         /// <param name="msg">Decoded Msg object for this DirectoryUpdate message.</param>
@@ -379,14 +379,14 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             StringBuilder stringBuf = PrepareStringBuilder();
-            stringBuf.Insert(0, "DirectoryUpdate: \n");
+            stringBuf.Insert(0, $"DirectoryUpdate: {NewLine}");
 
             if (HasServiceId)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("serviceId: ");
                 stringBuf.Append(ServiceId);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             if (HasSequenceNumber)
@@ -394,7 +394,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append(tab);
                 stringBuf.Append("sequenceNumber: ");
                 stringBuf.Append(SequenceNumber);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             stringBuf.Append(tab);
@@ -440,12 +440,12 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append("STATE");
                 addOr = true;
             }
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             foreach (Service service in ServiceList)
             {
                 stringBuf.Append(service.ToString());
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             return stringBuf.ToString();

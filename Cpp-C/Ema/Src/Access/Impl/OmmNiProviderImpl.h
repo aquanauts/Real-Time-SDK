@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -64,6 +64,8 @@ public :
 	void submit( const GenericMsg&, UInt64 );
 
 	void submit( const AckMsg&, UInt64 );
+
+	void submit( const PackedMsg& );
 
 	void loadDirectory();
 
@@ -203,6 +205,10 @@ private :
 	EmaList<StreamId*>			 					_reusedProviderStreamIds;
 	Channel*										_activeChannel;
 	ItemWatchList									_itemWatchList;
+
+	OmmNiProviderImpl::StreamInfoPtr* getStreamInfo(UInt64 handle);
+
+	friend class PackedMsgImpl;
 };
 
 }

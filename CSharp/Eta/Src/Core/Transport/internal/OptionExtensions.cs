@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -15,6 +15,16 @@ namespace LSEG.Eta.Internal
         internal static TcpOpts CopyTo(this TcpOpts source, TcpOpts dest)
         {
             dest.TcpNoDelay = source.TcpNoDelay;
+            return source;
+        }
+
+        internal static UnifiedNetworkInfo CopyTo(this UnifiedNetworkInfo source, UnifiedNetworkInfo dest)
+        {
+            dest.ServiceName = source.ServiceName;
+            dest.Address = source.Address;
+            dest.InterfaceName = source.InterfaceName;
+            dest.Port = source.Port;
+
             return source;
         }
 
@@ -35,7 +45,7 @@ namespace LSEG.Eta.Internal
             dest.SysRecvBufSize = source.SysRecvBufSize;
             dest.SysSendBufSize = source.SysSendBufSize;
             source.TcpOpts.CopyTo(dest.TcpOpts);
-            dest.UnifiedNetworkInfo = source.UnifiedNetworkInfo;
+            source.UnifiedNetworkInfo.CopyTo(dest.UnifiedNetworkInfo);
             dest.UserSpecObject = source.UserSpecObject;
             source.EncryptionOpts.CopyTo(dest.EncryptionOpts);
             source.ProxyOptions.CopyTo(dest.ProxyOptions);
@@ -110,16 +120,6 @@ namespace LSEG.Eta.Internal
             dest.ServerPrivateKey = source.ServerPrivateKey;
             dest.TlsCipherSuites = source.TlsCipherSuites;
             dest.AuthenticationTimeout = source.AuthenticationTimeout;
-
-            return dest;
-        }
-
-        internal static ProxyOptions CopyTo(this ProxyOptions source, ProxyOptions dest)
-        {
-            dest.ProxyHostName = source.ProxyHostName;
-            dest.ProxyPort = source.ProxyPort;
-            dest.ProxyUserName = source.ProxyUserName;
-            dest.ProxyPassword = source.ProxyPassword;
 
             return dest;
         }

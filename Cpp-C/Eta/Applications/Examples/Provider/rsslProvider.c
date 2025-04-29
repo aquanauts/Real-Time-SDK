@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022, 2025 LSEG. All rights reserved.        --
  *|-----------------------------------------------------------------------------
  */
 
@@ -53,6 +53,8 @@ static char cipherSuite[128];
 static char libsslName[255];
 static char libcryptoName[255];
 static char cookiesData[4096];
+
+static RsslEncryptionProtocolTypes tlsProtocol = RSSL_ENC_NONE;
 
 static RsslBuffer cookieBuff = { 0 };
 static RsslConnectionTypes connType;
@@ -109,6 +111,8 @@ void exitWithUsage()
 	printf(" -httpCookie with ';' delineated list of cookies data\n");
 	printf(" -rtt if specified, support the round trip latency measurement\n");
 	printf(" -serverSharedSocket if specified, turn on server shared socket\n");
+	printf(" -spTLSv1.2 enable use of cryptographic protocol TLSv1.2 used with linux encrypted connections\n");
+	printf(" -spTLSv1.3 enable use of cryptographic protocol TLSv1.3 used with linux encrypted connections\n");
 #ifdef _WIN32
 		printf("\nPress Enter or Return key to exit application:");
 		getchar();
@@ -136,9 +140,9 @@ int main(int argc, char **argv)
 	snprintf(portNo, 128, "%s", defaultPortNo);
 	snprintf(serviceName, 128, "%s", defaultServiceName);
 	snprintf(protocolList, 128, "%s", defaultProtocols);
-	snprintf(certFile, 128, "\0");
-	snprintf(keyFile, 128, "\0");
-	snprintf(cipherSuite, 128, "\0");
+	snprintf(certFile, 128, "%s", "");
+	snprintf(keyFile, 128, "%s", "");
+	snprintf(cipherSuite, 128, "%s", "");
 	connType = RSSL_CONN_TYPE_SOCKET;
 	setServiceId(1);
 	for(iargs = 1; iargs < argc; ++iargs)
@@ -199,7 +203,7 @@ int main(int argc, char **argv)
 		else if (0 == strcmp("-x", argv[iargs]))
 		{
 			xmlTrace = RSSL_TRUE;
-			snprintf(traceOutputFile, 128, "RsslProvider\0");
+			snprintf(traceOutputFile, 128, "RsslProvider");
 		}
 		else if (0 == strcmp("-td", argv[iargs]))
 		{
@@ -225,6 +229,14 @@ int main(int argc, char **argv)
 			++iargs; if (iargs == argc) exitWithUsage();
 			snprintf(cipherSuite, 128, "%s", argv[iargs]);
 			userSpecCipher = RSSL_TRUE;
+		}
+		else if (0 == strcmp("-spTLSv1.2", argv[iargs]))
+		{
+			tlsProtocol |= RSSL_ENC_TLSV1_2;
+		}
+		else if (0 == strcmp("-spTLSv1.3", argv[iargs]))
+		{
+			tlsProtocol |= RSSL_ENC_TLSV1_3;
 		}
 		else if (strcmp("-jsonEnumExpand", argv[iargs]) == 0)
 		{
@@ -643,6 +655,15 @@ static void HttpCallbackFunction(RsslHttpMessage* httpMess, RsslError* error)
 		printf("Http header error %s \n", error->text);
 	}
 
+	if (httpMess->url.data && httpMess->url.length)
+	{
+		printf("HTTP URL: %.*s\n", httpMess->url.length, httpMess->url.data);
+	}
+	else
+	{
+		printf("Failed to get http URL. \n");
+	}
+
 	if (httpHeaders->count)
 	{
 		RsslInt32 n = 0;
@@ -714,6 +735,9 @@ static RsslServer* bindRsslServer(char* portno, RsslError* error)
 	if (userSpecCipher == RSSL_TRUE)
 		sopts.encryptionOpts.cipherSuite = cipherSuite;
 
+	if (tlsProtocol != RSSL_ENC_NONE)
+		sopts.encryptionOpts.encryptionProtocolFlags = tlsProtocol;
+
 	if ((srvr = rsslBind(&sopts, error)) != 0)
 	{
 		printf("\nServer IPC descriptor = "SOCKET_PRINT_TYPE" bound on port %d\n", srvr->socketId, srvr->portNumber);
@@ -734,8 +758,8 @@ static void createNewClientSession(RsslServer *srvr)
 	RsslRet ret;
 	RsslChannel *sckt;
 	RsslError	error;
-	RsslBool	clientSessionFound = RSSL_FALSE;
 	RsslAcceptOptions acceptOpts = RSSL_INIT_ACCEPT_OPTS;
+	RsslClientSessionInfo* clientSessionPtr = 0;
 
 	clientSessionCount++;
 
@@ -747,6 +771,19 @@ static void createNewClientSession(RsslServer *srvr)
 	{
 		acceptOpts.nakMount = RSSL_TRUE;
 	}
+
+	/* find an available client session */
+	for (i = 0; i < CLIENT_SESSIONS_LIMIT; i++)
+	{
+		if (clientSessions[i].clientChannel == NULL)
+		{
+			clientSessionPtr = &clientSessions[i];
+			/* Set the Json session to the user spec ptr.  This will be initialized if the channel negotiates to use the JSON protocol. */
+			acceptOpts.userSpecPtr = &(clientSessions[i].jsonSession);
+			break;
+		}
+	}
+
 	if ((sckt = rsslAccept(srvr, &acceptOpts, &error)) == 0)
 	{
 		printf("rsslAccept: failed <%s>\n",error.text);
@@ -765,21 +802,9 @@ static void createNewClientSession(RsslServer *srvr)
 			traceOptions.traceFlags |= RSSL_TRACE_TO_FILE_ENABLE | RSSL_TRACE_TO_MULTIPLE_FILES | RSSL_TRACE_TO_STDOUT | RSSL_TRACE_WRITE | RSSL_TRACE_READ | RSSL_TRACE_DUMP;
 			rsslIoctl(sckt, (RsslIoctlCodes)RSSL_TRACE, (void *)&traceOptions, &error);
 		}
-		/* find an available client session */
-		for (i = 0; i < CLIENT_SESSIONS_LIMIT; i++)
-		{
-			if (clientSessions[i].clientChannel == NULL)
-			{
-				clientSessions[i].clientChannel = sckt;
-				clientSessionFound = RSSL_TRUE;
-				/* Set the Json session to the user spec ptr.  This will be initialized if the channel negotiates to use the JSON protocol. */
-				sckt->userSpecPtr = &(clientSessions[i].jsonSession);
-				break;
-			}
-		}
 
 		/* close channel if no more client sessions */
-		if (clientSessionFound == RSSL_FALSE &&
+		if (clientSessionPtr == 0 &&
 			clientSessionCount > CLIENT_SESSIONS_LIMIT)
 		{
 			clientSessionCount--;
@@ -790,6 +815,7 @@ static void createNewClientSession(RsslServer *srvr)
 		}
 		else
 		{
+			clientSessionPtr->clientChannel = sckt;
 			printf("\nServer fd="SOCKET_PRINT_TYPE": New client on Channel fd="SOCKET_PRINT_TYPE"\n",
 				srvr->socketId,sckt->socketId);
 			FD_SET(sckt->socketId,&readfds);

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -285,7 +285,7 @@ namespace LSEG.Eta.Codec
 		}
 
         /// <summary>
-        /// Gets or sets the number of items in the array.
+        /// Gets or sets the fixed length of items in the array.
 		/// If items are fixed length populate length here - otherwise make 0 for
 		/// length specified item encoding. Must be in the range of 0 - 65535.
 		/// </summary>

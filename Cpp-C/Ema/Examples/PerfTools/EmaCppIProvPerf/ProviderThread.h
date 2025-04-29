@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|         Copyright (C) 2021-2022 Refinitiv.     All rights reserved.       --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|         Copyright (C) 2021-2022 LSEG. All rights reserved. 
 ///*|-----------------------------------------------------------------------------
 
 #pragma once
@@ -86,6 +86,9 @@ public:
 	ProvItemInfo* getCurrentGenericsItem() const { return currentGenericsItem; }
 	void setCurrentGenericsItem(ProvItemInfo* item) { currentGenericsItem = item; }
 
+	UInt32 getPackedPerTick() const { return packedPerTick; }
+	UInt32 getPackedPerTickRemainder() const { return packedPerTickRemainder; }
+
 private:
 	const IProvPerfConfig& provConfig;
 
@@ -101,6 +104,9 @@ private:
 	UInt32	genericsPerTickRemainder;		/* Generics per tick (remainder) */
 	ProvItemInfo* currentGenericsItem;		/* Current item in Generics rotating list */
 
+	// Sending PackedMsg-es
+	UInt32	packedPerTick;					/* Packed per tick */
+	UInt32	packedPerTickRemainder;			/* Packed per tick (remainder) */
 };  // class ProviderThreadState
 
 class ProviderStats {
@@ -132,6 +138,7 @@ public:
 	CountStat				genMsgSentCount;			/* Counts generic messages sent. */
 	CountStat				genMsgRecvCount;			/* Counts generic messages received. */
 	CountStat				latencyGenMsgSentCount;		/* Counts latency generic messages sent. */
+	CountStat				packedMsgCount;				/* Counts packed messages sent. */
 
 	ValueStatistics			tunnelStreamBufUsageStats;	/* Tunnel Buffer Usage statistics. */
 
@@ -157,6 +164,8 @@ public:
 	void run();
 
 	void sendBurstMessages();
+
+	void sendPackedMsg(const Msg* msg, ProvItemInfo* itemInfo);
 
 	void sendRefreshMessages();
 	void sendUpdateMessages();
@@ -213,6 +222,9 @@ private:
 
 	ProviderPerfClient* providerClient;
 	OmmProvider* provider;
+
+	PackedMsg* packedMsg;
+	Int32 packCountCurrent;
 
 	ProviderThreadState provThreadState;
 

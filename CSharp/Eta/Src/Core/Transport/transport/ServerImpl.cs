@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -175,6 +175,9 @@ namespace LSEG.Eta.Transports
 
         internal ServerImpl(ProtocolBase protocol)
         {
+            if (protocol == null)
+                throw new ArgumentNullException(nameof(protocol));
+
             m_ProtocolBase = protocol;
             State = ChannelState.INACTIVE;
             m_SharedPool = new SharedPool(this);
@@ -300,7 +303,7 @@ namespace LSEG.Eta.Transports
                            : ChannelState.CLOSED;
 
             ReleaseServer();
-            m_ProtocolBase?.CloseServer(this);
+            m_ProtocolBase.CloseServer(this);
 
             return TransportReturnCode.SUCCESS;
         }
@@ -378,8 +381,8 @@ namespace LSEG.Eta.Transports
                 m_ServerSocket.Listen(1000);
 
                 ((SharedPool)m_SharedPool).SharedPoolLock = BindOptions.SharedPoolLock
-                         ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-                         : (Locker)new NoLocker();
+                         ? new MonitorWriteLocker(new object())
+                         : new NoLocker();
 
                 State = ChannelState.ACTIVE;
 
@@ -467,7 +470,7 @@ namespace LSEG.Eta.Transports
                     case IOCtlCode.SERVER_NUM_POOL_BUFFERS:
                         {
                             /* SERVER_NUM_POOL_BUFFERS: the per server number of
-                             * sharedPool buffers that ETAJ will share with channels of a server.
+                             * sharedPool buffers that ETA will share with channels of a server.
                              */
                             if (value > 0)
                             {
@@ -604,11 +607,11 @@ namespace LSEG.Eta.Transports
 
         public override string ToString()
         {
-            return "Server" + "\n" +
-                   "\tsrvrSckt: " + (m_ServerSocket != null ? m_ServerSocket.Handle.ToInt64() : "null") + "\n" +
-                   "\tstate: " + State + "\n" +
-                   "\tportNumber: " + PortNumber + "\n" +
-                   "\tuserSpecObject: " + UserSpecObject + "\n";
+            return "Server" + NewLine +
+                   "\tsrvrSckt: " + (m_ServerSocket != null ? m_ServerSocket.Handle.ToInt64() : "null") + NewLine +
+                   "\tstate: " + State + NewLine +
+                   "\tportNumber: " + PortNumber + NewLine +
+                   "\tuserSpecObject: " + UserSpecObject + NewLine;
         }
 
     }

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -134,6 +134,9 @@ namespace LSEG.Eta.PerfTools.Common
         /// <summary>Converts configuration parameters to a string.</summary>
         public static string? ConvertToString { get; private set; }
 
+        /// <summary>Tls version.</summary>
+        public static EncryptionProtocolFlags EncryptionProtocol { get; private set; }
+
         #endregion
 
         static NIProvPerfConfig()
@@ -174,6 +177,9 @@ namespace LSEG.Eta.PerfTools.Common
             CommandLine.AddOption("directWrite", false, "Turns on direct write flag");
             CommandLine.AddOption("serviceName", "NI_PUB", "Name of the provided service");
             CommandLine.AddOption("serviceId", 1, "ID of the provided service");
+
+            CommandLine.AddOption("spTLSv1.2", false, "Specifies that TLSv1.2 can be used for an encrypted connection");
+            CommandLine.AddOption("spTLSv1.3", false, "Specifies that TLSv1.3 can be used for an encrypted connection");
         }
 
         /// NIProvPerfConfig cannot be instantiated
@@ -263,6 +269,12 @@ namespace LSEG.Eta.PerfTools.Common
                 else if ("encrypted".Equals(connectionType))
                 {
                     ConnectionType = ConnectionType.ENCRYPTED;
+
+                    EncryptionProtocol = EncryptionProtocolFlags.ENC_NONE;
+                    if (CommandLine.BoolValue("spTLSv1.2"))
+                        EncryptionProtocol |= EncryptionProtocolFlags.ENC_TLSV1_2;
+                    if (CommandLine.BoolValue("spTLSv1.3"))
+                        EncryptionProtocol |= EncryptionProtocolFlags.ENC_TLSV1_3;
                 }
 
                 GuaranteedOutputBuffers = CommandLine.IntValue("outputBufs");

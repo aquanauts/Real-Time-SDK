@@ -1,14 +1,15 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
 #include "ActiveConfig.h"
 #include "EmaConfigImpl.h"
 #include "ChannelCallbackClient.h"
+#include "ConsumerRoutingChannel.h"
 
 using namespace refinitiv::ema::access;
 
@@ -18,7 +19,9 @@ DictionaryConfig::DictionaryConfig() :
 	enumtypeDefFileName(),
 	rdmFieldDictionaryItemName(),
 	enumTypeDefItemName(),
-	dictionaryType( DEFAULT_DICTIONARY_TYPE )
+	dictionaryType(DEFAULT_DICTIONARY_TYPE),
+	dataDictionary(NULL),
+	shouldCopyIntoAPI(false)
 {
 }
 
@@ -34,6 +37,8 @@ void DictionaryConfig::clear()
 	rdmFieldDictionaryItemName.clear();
 	enumTypeDefItemName.clear();
 	dictionaryType = DEFAULT_DICTIONARY_TYPE;
+	dataDictionary = NULL;
+	shouldCopyIntoAPI = false;
 }
 
 ServiceDictionaryConfig::ServiceDictionaryConfig() :
@@ -159,11 +164,13 @@ BaseConfig::BaseConfig() :
 	xmlTraceWrite(DEFAULT_XML_TRACE_WRITE),
 	xmlTraceRead(DEFAULT_XML_TRACE_READ),
 	xmlTracePing(DEFAULT_XML_TRACE_PING),
+	xmlTracePingOnly(DEFAULT_XML_TRACE_PING_ONLY),
 	xmlTraceHex(DEFAULT_XML_TRACE_HEX),
 	xmlTraceDump(DEFAULT_XML_TRACE_DUMP),
 	xmlTraceFileName(DEFAULT_XML_TRACE_FILE_NAME),
 	enableRtt(DEFAULT_ENABLE_RTT),
 	restEnableLog(DEFAULT_REST_ENABLE_LOG),
+	restVerboseMode(DEFAULT_REST_VERBOSE_MODE),
 	restEnableLogViaCallback(DEFAULT_REST_ENABLE_LOG_VIA_CALLBACK),
 	sendJsonConvError(DEFAULT_SEND_JSON_CONV_ERROR),
 	loggerConfig(),
@@ -179,7 +186,9 @@ BaseConfig::BaseConfig() :
 	catchUnknownJsonKeys(DEFAULT_CATCH_UNKNOWN_JSON_KEYS),
 	catchUnknownJsonFids(DEFAULT_CATCH_UNKNOWN_JSON_FIDS),
 	closeChannelFromFailure(DEFAULT_CLOSE_CHANNEL_FROM_FAILURE),
-	outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE)
+	outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE),
+	jsonTokenIncrementSize(DEFAULT_JSON_TOKEN_INCREMENT_SIZE),
+	shouldInitializeCPUIDlib(DEFAULT_SHOULD_INIT_CPUID_LIB)
 {
 }
 
@@ -205,11 +214,13 @@ void BaseConfig::clear()
 	xmlTraceWrite = DEFAULT_XML_TRACE_WRITE;
 	xmlTraceRead = DEFAULT_XML_TRACE_READ;
 	xmlTracePing = DEFAULT_XML_TRACE_PING;
+	xmlTracePingOnly = DEFAULT_XML_TRACE_PING_ONLY;
 	xmlTraceHex = DEFAULT_XML_TRACE_HEX;
 	xmlTraceDump = DEFAULT_XML_TRACE_DUMP;
 	xmlTraceFileName = DEFAULT_XML_TRACE_FILE_NAME;
 	enableRtt = DEFAULT_ENABLE_RTT;
 	restEnableLog = DEFAULT_REST_ENABLE_LOG;
+	restVerboseMode = DEFAULT_REST_VERBOSE_MODE;
 	restEnableLogViaCallback = DEFAULT_REST_ENABLE_LOG_VIA_CALLBACK;
 	loggerConfig.clear();
 	catchUnhandledException = DEFAULT_HANDLE_EXCEPTION;
@@ -226,7 +237,9 @@ void BaseConfig::clear()
 	catchUnknownJsonFids = DEFAULT_CATCH_UNKNOWN_JSON_FIDS;
 	closeChannelFromFailure = DEFAULT_CLOSE_CHANNEL_FROM_FAILURE;
 	outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
+	jsonTokenIncrementSize = DEFAULT_JSON_TOKEN_INCREMENT_SIZE;
 	sendJsonConvError = DEFAULT_SEND_JSON_CONV_ERROR;
+	shouldInitializeCPUIDlib = DEFAULT_SHOULD_INIT_CPUID_LIB;
 }
 
 EmaString BaseConfig::configTrace()
@@ -248,6 +261,7 @@ EmaString BaseConfig::configTrace()
 		.append("\n\t xmlTraceWrite : ").append(xmlTraceWrite)
 		.append("\n\t xmlTraceRead : ").append(xmlTraceRead)
 		.append("\n\t xmlTracePing : ").append(xmlTracePing)
+		.append("\n\t xmlTracePingOnly : ").append(xmlTracePingOnly)
 		.append("\n\t xmlTraceHex : ").append(xmlTraceHex)
 		.append("\n\t xmlTraceDump : ").append(xmlTraceDump)
 		.append("\n\t xmlTraceFileName : ").append(xmlTraceFileName)
@@ -261,9 +275,12 @@ EmaString BaseConfig::configTrace()
 		.append("\n\t catchUnknownJsonFids : ").append(catchUnknownJsonFids)
 		.append("\n\t closeChannelFromFailure : ").append(closeChannelFromFailure)
 		.append("\n\t outputBufferSize : ").append(outputBufferSize)
+		.append("\n\t jsonTokenIncrementSize : ").append(jsonTokenIncrementSize)
 		.append("\n\t restEnableLog : ").append(restEnableLog)
+		.append("\n\t restVerboseMode : ").append(restVerboseMode)
 		.append("\n\t restLogFileName : ").append(restLogFileName)
-		.append("\n\t sendJsonConvError : ").append(sendJsonConvError);
+		.append("\n\t sendJsonConvError : ").append(sendJsonConvError)
+		.append("\n\t shouldInitializeCPUIDlib : ").append(shouldInitializeCPUIDlib);
 
 	return traceStr;
 }
@@ -330,6 +347,23 @@ void BaseConfig::setMaxEventsInPool(Int64 value)
 		maxEventsInPool = (Int32)value;
 }
 
+size_t ActiveConfig::EmaStringPtrHasher::operator()(const EmaStringPtr& value) const
+{
+	size_t result = 0;
+	size_t magic = 8388593;
+
+	const char* s = value->c_str();
+	UInt32 n = value->length();
+	while (n--)
+		result = ((result % magic) << 8) + (size_t)*s++;
+	return result;
+}
+
+bool ActiveConfig::EmaStringPtrEqual_To::operator()(const EmaStringPtr& x, const EmaStringPtr& y) const
+{
+	return *x == *y;
+}
+
 ActiveConfig::ActiveConfig( const EmaString& defaultServiceName ) :
 	obeyOpenWindow( DEFAULT_OBEY_OPEN_WINDOW ),
 	postAckTimeout( DEFAULT_POST_ACK_TIMEOUT ),
@@ -341,7 +375,6 @@ ActiveConfig::ActiveConfig( const EmaString& defaultServiceName ) :
 	reconnectMinDelay(DEFAULT_RECONNECT_MIN_DELAY),
 	reconnectMaxDelay(DEFAULT_RECONNECT_MAX_DELAY),
 	msgKeyInUpdates(DEFAULT_MSGKEYINUPDATES),
-	pipePort(DEFAULT_PIPE_PORT),
 	pRsslRDMLoginReq( 0 ),
 	pRsslDirectoryRequestMsg( 0 ),
 	pRsslRdmFldRequestMsg( 0 ),
@@ -351,7 +384,21 @@ ActiveConfig::ActiveConfig( const EmaString& defaultServiceName ) :
 	dictionaryConfig(),
 	reissueTokenAttemptLimit(DEFAULT_REISSUE_TOKEN_ATTEMP_LIMIT),
 	reissueTokenAttemptInterval(DEFAULT_REISSUE_TOKEN_ATTEMP_INTERVAL),
-	restRequestTimeOut(DEFAULT_REST_REQUEST_TIMEOUT)
+	restRequestTimeOut(DEFAULT_REST_REQUEST_TIMEOUT),
+	restProxyHostName(),
+	restProxyPort(),
+	restProxyUserName(),
+	restProxyPasswd(),
+	restProxyDomain(),
+	consumerRoutingSessionEnhancedItemRecovery(true),
+	serviceListByName(),
+	serviceListSet(),
+	enablePreferredHostOptions(DEFAULT_ENABLE_PREFERRED_HOST),
+	phDetectionTimeSchedule(DEFAULT_DETECTION_TIME_SCHEDULE),
+	phDetectionTimeInterval(DEFAULT_DETECTION_TIME_INTERVAL),
+	preferredChannelName(DEFAULT_CHANNEL_NAME),
+	preferredWSBChannelName(DEFAULT_WSB_CHANNEL_NAME),
+	phFallBackWithInWSBGroup(DEFAULT_FALL_BACK_WITH_IN_WSB_GROUP)
 {
 }
 
@@ -360,13 +407,14 @@ ActiveConfig::~ActiveConfig()
 	clearChannelSet();
 	clearWSBChannelSet();
 	clearChannelSetForWSB();
+	clearConsumerRoutingSessionSet();
+	clearServiceListSet();
 }
 
 EmaString ActiveConfig::configTrace()
 {
 	BaseConfig::configTrace();
-	traceStr.append("\n\t pipePort: ").append(pipePort)
-		.append("\n\t obeyOpenWindow: ").append(obeyOpenWindow)
+	traceStr.append("\n\t obeyOpenWindow: ").append(obeyOpenWindow)
 		.append("\n\t postAckTimeout: ").append(postAckTimeout)
 		.append("\n\t maxOutstandingPosts: ").append(maxOutstandingPosts)
 		.append("\n\t reconnectAttemptLimit: ").append(reconnectAttemptLimit)
@@ -378,7 +426,17 @@ EmaString ActiveConfig::configTrace()
 		.append("\n\t loginRequestTimeOut : ").append(loginRequestTimeOut)
 		.append("\n\t reissueTokenAttemptLimit : ").append(reissueTokenAttemptLimit)
 		.append("\n\t reissueTokenAttemptInterval : ").append(reissueTokenAttemptInterval)
-		.append("\n\t restRequestTimeOut : ").append(restRequestTimeOut);
+		.append("\n\t restRequestTimeOut : ").append(restRequestTimeOut)
+		.append("\n\t restProxyHostName : ").append(restProxyHostName)
+		.append("\n\t restProxyPort : ").append(restProxyPort)
+		.append("\n\t restProxyDomain : ").append(restProxyDomain)
+		.append("\n\t enablePreferredHostOptions : ").append(enablePreferredHostOptions)
+		.append("\n\t phDetectionTimeSchedule : ").append(phDetectionTimeSchedule)
+		.append("\n\t phDetectionTimeInterval : ").append(phDetectionTimeInterval)
+		.append("\n\t preferredChannelName : ").append(preferredChannelName)
+		.append("\n\t preferredWSBChannelName : ").append(preferredWSBChannelName)
+		.append("\n\t phFallBackWithInWSBGroup : ").append(phFallBackWithInWSBGroup);
+
 	return traceStr;
 }
 
@@ -430,9 +488,41 @@ void ActiveConfig::clearChannelSetForWSB()
 	configChannelSetForWSB.clear();
 }
 
+void ActiveConfig::clearConsumerRoutingSessionSet()
+{
+	if (consumerRoutingSessionSet.size() == 0)
+		return;
+	for (unsigned int i = 0; i < consumerRoutingSessionSet.size(); ++i)
+	{
+		if (consumerRoutingSessionSet[i] != NULL)
+		{
+			delete consumerRoutingSessionSet[i];
+			consumerRoutingSessionSet[i] = NULL;
+		}
+	}
+
+	consumerRoutingSessionSet.clear();
+}
+
+void ActiveConfig::clearServiceListSet()
+{
+	if (serviceListSet.size() == 0)
+		return;
+	for (unsigned int i = 0; i < serviceListSet.size(); ++i)
+	{
+		if (serviceListSet[i] != NULL)
+		{
+			delete serviceListSet[i];
+			serviceListSet[i] = NULL;
+		}
+	}
+
+	serviceListSet.clear();
+	serviceListByName.clear();
+}
+
 void ActiveConfig::clear()
 {
-	pipePort = DEFAULT_PIPE_PORT;
 	obeyOpenWindow = DEFAULT_OBEY_OPEN_WINDOW;
 	postAckTimeout = DEFAULT_POST_ACK_TIMEOUT;
 	maxOutstandingPosts = DEFAULT_MAX_OUTSTANDING_POSTS;
@@ -451,6 +541,18 @@ void ActiveConfig::clear()
 	reissueTokenAttemptLimit = DEFAULT_REISSUE_TOKEN_ATTEMP_LIMIT;
 	reissueTokenAttemptInterval = DEFAULT_REISSUE_TOKEN_ATTEMP_INTERVAL;
 	restRequestTimeOut = DEFAULT_REST_REQUEST_TIMEOUT;
+	restProxyHostName.clear();
+	restProxyPort.clear();
+	restProxyUserName.clear();
+	restProxyPasswd.clear();
+	restProxyDomain.clear();
+	enablePreferredHostOptions = false;
+	phDetectionTimeSchedule.clear();
+	phDetectionTimeInterval = 0;
+	preferredChannelName.clear();
+	preferredWSBChannelName.clear();
+	phFallBackWithInWSBGroup = false;
+
 
 	if ( pDirectoryRefreshMsg )
 		delete pDirectoryRefreshMsg;
@@ -499,6 +601,45 @@ void ActiveConfig::setDictionaryRequestTimeOut( UInt64 value )
 		dictionaryRequestTimeOut = RWF_MAX_32;
 	else
 		dictionaryRequestTimeOut = ( UInt32 ) value;
+}
+
+void ActiveConfig::setEnablePreferredHostOptions( UInt64 value )
+{
+	if ( value <= 0 )
+		enablePreferredHostOptions = 0;
+	else
+		enablePreferredHostOptions = 1;
+}
+
+void ActiveConfig::setDetectionTimeSchedule( const EmaString& value )
+{
+	phDetectionTimeSchedule = value;
+}
+
+void ActiveConfig::setChannelName( const EmaString& value )
+{
+	preferredChannelName = value;
+}
+
+void ActiveConfig::setWSBChannelName(const EmaString& value)
+{
+	preferredWSBChannelName = value;
+}
+
+void ActiveConfig::setDetectionTimeInterval( UInt64 value )
+{
+	if (value > RWF_MAX_32)
+		phDetectionTimeInterval = RWF_MAX_32;
+	else
+		phDetectionTimeInterval = (UInt32)value;
+}
+
+void ActiveConfig::setFallBackWithInWSBGroup( UInt64 value )
+{
+	if (value <= 0)
+		phFallBackWithInWSBGroup = 0;
+	else
+		phFallBackWithInWSBGroup = 1;
 }
 
 void ActiveConfig::setMaxOutstandingPosts( UInt64 value )
@@ -606,7 +747,6 @@ bool ActiveConfig::findWsbChannelConfig(EmaVector< WarmStandbyChannelConfig* >& 
 }
 
 ActiveServerConfig::ActiveServerConfig(const EmaString& defaultServiceName) :
-	pipePort(DEFAULT_SERVER_PIPE_PORT),
 	acceptMessageWithoutBeingLogin(DEFAULT_ACCEPT_MSG_WITHOUT_BEING_LOGIN),
 	acceptMessageWithoutAcceptingRequests(DEFAULT_ACCEPT_MSG_WITHOUT_ACCEPTING_REQUESTS),
 	acceptDirMessageWithoutMinFilters(DEFAULT_ACCEPT_DIR_MSG_WITHOUT_MIN_FILTERS),
@@ -635,7 +775,6 @@ ActiveServerConfig::~ActiveServerConfig()
 
 void ActiveServerConfig::clear()
 {
-	pipePort = DEFAULT_SERVER_PIPE_PORT;
 	acceptMessageWithoutBeingLogin = DEFAULT_ACCEPT_MSG_WITHOUT_BEING_LOGIN;
 	acceptMessageWithoutAcceptingRequests = DEFAULT_ACCEPT_MSG_WITHOUT_ACCEPTING_REQUESTS;
 	acceptDirMessageWithoutMinFilters = DEFAULT_ACCEPT_DIR_MSG_WITHOUT_MIN_FILTERS;
@@ -651,8 +790,7 @@ void ActiveServerConfig::clear()
 EmaString ActiveServerConfig::configTrace()
 {
 	BaseConfig::configTrace();
-	traceStr.append("\n\t pipePort: ").append(pipePort)
-		.append("\n\t acceptMessageWithoutBeingLogin: ").append(acceptMessageWithoutBeingLogin)
+	traceStr.append("\n\t acceptMessageWithoutBeingLogin: ").append(acceptMessageWithoutBeingLogin)
 		.append("\n\t acceptMessageWithoutAcceptingRequests: ").append(acceptMessageWithoutAcceptingRequests)
 		.append("\n\t acceptDirMessageWithoutMinFilters: ").append(acceptDirMessageWithoutMinFilters)
 		.append("\n\t acceptMessageWithoutQosInRange: ").append(acceptMessageWithoutQosInRange)
@@ -729,7 +867,8 @@ ChannelConfig::ChannelConfig( RsslConnectionTypes type ) :
 	sysRecvBufSize( DEFAULT_SYS_RECEIVE_BUFFER_SIZE ),
 	highWaterMark( DEFAULT_HIGH_WATER_MARK ),
 	pChannel( 0 ),
-	compressionThresholdSet(false)
+	compressionThresholdSet(false),
+	pRoutingChannelConfig(0)
 {
 }
 
@@ -749,6 +888,7 @@ void ChannelConfig::clear()
 	highWaterMark = DEFAULT_HIGH_WATER_MARK;
 	pChannel = 0;
 	compressionThresholdSet = false;
+	pRoutingChannelConfig = 0;
 }
 
 ChannelConfig::~ChannelConfig()
@@ -841,9 +981,15 @@ SocketChannelConfig::SocketChannelConfig(const EmaString& defaultHostName, const
 	defaultServiceName(defaultServiceName),
 	tcpNodelay(DEFAULT_TCP_NODELAY),
 	objectName(DEFAULT_OBJECT_NAME),
+	proxyHostName(),
+	proxyPort(),
+	proxyUserName(),
+	proxyPasswd(),
+	proxyDomain(),
+	proxyConnectionTimeout(DEFAULT_PROXY_CONNECTION_TIMEOUT),
 	sslCAStore(DEFAULT_SSL_CA_STORE),
 	encryptedConnectionType(RSSL_CONN_TYPE_INIT),
-	securityProtocol(RSSL_ENC_TLSV1_2),
+	securityProtocol(RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3),
 	enableSessionMgnt(RSSL_FALSE),
 	location(DEFAULT_RDP_RT_LOCATION),
 	serviceDiscoveryRetryCount(DEFAULT_SERVICE_DISCOVERY_RETRY_COUNT),
@@ -864,8 +1010,14 @@ void SocketChannelConfig::clear()
 	serviceName = defaultServiceName;
 	tcpNodelay = DEFAULT_TCP_NODELAY;
 	objectName = DEFAULT_OBJECT_NAME;
+	proxyHostName.clear();
+	proxyPort.clear();
+	proxyUserName.clear();
+	proxyPasswd.clear();
+	proxyDomain.clear();
+	proxyConnectionTimeout = DEFAULT_PROXY_CONNECTION_TIMEOUT;
 	sslCAStore = DEFAULT_SSL_CA_STORE;
-	securityProtocol = RSSL_ENC_TLSV1_2;
+	securityProtocol = (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3);
 	enableSessionMgnt = RSSL_FALSE;
 	location = DEFAULT_RDP_RT_LOCATION;
 	serviceDiscoveryRetryCount = DEFAULT_SERVICE_DISCOVERY_RETRY_COUNT;
@@ -876,6 +1028,14 @@ void SocketChannelConfig::clear()
 ChannelConfig::ChannelType SocketChannelConfig::getType() const
 {
 	return ChannelConfig::SocketChannelEnum;
+}
+
+void SocketChannelConfig::setProxyConnectionTimeout(UInt64 value)
+{
+	if (value >= 0)
+	{
+		proxyConnectionTimeout = value > RWF_MAX_32 ? RWF_MAX_32 : (UInt32)value;
+	}
 }
 
 void SocketChannelConfig::setServiceDiscoveryRetryCount(UInt64 value)
@@ -902,7 +1062,8 @@ defaultServiceName(defaultServiceName),
 tcpNodelay(DEFAULT_TCP_NODELAY),
 serverSharedSocket(DEFAULT_SERVER_SHAREDSOCKET),
 maxFragmentSize(DEFAULT_MAX_FRAGMENT_SIZE),
-wsProtocols(DEFAULT_WS_PROTOCLOS)
+wsProtocols(DEFAULT_WS_PROTOCLOS),
+securityProtocol(RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3)
 {
 }
 
@@ -928,6 +1089,8 @@ void SocketServerConfig::clear()
 
 	maxFragmentSize = DEFAULT_MAX_FRAGMENT_SIZE;
 	wsProtocols = DEFAULT_WS_PROTOCLOS;
+
+	securityProtocol = (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3);
 }
 
 ServerConfig::ServerType SocketServerConfig::getType() const
@@ -1174,4 +1337,5 @@ void WarmStandbyChannelConfig::clear()
 	standbyServerSet.clear();
 	downloadConnectionConfig = DEFAULT_WSB_DOWNLOAD_CONNECTION_CONFIG;
 	warmStandbyMode = (WarmStandbyMode)RSSL_RWSB_MODE_LOGIN_BASED;
+	pRoutingChannelConfig = NULL;
 }

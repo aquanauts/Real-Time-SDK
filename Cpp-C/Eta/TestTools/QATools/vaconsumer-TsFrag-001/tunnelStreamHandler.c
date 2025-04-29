@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 /*
@@ -140,7 +140,7 @@ void handleTunnelStreamHandler(RsslReactor *pReactor, RsslReactorChannel *pReact
 
 	if ((ret = rsslReactorOpenTunnelStream(pReactorChannel, &tunnelStreamOpenOptions, &errorInfo)) != RSSL_RET_SUCCESS)
 	{
-		printf("rsslReactorOpenTunnelStream failed: %s(%s)\n", rsslRetCodeToString(ret), &errorInfo.rsslError.text);
+		printf("rsslReactorOpenTunnelStream failed: %s(%s)\n", rsslRetCodeToString(ret), errorInfo.rsslError.text);
 		return;
 	}
 
@@ -166,7 +166,7 @@ void tunnelStreamHandlerCloseStreams(TunnelStreamHandler *pTunnelHandler)
 		pTunnelHandler->waitFinalStatusEvent = RSSL_TRUE;
 
 		if ((ret = rsslReactorCloseTunnelStream(pTunnelHandler->pTunnelStream, &closeOpts, &errorInfo)) < RSSL_RET_SUCCESS)
-			printf("rsslReactorCloseTunnelStream failed: %s(%s)\n", rsslRetCodeToString(ret), &errorInfo.rsslError.text);
+			printf("rsslReactorCloseTunnelStream failed: %s(%s)\n", rsslRetCodeToString(ret), errorInfo.rsslError.text);
 	}
 }
 

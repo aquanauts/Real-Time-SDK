@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -33,10 +33,26 @@ MapEncoder::~MapEncoder()
 
 void MapEncoder::clear()
 {
-	Encoder::releaseEncIterator();
+	Encoder::clearEncIterator();
 
 	rsslClearMap( &_rsslMap );
 	rsslClearMapEntry( &_rsslMapEntry );
+
+	_emaLoadType = DataType::NoDataEnum;
+
+	_emaKeyType = DataType::BufferEnum;
+
+	_containerInitialized = false;
+
+	_keyTypeSet = false;
+}
+
+void MapEncoder::release()
+{
+	Encoder::releaseEncIterator();
+
+	rsslClearMap(&_rsslMap);
+	rsslClearMapEntry(&_rsslMapEntry);
 
 	_emaLoadType = DataType::NoDataEnum;
 
@@ -125,6 +141,18 @@ void MapEncoder::addEntryWithNoPayload( void* keyValue, MapEntry::MapAction acti
 void MapEncoder::addEncodedEntry( void* keyValue, MapEntry::MapAction action, 
 	const ComplexType& value, const EmaBuffer& permission, const char* methodName )
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_MAP ||
+		_levelInfo->_encodingState != RSSL_EIS_ENTRIES)
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to add MapEntry while complete() was not called for passed in container:  ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	rsslClearMapEntry(&_rsslMapEntry);
 
 	_rsslMapEntry.encData = value.getEncoder().getRsslBuffer();
@@ -181,6 +209,18 @@ void MapEncoder::addDecodedEntry( void* keyValue, MapEntry::MapAction action,
 void MapEncoder::startEncodingEntry( void* keyValue, MapEntry::MapAction action, 
 	const EmaBuffer& permission, const char* methodName )
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_MAP ||
+		_levelInfo->_encodingState != RSSL_EIS_ENTRIES)
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to add MapEntry while complete() was not called for passed in container:  ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	_rsslMapEntry.encData.data = 0;
 	_rsslMapEntry.encData.length = 0;
 
@@ -207,6 +247,19 @@ void MapEncoder::startEncodingEntry( void* keyValue, MapEntry::MapAction action,
 
 void MapEncoder::endEncodingEntry() const
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_MAP ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRY_INIT &&
+		 _levelInfo->_encodingState != RSSL_EIS_WAIT_COMPLETE))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to complete Map while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	RsslRet retCode = rsslEncodeMapEntryComplete( &_pEncodeIter->_rsslEncIter, RSSL_TRUE );
 	/* Reallocate does not need here. The data is placed in already allocated memory */
 
@@ -1359,6 +1412,20 @@ void MapEncoder::complete()
 		acquireEncIterator();
 
 		initEncode(_emaKeyType, convertDataType(_emaLoadType), _emaLoadType);
+	}
+
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_MAP ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRIES &&
+		 _levelInfo->_encodingState != RSSL_EIS_SET_DEFINITIONS &&
+		 _levelInfo->_encodingState != RSSL_EIS_WAIT_COMPLETE))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to complete Map while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
 	}
 
 	RsslRet retCode = rsslEncodeMapComplete( &(_pEncodeIter->_rsslEncIter), RSSL_TRUE );

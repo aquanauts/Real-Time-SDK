@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #include "rtr/tunnelManager.h"
@@ -610,7 +610,7 @@ RsslBuffer* tunnelManagerGetChannelBuffer(TunnelManagerImpl *pManagerImpl,
 	if ((pBuffer = rsslReactorGetBuffer(pReactorChannel, length, RSSL_FALSE,
 		pErrorInfo)) == NULL)
 	{
-		RsslReactorChannelInfo channelInfo;
+		RsslChannelInfo channelInfo;
 
 		if (!mustSendMsg)
 			return NULL;
@@ -618,24 +618,26 @@ RsslBuffer* tunnelManagerGetChannelBuffer(TunnelManagerImpl *pManagerImpl,
 		if (pErrorInfo->rsslError.rsslErrorId != RSSL_RET_BUFFER_NO_BUFFERS)
 			return NULL;
 
-		if ((ret = rsslReactorGetChannelInfo(pReactorChannel, &channelInfo, pErrorInfo)
-					!= RSSL_RET_SUCCESS))
+		ret = rsslGetChannelInfo(pReactorChannel->pRsslChannel, &channelInfo, &pErrorInfo->rsslError);
+		if (ret != RSSL_RET_SUCCESS)
+		{
 			return NULL;
+		}
 
 		/* Grow the buffer pool by one and attempt to get the buffer again. */
 
 		/* Try the shared pool first. */
-		channelInfo.rsslChannelInfo.maxOutputBuffers += 1;
+		channelInfo.maxOutputBuffers += 1;
 		if ((ret = rsslReactorChannelIoctl(pReactorChannel, 
 						RSSL_MAX_NUM_BUFFERS,
-						&channelInfo.rsslChannelInfo.maxOutputBuffers,
+						&channelInfo.maxOutputBuffers,
 						pErrorInfo)) != RSSL_RET_SUCCESS)
 		{
 			/* If that doesn't work, try the guaranteed pool. */
-			channelInfo.rsslChannelInfo.guaranteedOutputBuffers += 1;
+			channelInfo.guaranteedOutputBuffers += 1;
 			if ((ret = rsslReactorChannelIoctl(pReactorChannel, 
 							RSSL_NUM_GUARANTEED_BUFFERS,
-							&channelInfo.rsslChannelInfo.guaranteedOutputBuffers,
+							&channelInfo.guaranteedOutputBuffers,
 							pErrorInfo)) != RSSL_RET_SUCCESS)
 				return NULL;
 		}
@@ -675,7 +677,6 @@ RsslRet tunnelManagerSubmitChannelBuffer(TunnelManagerImpl *pManagerImpl,
 		RsslWatchlistProcessMsgOptions processOpts;
 
 		rsslWatchlistClearProcessMsgOptions(&processOpts);
-		processOpts.pChannel = pReactorChannelImpl->reactorChannel.pRsslChannel;
 		processOpts.majorVersion = pReactorChannelImpl->reactorChannel.majorVersion;
 		processOpts.minorVersion = pReactorChannelImpl->reactorChannel.minorVersion;
 		processOpts.pRsslBuffer = pBuffer;

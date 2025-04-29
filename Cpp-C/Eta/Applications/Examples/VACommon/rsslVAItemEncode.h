@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 
@@ -45,7 +45,7 @@ typedef enum {
 /* item information. */
 typedef struct {
 	RsslBool		IsRefreshComplete;
-	char			Itemname[MAX_ITEM_INFO_STRLEN];
+	char			Itemname[MAX_ITEM_INFO_STRLEN+1];
 	RsslUInt32		InterestCount;
 	RsslUInt8		domainType;
 	void*			itemData; /* Holds information about the item's data. This data will be different depending on the domain of the item. */

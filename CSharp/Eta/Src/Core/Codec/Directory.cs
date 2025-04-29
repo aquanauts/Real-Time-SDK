@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -140,7 +140,10 @@ namespace LSEG.Eta.Rdm
 			/// <summary>
 			/// Source Communication Link Information </summary>
 			public const int LINK = 0x00000020;
-		}
+            /// <summary>
+            /// All of the above information </summary>
+            public const int ALL_FILTERS = 0x0000003F;
+}
 
 		/// <summary>
 		/// Filter IDs for RDM directory service.

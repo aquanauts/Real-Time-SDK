@@ -1,0 +1,6 @@
+# file,location
+WatchlistConsumerConfig.cs,Applications/Examples/WatchlistConsumer/
+ItemArg.cs,Applications/Examples/VACommon/
+WatchlistConsumer.cs,Applications/Examples/WatchlistConsumer/
+PostHandler.cs,Applications/Examples/WatchlistConsumer/
+ItemRequest.cs,Applications/Examples/WatchlistConsumer/

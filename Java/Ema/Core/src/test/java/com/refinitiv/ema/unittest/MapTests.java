@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.unittest;
@@ -13,6 +13,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.eta.codec.Codec;
 import com.refinitiv.eta.codec.CodecFactory;
 import com.refinitiv.eta.codec.CodecReturnCodes;
@@ -178,7 +179,7 @@ public class MapTests extends TestCase
 			Map map = EmaFactory.createMap();
 			map.keyFieldId(11).totalCountHint(3).keyType(DataType.DataTypes.ASCII);
 			map.add(EmaFactory.createMapEntry().keyAscii("Key1", MapEntry.MapAction.ADD));
-			TestUtilities.checkResult("Map.toString() == toString() not supported", map.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));			
+			TestUtilities.checkResult("Map.toString() == toString()", map.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 			
 			ElementList elementList = EmaFactory.createElementList();
 			elementList.add(EmaFactory.createElementEntry().map("1", map));
@@ -270,34 +271,65 @@ public class MapTests extends TestCase
 	public void testMapEntryKeyAsciiWithNoPayload_Encode_Decode()
 	{
 		TestUtilities.printTestHead("testMapEntryKeyAsciiWithNoPayload_Encode_Decode","Encode and decode Map with no payload for ascii key entry");
-		
+
+		String mapString = "Map\n" +
+				"    MapEntry action=\"Add\" key dataType=\"Ascii\" value=\"ITEM1\" dataType=\"NoData\"\n" +
+				"        NoData\n" +
+				"        NoDataEnd\n" +
+				"    MapEntryEnd\n" +
+				"    MapEntry action=\"Update\" key dataType=\"Ascii\" value=\"ITEM2\" permissionData=\"00 00 04 d2\" dataType=\"NoData\"\n" +
+				"        NoData\n" +
+				"        NoDataEnd\n" +
+				"    MapEntryEnd\n" +
+				"    MapEntry action=\"Delete\" key dataType=\"Ascii\" value=\"ITEM3\" dataType=\"NoData\"\n" +
+				"        NoData\n" +
+				"        NoDataEnd\n" +
+				"    MapEntryEnd\n" +
+				"MapEnd\n";
+
 		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory
 				.createDataDictionary();
 		TestUtilities.eta_encodeDictionaryMsg(dictionary);
 		
 		try {
 			Map mapEnc = EmaFactory.createMap();
-			
+			Map mapEmpty = EmaFactory.createMap();
+
 			ByteBuffer permissionData = ByteBuffer.allocate(4);
 			permissionData.putInt(1234).flip();
 			
 			MapEntry me = EmaFactory.createMapEntry().keyAscii("ITEM1", MapEntry.MapAction.ADD);
-			TestUtilities.checkResult("MapEntry.toString() == toString() not supported", me.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("MapEntry.toString() == toString()", me.toString().equals("\nEntity is not encoded yet. Complete encoding to use this method.\n"));
 			
 			mapEnc.add(me);
 			mapEnc.add(EmaFactory.createMapEntry().keyAscii("ITEM2", MapEntry.MapAction.UPDATE, permissionData));
 			mapEnc.add(EmaFactory.createMapEntry().keyAscii("ITEM3", MapEntry.MapAction.DELETE));
-			
+
+			DataDictionary emaDataDictionary = EmaFactory.createDataDictionary();
+
+			TestUtilities.checkResult("Map.toString(dictionary) == toString(dictionary)", mapEnc.toString(emaDataDictionary).equals("\nDictionary is not loaded.\n"));
+
+			emaDataDictionary.loadFieldDictionary(TestUtilities.getFieldDictionaryFileName());
+			emaDataDictionary.loadEnumTypeDictionary(TestUtilities.getEnumTableFileName());
+
+			TestUtilities.checkResult("Map.toString(dictionary) == toString(dictionary)", mapEnc.toString(emaDataDictionary).equals(mapString));
+
+			TestUtilities.checkResult("Map.toString(dictionary) == toString(dictionary)", mapEmpty.toString(emaDataDictionary).equals("Map\nMapEnd\n"));
+
+			mapEmpty.add(me);
+			mapEmpty.clear();
+			TestUtilities.checkResult("Map.toString(dictionary) == toString(dictionary)", mapEmpty.toString(emaDataDictionary).equals("Map\nMapEnd\n"));
+
 			Map mapDec = JUnitTestConnect.createMap();
 			JUnitTestConnect.setRsslData(mapDec, mapEnc, Codec.majorVersion(), Codec.minorVersion(), dictionary, null);
 			// check that we can still get the toString on encoded/decoded container.
-			TestUtilities.checkResult("Map.toString() != toString() not supported", !(mapDec.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));			
-			
+			TestUtilities.checkResult("Map.toString() != toString()", !(mapDec.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
+
 			Iterator<MapEntry> mapIt = mapDec.iterator();
 			
 			MapEntry mapEntryA = mapIt.next();
 			// check that we can still get the toString on encoded/decoded entry.
-			TestUtilities.checkResult("MapEntry.toString() != toString() not supported", !(mapEntryA.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));
+			TestUtilities.checkResult("MapEntry.toString() != toString()", !(mapEntryA.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
 
 			TestUtilities.checkResult( mapEntryA.key().ascii().ascii().equals("ITEM1"), "Check the key value of the first map entry");
 			TestUtilities.checkResult( mapEntryA.action() == MapEntry.MapAction.ADD, "Check the action of the first map entry");
@@ -1357,6 +1389,108 @@ public class MapTests extends TestCase
 
 
 			mapIter = mapDec.iterator();
+			{
+				TestUtilities.checkResult( mapIter.hasNext(), "Map contains FieldList - maphasNext() after regenerating iterator" );
+
+				me1 = mapIter.next();
+
+				TestUtilities.checkResult( me1.key().dataType() == DataType.DataTypes.BUFFER, "MapEntry.key().dataType() == DataType.DataTypes.BUFFER" );
+				TestUtilities.checkResult( Arrays.equals( me1.key().buffer().buffer().array() , new String("ABCD").getBytes()), "MapEntry.key().buffer()" );
+				TestUtilities.checkResult( me1.action() == MapEntry.MapAction.DELETE, "MapEntry.action() == MapEntry.MapAction.DELETE" );
+				TestUtilities.checkResult( me1.load().dataType() == DataTypes.NO_DATA, "MapEntry.load().dataType() == DataTypes.NO_DATA" );
+			}
+
+
+			TestUtilities.checkResult( mapIter.hasNext(), "Map contains FieldList - second maphasNext()" );
+
+			MapEntry me2 = mapIter.next();
+
+			TestUtilities.checkResult( me2.key().dataType() == DataType.DataTypes.BUFFER, "MapEntry.key().dataType() == DataType.DataTypes.BUFFER" );
+			TestUtilities.checkResult( Arrays.equals( me1.key().buffer().buffer().array() , new String("ABCD").getBytes()), "MapEntry.key().buffer()" );
+			TestUtilities.checkResult( me2.action() == MapEntry.MapAction.ADD, "MapEntry.action() == MapEntry.MapAction.ADD" );
+			TestUtilities.checkResult( me2.load().dataType() == DataType.DataTypes.FIELD_LIST, "MapEntry.load().dataType() == DataType.DataTypes.FIELD_LIST" );
+			TestUtilities.EmaDecodeFieldListAll( me2.fieldList() );
+
+			TestUtilities.checkResult( mapIter.hasNext(), "Map contains FieldList - third maphasNext()" );
+
+			MapEntry me3 = mapIter.next();
+
+			TestUtilities.checkResult( me3.key().dataType() == DataType.DataTypes.BUFFER, "MapEntry.key().dataType() == DataType.DataTypes.BUFFER" );
+			TestUtilities.checkResult( Arrays.equals( me3.key().buffer().buffer().array() , new String("EFGHI").getBytes()), "MapEntry.key().buffer()" );
+			TestUtilities.checkResult( me3.action() == MapEntry.MapAction.ADD, "MapEntry.action() == MapEntry.MapAction.ADD" );
+			TestUtilities.checkResult( me3.load().dataType() == DataType.DataTypes.FIELD_LIST, "MapEntry.load().dataType() == DataTypes.NO_DATA" );
+			TestUtilities.EmaDecodeFieldListAll( me3.fieldList() );
+			
+			TestUtilities.checkResult( mapIter.hasNext(), "Map contains FieldList - fourth maphasNext()" );
+
+			MapEntry me4 = mapIter.next();
+
+			TestUtilities.checkResult( me4.key().dataType() == DataType.DataTypes.BUFFER, "MapEntry.key().dataType() == DataType.DataTypes.BUFFER" );
+			TestUtilities.checkResult( Arrays.equals( me4.key().buffer().buffer().array() , new String("JKLMNOP").getBytes()), "MapEntry.key().buffer()" );
+			TestUtilities.checkResult( me4.action() == MapEntry.MapAction.UPDATE, "MapEntry.action() == MapEntry.MapAction.UPDATE" );
+			TestUtilities.checkResult( me4.load().dataType() == DataType.DataTypes.FIELD_LIST, "MapEntry.load().dataType() == DataType.DataTypes.FIELD_LIST" );
+
+			TestUtilities.checkResult( !mapIter.hasNext(), "Map contains FieldList - final maphasNext()" );
+
+			TestUtilities.checkResult( true, "Map contains FieldList - exception not expected" );
+		} catch ( OmmException excp  ) {
+			TestUtilities.checkResult( false, "Map contains FieldList - exception not expected" );
+			System.out.println(excp.getMessage());
+		}
+	}
+	
+	public void testMapContainsFieldLists_EfficientDecode_EncodeDecodeAll()
+	{
+		TestUtilities.printTestHead("testMapContainsFieldLists_EfficientDecode_EncodeDecodeAll","Encode Map that contains FieldLists with EMA and Decode Map with EMA using Efficient methods for iteration");
+		
+		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory
+				.createDataDictionary();
+		TestUtilities.eta_encodeDictionaryMsg(dictionary);
+
+		try {
+			//EMA Encoding
+			// encoding order:  SummaryData(with FieldList), Delete, FieldList-Add, FieldList-Add, FieldList-Update
+
+			Map mapEnc = EmaFactory.createMap();
+			TestUtilities.EmaEncodeMapAllWithFieldList( mapEnc);
+
+			//Now do EMA decoding of Map
+			Map mapDec = JUnitTestConnect.createMap();
+			JUnitTestConnect.setRsslData(mapDec, mapEnc, Codec.majorVersion(), Codec.minorVersion(), dictionary, null);
+
+			System.out.println(mapDec);
+
+			Iterator<MapEntry> mapIter = mapDec.iteratorByRef();
+			
+			TestUtilities.checkResult( mapDec.hasKeyFieldId(), "Map contains FieldList - hasKeyFieldId()" );
+			TestUtilities.checkResult( mapDec.keyFieldId() == 3426, "Map contains FieldList - getKeyFieldId()" );
+			TestUtilities.checkResult( mapDec.hasTotalCountHint(), "Map contains FieldList - hasTotalCountHint()" );
+			TestUtilities.checkResult( mapDec.totalCountHint() == 5, "Map contains FieldList - getTotalCountHint()" );
+			
+			switch ( mapDec.summaryData().dataType() )
+			{
+				case DataType.DataTypes.FIELD_LIST :
+				{
+					FieldList fl = mapDec.summaryData().fieldList();
+					TestUtilities.EmaDecodeFieldListAll(fl);
+				}
+				break;
+				default :
+					TestUtilities.checkResult( false, "Map Decode Summary FieldList - map.summaryType() not expected" );
+				break;
+			}
+
+			TestUtilities.checkResult( mapIter.hasNext(), "Map contains FieldList - first maphasNext()" );
+
+			MapEntry me1 = mapIter.next();
+
+			TestUtilities.checkResult( me1.key().dataType() == DataType.DataTypes.BUFFER, "MapEntry.key().dataType() == DataType.DataTypes.BUFFER" );
+			TestUtilities.checkResult( Arrays.equals( me1.key().buffer().buffer().array() , new String("ABCD").getBytes()), "MapEntry.key().buffer()" );
+			TestUtilities.checkResult( me1.action() == MapEntry.MapAction.DELETE, "MapEntry.action() == MapEntry.MapAction.DELETE" );
+			TestUtilities.checkResult( me1.load().dataType() == DataTypes.NO_DATA, "MapEntry.load().dataType() == DataTypes.NO_DATA" );
+
+
+			mapIter = mapDec.iteratorByRef();
 			{
 				TestUtilities.checkResult( mapIter.hasNext(), "Map contains FieldList - maphasNext() after regenerating iterator" );
 

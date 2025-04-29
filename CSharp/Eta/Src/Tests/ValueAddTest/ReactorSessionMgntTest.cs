@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -15,6 +15,7 @@ using LSEG.Eta.ValueAdd.Rdm;
 using LSEG.Eta.Codec;
 using System;
 using Buffer = LSEG.Eta.Codec.Buffer;
+using System.IO;
 
 namespace LSEG.Eta.ValuedAdd.Tests
 {
@@ -58,7 +59,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             }
             catch(Exception)
             {
-                Assert.True(false, "Failed to get OAuth credential from process environment");
+                Assert.Fail("Failed to get OAuth credential from process environment");
             }
 
             Clear();
@@ -104,7 +105,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             }
             else
             {
-                credential.ClientJwk.Data(CLIENT_JWK);
+                credential.ClientJwk.Data(File.ReadAllText(CLIENT_JWK));
                 credential.ClientId.Data(CLIENT_ID_JWT);
                 credential.Audience.Data(ReactorOAuthCredential.DEFAULT_JWT_AUDIENCE);
             }
@@ -216,7 +217,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             }
             else
             {
-                credential.ClientJwk.Data(CLIENT_JWK);
+                credential.ClientJwk.Data(File.ReadAllText(CLIENT_JWK));
                 credential.ClientId.Data(CLIENT_ID_JWT);
             }
 
@@ -303,7 +304,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             }
             else
             {
-                credential.ClientJwk.Data(CLIENT_JWK);
+                credential.ClientJwk.Data(File.ReadAllText(CLIENT_JWK));
                 credential.ClientId.Data(CLIENT_ID_JWT);
             }
 
@@ -389,7 +390,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             }
             else
             {
-                credential.ClientJwk.Data(CLIENT_JWK);
+                credential.ClientJwk.Data(File.ReadAllText(CLIENT_JWK));
                 credential.ClientId.Data(CLIENT_ID_JWT);
             }
 
@@ -540,7 +541,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             }
             else
             {
-                credential.ClientJwk.Data(CLIENT_JWK);
+                credential.ClientJwk.Data(File.ReadAllText(CLIENT_JWK));
                 credential.ClientId.Data(CLIENT_ID_JWT);
             }
 
@@ -707,7 +708,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             ReactorOAuthCredential credential = new ReactorOAuthCredential();
 
             credential.ClientId.Data(CLIENT_ID);
-            credential.ClientJwk.Data(CLIENT_JWK);
+            credential.ClientJwk.Data(File.ReadAllText(CLIENT_JWK));
             credential.Audience.Data("InvalidJWTAudience");
 
             ConsumerRole consumerRole = new ConsumerRole();
@@ -756,7 +757,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
                 case ReactorChannelEventType.WARNING:
                     break;
                 default:
-                    Assert.True(false, "expected channel event type");
+                    Assert.Fail("expected channel event type");
                     break;
             }
 
@@ -771,6 +772,8 @@ namespace LSEG.Eta.ValuedAdd.Tests
 
             if (reactorOAuthCredential is not null)
             {
+                Assert.True(reactorOAuthCredentialEvent.ReactorOAuthCredentialRenewal.ClientId.Equals(reactorOAuthCredential.ClientId));
+                Assert.True(reactorOAuthCredentialEvent.ReactorOAuthCredentialRenewal.Audience.Equals(reactorOAuthCredential.Audience));
                 if (reactorOAuthCredential.ClientJwk.Length == 0)
                 {
                     renewalOptions.RenewalModes = ReactorOAuthCredentialRenewalModes.CLIENT_SECRET;
@@ -783,6 +786,10 @@ namespace LSEG.Eta.ValuedAdd.Tests
                 }
 
                 reactorOAuthCredentialEvent.Reactor!.SubmitOAuthCredentialRenewal(renewalOptions, reactorOAuthCredentialRenewal, out _);
+            }
+            else
+            {
+                Assert.NotNull(reactorOAuthCredential);
             }
 
             return ReactorCallbackReturnCode.SUCCESS;

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2022, 2025 LSEG. All rights reserved.         --
  *|-----------------------------------------------------------------------------
  */
 
@@ -40,8 +40,6 @@ extern "C" {
 #include <tcpmib.h>
 #endif
 
-#define RIPC_MAX_CONN_HDR_LEN  V10_MIN_CONN_HDR + MAX_RSSL_ERROR_TEXT 
-
 #define RSSL_RSSL_SOCKET_IMPL_FAST(ret)		ret RTR_FASTCALL
 
 #define RIPC_RWF_PROTOCOL_TYPE 0 /* must match definition for RWF in RSSL */
@@ -52,20 +50,7 @@ extern "C" {
 /* Current number of bytes in the compression bitmap */
 #define RIPC_COMP_BITMAP_SIZE 1
 
-#define RIPC_SOCKET_TRANSPORT   0
-#define RIPC_OPENSSL_TRANSPORT  1
-#define RIPC_WININET_TRANSPORT  2
-#define RIPC_EXT_LINE_SOCKET_TRANSPORT 5
-#define RIPC_WEBSOCKET_TRANSPORT   7
-#define RIPC_MAX_TRANSPORTS     RIPC_WEBSOCKET_TRANSPORT + 1
-#define RIPC_MAX_SSL_PROTOCOLS  4		/* TLSv1, TLSv1.1, TLSv1.2 */
-
-typedef enum {
-	RIPC_SSL_TLS_V1 = 0,
-	RIPC_SSL_TLS_V1_1 = 1,
-	RIPC_SSL_TLS_V1_2 = 2,
-	RIPC_SSL_TLS = 3
-} ripcSSLProtocolIndex;
+#define RIPC_MAX_TRANSPORTS     (RSSL_CONN_TYPE_WEBSOCKET + 1)
 
 #define IPC_MUTEX_LOCK(session) \
 	{					\
@@ -154,10 +139,8 @@ typedef struct {
 
 typedef enum {
 	RIPC_PROTO_SSL_NONE = 0,
-	RIPC_PROTO_SSL_TLS_V1 = 0x1,
-	RIPC_PROTO_SSL_TLS_V1_1 = 0x2,
 	RIPC_PROTO_SSL_TLS_V1_2 = 0x4,
-	RIPC_PROTO_SSL_TLS = 0x8		// Used for OpenSSLv1.1.X
+	RIPC_PROTO_SSL_TLS_V1_3 = 0x8
 } ripcSSLProtocolFlags;
 
 
@@ -327,7 +310,7 @@ typedef struct {
 	RsslUInt32		maxCommonMsgSize; /* The maximum message size is accounted for JSON message over websocket which can be more than RIPC max message size(65535). */
 } RsslServerSocketChannel;
 
-#define RSSL_INIT_SERVER_SOCKET_Bind { 0, 0, 0, 0, 0, 0, 0, RSSL_COMP_NONE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, RSSL_ENC_TLSV1_2, 0, 0 };
+#define RSSL_INIT_SERVER_SOCKET_Bind { 0, 0, 0, 0, 0, 0, 0, RSSL_COMP_NONE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3), 0, 0 };
 
 RTR_C_INLINE void rsslClearRsslServerSocketChannel(RsslServerSocketChannel *rsslServerSocketChannel)
 {
@@ -340,7 +323,7 @@ RTR_C_INLINE void rsslClearRsslServerSocketChannel(RsslServerSocketChannel *rssl
 	rsslServerSocketChannel->link1.next = nextlink1;
 	rsslServerSocketChannel->compressionSupported = RSSL_COMP_NONE;
 	rsslServerSocketChannel->protocolType = 0; // RIPC_RWF_PROTOCOL_TYPE;
-	rsslServerSocketChannel->encryptionProtocolFlags = RSSL_ENC_TLSV1_2;
+	rsslServerSocketChannel->encryptionProtocolFlags = (RSSL_ENC_TLSV1_2 | RSSL_ENC_TLSV1_3);
 }
 
 RSSL_RSSL_SOCKET_IMPL_FAST(void) relRsslServerSocketChannel(RsslServerSocketChannel* rsslServerSocketChannel);
@@ -370,6 +353,8 @@ typedef enum
 	RSSL_CURL_DONE = 2
 } RsslLibCurlStatus;
 
+/* Default timeout for Proxy connection */
+#define RSSL_CURL_PROXY_CONNECTION_TIMEOUT 40
 
 typedef struct
 {
@@ -410,6 +395,7 @@ typedef struct
 	char				*curlOptProxyUser;		/* username used for tunneling connection */
 	char				*curlOptProxyPasswd;	/* password used for tunneling connection */
 	char				*curlOptProxyDomain;	/* domain used for tunneling connection */
+	RsslUInt32			proxyConnectionTimeout;	/* the maximum time during which a connection to the proxy can be established. */
 	RsslBool			blocking : 1;			/* Perform blocking operations */
 	RsslBool			tcp_nodelay : 1;		/* Disable Nagle Algorithm */
 	RsslUInt32			compression;			/* Use compression defined by server, otherwise none */
@@ -543,7 +529,7 @@ typedef struct
 #endif
 
 	RsslUInt32		maxCommonMsgSize; /* The maximum message size is accounted for JSON message over websocket which can be more than RIPC max message size(65535). */
-
+	void			*userSpecPtr; /* A user specified pointer, possibly a closure. */
 } RsslSocketChannel;
 
 
@@ -619,6 +605,7 @@ RTR_C_INLINE void ripcClearRsslSocketChannel(RsslSocketChannel *rsslSocketChanne
 	rsslSocketChannel->curlOptProxyUser = 0;
 	rsslSocketChannel->curlOptProxyPasswd = 0;
 	rsslSocketChannel->curlOptProxyDomain = 0;
+	rsslSocketChannel->proxyConnectionTimeout = RSSL_CURL_PROXY_CONNECTION_TIMEOUT;
 	rsslSocketChannel->server = 0;
 	rsslSocketChannel->serverName = 0;
 	rsslSocketChannel->hostName = 0;
@@ -691,6 +678,8 @@ RTR_C_INLINE void ripcClearRsslSocketChannel(RsslSocketChannel *rsslSocketChanne
 #endif
 
 	rsslSocketChannel->maxCommonMsgSize = 0;
+
+	rsslSocketChannel->userSpecPtr = 0;
 }
 
 
@@ -782,7 +771,7 @@ RSSL_RSSL_SOCKET_IMPL_FAST(RsslRet) rsslSocketGetChannelStats(rsslChannelImpl *r
 
 
 
-RsslInt32 ipcSessSetMode(RsslSocket sock_fd, RsslInt32 blocking, RsslInt32 tcp_nodelay, RsslError *error, RsslInt32 line);
+RSSL_API RsslInt32 ipcSessSetMode(RsslSocket sock_fd, RsslInt32 blocking, RsslInt32 tcp_nodelay, RsslError *error, RsslInt32 line);
 
 RsslInt32 getProtocolNumber();
 
@@ -811,7 +800,7 @@ RsslRet ipcSetSocketChannelProtocolHdrFuncs(RsslSocketChannel * , RsslInt32 );
 RsslRet ipcSetProtocolHdrFuncs(RsslInt32 , ripcProtocolFuncs *);
 extern RsslRet ipcSetTransFunc(int, ripcTransportFuncs*);
 extern RsslRet ipcSetSSLFuncs(ripcSSLFuncs*);
-extern RsslRet ipcSetSSLTransFunc(int, ripcTransportFuncs*);
+extern RsslRet ipcSetSSLTransFunc(ripcTransportFuncs*);
 extern RsslRet ipcLoadOpenSSL(RsslError *error);
 
 extern ripcSSLApiFuncs* ipcGetOpenSSLAPIFuncs(RsslError* error);

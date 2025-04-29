@@ -1,34 +1,216 @@
-This is the change log of the Refinitiv Real-Time SDK (RTSDK) for Java. RTSDK consists of Enterprise Message API (EMA) and Enterprise Transport API (ETA). This file contains history starting from version 1.2.0 which is when all components (EMA C++, EMA Java, ETA C, ETA Java) of RTSDK were fully open sourced. Note that RTSDK product version numbers start from 1.2.0 and EMA/ETA version numbers start from 3.2.0.
+This is the change log of the Real-Time SDK (RTSDK) for Java. RTSDK consists of Enterprise Message API (EMA) and Enterprise Transport API (ETA). This file contains history starting from version 1.2.0 which is when all components (EMA C++, EMA Java, ETA C, ETA Java) of RTSDK were fully open sourced. Note that RTSDK product version numbers start from 1.2.0 and EMA/ETA version numbers start from 3.2.0.
 
-Rebranding NOTE: Refinitiv Real-Time SDK was formerly known as Elektron SDK or ESDK.
+Rebranding NOTE: Real-Time SDK was formerly known as Elektron SDK or ESDK.
 
 There are three types of RTSDK releases that append a letter directly followed by a number to the version number.
 
-"L" releases (e.g., 1.2.0.L1) are full RTSDK releases that are uploaded to MyRefinitiv (formerly Customer Zone), Developer Community and GitHub.
+"L" releases (e.g., 1.2.0.L1) are full RTSDK releases that are uploaded to MyAccount, Developer Community and GitHub.
 "G" releases (e.g., 1.2.0.G1) are releases that are only uploaded to GitHub.
-"E" releases (E-Loads) are emergency RTSDK releases that are uploaded to MyRefinitiv and Developer Community but not to GitHub. Also note that emergency releases may only be partial (i.e., Java or C++/C only).
+"E" releases (E-Loads) are emergency RTSDK releases that are uploaded to MyAccount and Developer Community but not to GitHub. Also note that emergency releases may only be partial (i.e., Java or C++/C only).
 
 ----------------------------------------------------------------------------------------
-CURRENT RELEASE HIGHLIGHTS - RTSDK Java 2.1.0.L1 aka EMA/ETA 3.7.0.L1 aka 3.7.0.0
+CURRENT RELEASE HIGHLIGHTS - RTSDK Java 2.2.3.L1 aka EMA/ETA 3.8.3.L1 aka 3.8.3.0
 ----------------------------------------------------------------------------------------
 
-This release introduces client credentials with jwt authentication for connectivity to Refinitiv Real-Time Optimized. Ability to obtain service accounts to use this authentication mechanism is forthcoming. In addition, this release serves as a maintenance release with fixes.
+This release of EMA Java has support for the Request Routing feature and application defined ServiceLists. Request Routing, a client-side feature, provides the application the capability to route market data item requests to multiple connections depending on the availability of services on each connection by matching quality of service and capabilities.
+
+In addition, this serves as maintenance release with support for Windows 11, customer issue fixes and other minor enhancements. Note that starting with this version, EMA configuration is validated/enforced using an embedded schema file.
 
 Customer Issues Resolved
 ----------------------------------------------------------------------------------------
-- [Case Number: 10894282] - [RTSDK-5931] - Enhancement to pass in Dictionary object upon OMMConsumer creation
-- [Case Number: 11979617] - [RTSDK-7074] - EMA Deadlock fix: OmmConsumers stop wroking without any error message
-- [Case Number: 12263752] - [RTSDK-7111] - EMA Java DataDictionaryImpl memory leak issue
-- [GitHub #221] [RTSDK-6839, RTSDK-7200] - Flags from request are not copied into response resulting in invalid snapshot response
-
+- [Case Number: 13278230] - [RTSDK-8244] - Qualification on Windows 11
+- [Case Number: 13522186] - [RTSDK-8564] - ServiceList feature in EMA Java
+- [GitHub #275] - [RTSDK-8434] - EMAJ should provide OmmJson to represent JSON data type
+- [GitHub #289] - [RTSDK-9142] - ETAJ RMTESToUTF8 does not work
 
 ----------------------------------------------------------------------------------------
 FULL CHANGELOG
 ----------------------------------------------------------------------------------------
 
 --------------------------------------------
+RTSDK Java Release 2.2.3.L1 (Dec 12, 2024)
+--------------------------------------------
+
+EMA Java 3.8.3.L1 Issues Resolved
+---------------------------------
+- [RTSDK-6129] - Convey dispatch errors from Reactor via error callback to EMA applications
+- [RTSDK-8434] - EMAJ should provide OmmJson to represent JSON data type [GitHub #275]
+- [RTSDK-8456] - EMAJ Request Routing: Add new configuration values for XML and programmatic config
+- [RTSDK-8457] - EMAJ Request Routing: OmmConsumer intialization and channel management
+- [RTSDK-8458] - EMAJ Request Routing: Login stream aggregation and handling
+- [RTSDK-8459] - EMAJ Request Routing with SL: Service management and handling(Source Directory)
+- [RTSDK-8460] - EMAJ Request Routing: Dictionary handling
+- [RTSDK-8461] - EMAJ Request Routing: Standard Item Stream handling
+- [RTSDK-8462] - EMAJ Request Routing: Symbol List request handling
+- [RTSDK-8463] - EMAJ Request Routing: OmmConsumer and OmmConsumerEvent functional changes
+- [RTSDK-8464] - EMAJ Request Routing: Testing
+- [RTSDK-8466] - EMAJ Request Routing: Consumer examples
+- [RTSDK-8468] - EMAJ Request Routing: Logger changes
+- [RTSDK-8564] - ServiceList feature in EMA Java (See details about request routing with ServiceList) [Case Number: 13522186]
+- [RTSDK-9059] - NullPointerException: Cannot read field "\_channelConfig" because "loginChanInfo" is null
+- [RTSDK-9114] - EMAJ Request Routing: Unit testing
+- [RTSDK-9160] - EMAJ: Unify Reactor return code checking for failed state with EMAC++ implementation
+- [RTSDK-9165] - EMAJ add request routing feature parameters to the EmaConfig schema file.
+- [RTSDK-9220] - Enforces Ema configuration with embedded schema
+
+
+ETA Java 3.8.3.L1 Issues Resolved
+---------------------------------
+- [RTSDK-8098] - Fixes to ETAJ lz4 unit tests which hang on TLS 1.3 connection in blocking mode only
+- [RTSDK-8926] - ETAJ unit test improvements for added or missing fields in Websocket handshake
+- [RTSDK-9116] - ETAJ ProvPerf does NOT set HAS_NAME in MarketPrice Refresh msg & causes ADH responds Redirect/Suspect
+- [RTSDK-9185] - ETAJ warm standby feature doesn't set the service flag properly for standby server's service.
+- [RTSDK-9233] - WarmStandby service based with PerServiceNameSet doesn't work properly
+- [RTSDK-9242] - WarmStandby service based does not send request to the active service server
+- [RTSDK-9294] - Warmstandby feature sends closed recoverable item status when the active is down and new active server doesn't provide service for login based
+- [RTSDK-9296] - Warmstandby feature doesn't fanout all request items to servers when the source directory is deleted from channel down
+
+Both ETA Java and EMA Java 3.8.3.L1 Issues Resolved
+---------------------------------------------------
+- [RTSDK-8244] - Qualification on Windows 11 [Case Number: 13278230] 
+- [RTSDK-8510] - Rebranding to LSEG in Java code: URLs, unit tests, etc.
+- [RTSDK-9062] - Additional rebranding fixes in Junits
+- [RTSDK-9100] - Update to Java dependencies: commons-logging, jackson-annotations, jackson-core, jackson-databind, mockito-core slf4j-api, slf47-jdk14, hamcrest-core
+- [RTSDK-9193] - EMAJ WarmStandby service based gets exception when <PerServiceNameSet value=""/>
+
+
+--------------------------------------------
+RTSDK Java Release 2.2.2.L1 (Sep 30, 2024)
+--------------------------------------------
+
+This is a maintenance release with minor enhancements and fixes. This release introduces an EMA schema file to reflect Ema configuration. Note that the schema file is not enforced in this version.
+
+EMA Java 3.8.2.L1 Issues Resolved
+---------------------------------
+- [RTSDK-8080] - Update to EMAJ RTTViewer REST proxy parameters and to specify tls version to use
+- [RTSDK-8150] - Fix to EMA Java to handle BLANK OmmArray
+- [RTSDK-8351] - Create and ship a schema file that reflects Ema Configuration
+- [RTSDK-8407] - EMA Java API traces incoming messages to files only when XmlTraceToStdout=1 [GitHub #273]
+- [RTSDK-8597] - Add connection type to OmmNiProviderConfig
+- [RTSDK-8663] - EMAJ NPE upon attempting to make a new request after receiving a Login/Closed/Suspect [GitHub #281] 
+- [RTSDK-8738] - Create a tool that utilizes multiple OmmConsumers
+
+ETA Java 3.8.2.L1 Issues Resolved
+---------------------------------
+- [RTSDK-8079] - Update to ETAJ WSByConsumer example for REST proxy parameters and ability to specify TLS1.2 or 1.3
+- [RTSDK-8664] - Memory leak in Java\WlDirectoryHandler\_directoryRefreshPool [GitHub #279]
+- [RTSDK-8984] - ETAJ wsbConsumer IndexOutOfBoundsException when running with jsonConfig contains 2 WSBGroups
+
+Both ETA Java and EMA Java 3.8.2.L1 Issues Resolved
+---------------------------------------------------
+- [RTSDK-7213] - Support for RedHat 9.X including JNI libraries
+- [RTSDK-8552] - Rebranding to LSEG in PDF documentation
+- [RTSDK-8561] - Update to Java dependencies: commons-logging, commons-configuration2, commons-collections4, etc.
+- [RTSDK-8650] - Support for Windows 2022 Server
+- [RTSDK-8652] - Qualify with JDK and Oracle OpenJDK 1.21
+- [RTSDK-8742] - Delivery of separate BinaryPack RRG archive and Library RRG archive
+- [RTSDK-8745] - Rebrand references in code to LSEG
+
+--------------------------------------------
+RTSDK Java Release 2.2.1.L1 -- SKIPPED for Java
+--------------------------------------------
+
+--------------------------------------------
+RTSDK Java Release 2.2.0.L1 (Apr 30, 2024)
+--------------------------------------------
+
+This release introduces EMA message packing feature. In addition, a number of customer issues were addressed.
+
+EMA Java 3.8.0.L1 Issues Resolved
+---------------------------------
+- [RTSDK-434] - Message packing for EMA Providers
+- [RTSDK-1643] - Added toString implementation for the containers and messages in EMA Java [Case Number: 06589180]
+- [RTSDK-7624] - EMAJ Concurrency Issue for Views causing NPE on reissue/unregister [GitHub #239]
+- [RTSDK-7746] - Add connection type to OmmConsumerConfig [GitHub #248] 
+- [RTSDK-8361] - CryptoHelper.java not able to detect socket close due to which application hangs infinitely [GitHub #272]
+- [RTSDK-8128] - Update to EMA C++ ConsPerf to add commandline option to specify TLS version
+
+ETA Java 3.8.0.L1 Issues Resolved
+---------------------------------
+- [RTSDK-6989] - Fix to Reactor getBuffer to return null upon channel down to avoid NullPointerException
+- [RTSDK-7515] - Fix to error string when setting tokenURLV2 to invalid content
+- [RTSDK-7580] - Update to VAConsumer to add commandline option to specify location/region for service discovery when connecting to RTO
+- [RTSDK-7618] - Modified ETA examples to always set CredentialRenewal callback to demonstrate secure ways to provide credentials
+- [RTSDK-8091] - Update to ETAJ ConsPerf to add commandline option to specify TLS version
+
+Both ETA Java and EMA Java 3.8.0.L1 Issues Resolved
+---------------------------------------------------
+- [RTSDK-7410] - Update DACS libraries to 7.12
+- [RTSDK-8101] - Updated commons-lang to 3.3.14.0, commons-logging to 1.3.0, slf4j to 2.0.11, jose4j to 0.9.4, jackson-\* 2.16.1
+- [RTSDK-8107] - Avoid double unlock in EMA OmmBaseImpl by checking for unlock
+
+--------------------------------------------
+RTSDK Java Release 2.1.3.L1 (Dec 22, 2023)
+--------------------------------------------
+
+In this release, support for TLS 1.3 is introduced along with updates to dependent jars due to vulnerabilities and fixes to customers issues.
+
+EMA Java 3.7.3.L1 Issues Resolved
+---------------------------------
+- [RTSDK-6733] - EmajNIProvPerf fixes for images sent to ADH in a performance test
+- [RTSDK-7810] - Minor change to RMTES Cons310 example to request different item: NFCP_UBMS
+- [RTSDK-7944] - Increase to NumInputBuffers from 10 to 100
+- [RTSDK-8058] - EMAJ ProgrammaticConfig issue: Cons451 does NOT send REST request when ChannelType::RSSL_SOCKET with proxy specified
+
+ETA Java 3.7.3.L1 Issues Resolved
+---------------------------------
+- [RTSDK-180] - Fixes to Performance Tool Guide to correct list of arguments to TransportPerf
+- [RTSDK-7604] - Fix to send Generic message on login message callback
+- [RTSDK-8073] - VAConsumer tool added to support implicit/auto service discovery
+
+Both ETA Java and EMA Java 3.7.3.L1 Issues Resolved
+---------------------------------------------------
+- [RTSDK-7343] - Support for TLS 1.3
+- [RTSDK-7524] - EMA RsslSocketChannel::fillGatheringByteArray infinite loop [GitHub #249]
+- [RTSDK-7593] - Enhancement to add ability to specify proxy separately for REST requests versus reactor channels
+- [RTSDK-7764] - Poor performance in EMAJ/ETAJ consumer unregister [GitHub #247]
+- [RTSDK-7780] - Update Java dependencies due to vulnerabilities: commons-configuration, commons-lang3, commons-text, commons-codec, httpcore, slf4j, jose4j 
+
+--------------------------------------------
+RTSDK Java Release 2.1.2.L1 (Sep 8, 2023)
+--------------------------------------------
+
+EMA Java 3.7.2.L1 Issues Resolved
+---------------------------------
+- [RTSDK-7311] - Performance improvement to EMA Java decoding with an added, more efficient iterator by reference that avoids java collection creation 
+
+ETA Java 3.7.2.L1 Issues Resolved
+---------------------------------
+- [RTSDK-7034] - Concurrence issue in SelectableBiDirectionalQueue [GitHub #223]
+- [RTSDK-7505] - ProvPerf example does not include name in message key for item refresh messages
+- [RTSDK-7761] - WatchlistConsumer example error with servicediscovery using clientId and clientSecret (OAuth2_V2)
+
+Both ETA Java and EMA Java 3.7.2.L1 Issues Resolved
+---------------------------------------------------
+- [RTSDK-6242] - Support for XmlTrace to file parameters in ETA & EMA Java
+- [RTSDK-6261] - Qualify RTSDK API on Ubuntu Kylin 
+- [RTSDK-7272] - Qualify RTSDK API on Ubuntu
+- [RTSDK-7440] - Update to Java Dependencies to address vulnerabilities
+
+--------------------------------------------
+RTSDK Java Release 2.1.1.L1 (Jun 9, 2023)
+--------------------------------------------
+This is a maintenance release with fixes for customer issues.
+
+EMA Java 3.7.1.L1 Issues Resolved
+---------------------------------
+- [RTSDK-6357] - Thread executor main loop is broken by unchecked exceptions [GitHub #198, Case Number:  12360452]
+- [RTSDK-7506] - Error in rrtviewer that JWK file is missing upon specifying service credentials
+
+ETA Java 3.7.1.L1 Issues Resolved
+---------------------------------
+- [RTSDK-6846] - ETAJ code duplication in Reactor
+- [RTSDK-7060] - Update to ETAJ documentation about JKS keystore file [GitHub #234]
+
+Both ETA Java and EMA Java 3.7.1.L1 Issues Resolved
+---------------------------------------------------
+- [RTSDK-7239] - Change default subprotocol to be socket instead of HTTP on encrypted connections
+
+--------------------------------------------
 RTSDK Java Release 2.1.0.L1 (Mar 15, 2023)
 --------------------------------------------
+
+This release introduces client credentials with jwt authentication for connectivity to LSEG Real-Time Optimized. Ability to obtain service accounts to use this authentication mechanism is forthcoming. In addition, this release serves as a maintenance release with fixes.
 
 EMA Java 3.7.0.L1 Issues Resolved
 ---------------------------------
@@ -174,7 +356,7 @@ ETA Java 3.6.6.L1 Issues Resolved
 - [RTSDK-5576] - Provides debugging information per Reactor instance
 - [RTSDK-5741] - Additional unit test added for conversion of a double-backslash or escaped backslash in JSON msg key
 - [RTSDK-5901] - NullPointerException when processing directory domain message [Case Number: 10825196]
-- [RTSDK-6036] - Add QATool for ETAC VAProvider which supports posting and can send ACK/NACK using comand line options
+- [RTSDK-6036] - Add QATool for ETA VAProvider which supports posting and can send ACK/NACK using comand line options
 
 
 Both ETA Java and EMA Java 3.6.6.L1 Issues Resolved
@@ -287,7 +469,7 @@ Both ETA Java and EMA Java 3.6.3.L1 Issues Resolved
 ---------------------------------------------------
 - [RTSDK-2661, RTSDK-5320] - Enhance ETA to not depend on the OS Character encoding for displaying non-ascii enum values [Case Number: 07311614, 10089325] 
 - [RTSDK-3966] - Support SO_REUSEADDR to permit server side socket to be reused for loadbalancing
-- [RTSDK-4615] - Rebrand Change: ADSPOP is now RTC, Refinitiv Real-Time Connector
+- [RTSDK-4615] - Rebrand Change: RTC as LSEG Real-Time Connector
 - [RTSDK-5065] - Modify Java Perftools to print summary output if stopped before completing runtime
 - [RTSDK-5216] - Update Java open source components versions
 - [RTSDK-5253] - ETAJ Reference Manuals: Missing sections and link to converter
@@ -326,7 +508,7 @@ RTSDK Java Release 2.0.2.L1 (Jun 23, 2021)
 
 New Features Added
 ------------------
-This is a maintenance release consisting of fixes to customer issues, fixes for the Refinitiv Real-Time Market Data Viewer (RRTViewer) and changes to ConsPerf tool to provide overhead of RWF to JSON conversion in application and to improve statistics. 
+This is a maintenance release consisting of fixes to customer issues, fixes for the LSEG Real-Time Market Data Viewer (RRTViewer) and changes to ConsPerf tool to provide overhead of RWF to JSON conversion in application and to improve statistics. 
 
 EMA Java 3.6.2.L1 Issues Resolved
 ---------------------------------
@@ -371,11 +553,11 @@ RTSDK Java Release 2.0.1.G1 (April 21, 2021)
 
 New Features Added
 ------------------
-This is a maintenance release which also introduces the Refinitiv Real-Time Market Data Viewer (RRTViewer), a OMM Consumer application with support for several connection types and connectivity to Advanced Distribution Server, Refinitiv Real-Time - Optimized (RRTO) or an OMM Provider.
+This is a maintenance release which also introduces the LSEG Real-Time Market Data Viewer (RRTViewer), a OMM Consumer application with support for several connection types and connectivity to Advanced Distribution Server, Real-Time - Optimized (RRTO) or an OMM Provider.
 
 EMA Java 3.6.1.G1 Issues Resolved
 ---------------------------------
-- [RTSDK-4454] - Add EMAJ Refinitiv Real-Time Market Data Viewer GUI application
+- [RTSDK-4454] - Add EMAJ LSEG Real-Time Market Data Viewer GUI application
 - [RTSDK-4720] - Support encryption connection type for EMAJ consumer performance tool
 - [RTSDK-4954] - Correction to IProvider180 README file
 - [RTSDK-4957] - EMA WebSocket example default port in EmaConfig.xml - [GitHub #171] 
@@ -472,7 +654,7 @@ RTSDK Java Release 2.0.0.L1 (Oct 19, 2020)
 
 New Features Added
 ------------------
-The primary object of this release is to complete rebranding of RTSDK: change namespace to com.refinitiv, change library names and alter documentation to reflect new branding. A new file explaining impact to customer, REBRAND.md was also added. In addition, there were a few fixes included.
+The primary objective of this release is to rebrand RTSDK: change namespace to com.refinitiv, change library names and alter documentation to reflect new branding. A new file explaining impact to customer, REBRAND.md was also added. In addition, there were a few fixes included.
 
 EMA Java 3.6.0.L1 Issues Resolved
 ---------------------------------

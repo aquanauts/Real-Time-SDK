@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -307,6 +307,14 @@ void AckMsgDecoder::setServiceName( const char* serviceName, UInt32 length, bool
 	_serviceNameSet = length ? true : false;
 
 	_serviceName.setInt( serviceName, length, nullTerm );
+}
+
+void AckMsgDecoder::setServiceId(UInt16 serviceId)
+{
+	_pRsslMsg->ackMsg.flags |= RSSL_AKMF_HAS_MSG_KEY;
+	_pRsslMsg->msgBase.msgKey.flags |= RSSL_MKF_HAS_SERVICE_ID;
+
+	_pRsslMsg->msgBase.msgKey.serviceId = serviceId;
 }
 
 const EmaString& AckMsgDecoder::getText() const

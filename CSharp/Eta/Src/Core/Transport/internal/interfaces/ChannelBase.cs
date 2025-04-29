@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -31,7 +31,8 @@ namespace LSEG.Eta.Internal.Interfaces
 
     internal sealed class ChannelBase : IChannel, IInternalChannel
     {
-       internal class BigBuffersPool
+        private Error m_transportError = new Error();
+        internal class BigBuffersPool
         {
             internal Pool[] _pools = new Pool[32];
             internal int _maxSize = 0;
@@ -131,7 +132,6 @@ namespace LSEG.Eta.Internal.Interfaces
             /// used when the far end closes the connection and need to reconnect to Init()
             /// </summary>
             RECONNECTING = 16,
-            HTTP_CONNECTING = 17,
 
             /// <summary>
             /// used with connection version 14 or higher for key exchange
@@ -316,8 +316,15 @@ namespace LSEG.Eta.Internal.Interfaces
 
         internal ChannelBase(ProtocolBase socketProtocol, ConnectOptions connectionOptions, ISocketChannel socketChannel)
         {
+            if (socketProtocol == null)
+            {
+                throw new ArgumentNullException(nameof(socketProtocol));
+            }
+
             m_SocketProtocol = socketProtocol;
             _socketChannel = socketChannel;
+
+            ConnectionType = connectionOptions.ConnectionType;
 
             ConnectionOptions = new ConnectOptions();
             connectionOptions.CopyTo(ConnectionOptions);
@@ -386,12 +393,12 @@ namespace LSEG.Eta.Internal.Interfaces
             }
 
             _readLocker = ConnectionOptions.ChannelReadLocking
-               ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-               : (Locker)new NoLocker();
+               ? new MonitorWriteLocker(new object())
+               : new NoLocker();
 
             _writeLocker = ConnectionOptions.ChannelWriteLocking
-                         ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-                         : (Locker)new NoLocker();
+                         ? new MonitorWriteLocker(new object())
+                         : new NoLocker();
 
             ProtocolFunctions = new RipcProtocolFunctions(this);
 
@@ -421,6 +428,11 @@ namespace LSEG.Eta.Internal.Interfaces
 
         internal ChannelBase(SocketProtocol socketProtocol, AcceptOptions acceptOptions, IServer server, ISocketChannel socketChannel)
         {
+            if (socketProtocol == null)
+            {
+                throw new ArgumentNullException(nameof(socketProtocol));
+            }
+
             m_SocketProtocol = socketProtocol;
             m_ServerImpl = (ServerImpl)server;
 
@@ -430,6 +442,8 @@ namespace LSEG.Eta.Internal.Interfaces
             socketChannel.SetReadWriteHandlers(false);
            
             State = ChannelState.INITIALIZING;
+
+            ConnectionType = m_ServerImpl.BindOptions.ConnectionType;
 
             m_ChannelInfo.CompressionType = m_ServerImpl.BindOptions.CompressionType;
             m_ChannelInfo.CompressionThresHold = GetDefaultCompressionTreshold(m_ChannelInfo.CompressionType);
@@ -456,12 +470,12 @@ namespace LSEG.Eta.Internal.Interfaces
             InternalFragmentSize = m_ChannelInfo.MaxFragmentSize + RipcDataMessage.HeaderSize;
 
             _readLocker = acceptOptions.ChannelReadLocking
-               ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-               : (Locker)new NoLocker();
+               ? new MonitorWriteLocker(new object())
+               : new NoLocker();
 
             _writeLocker = acceptOptions.ChannelWriteLocking
-                         ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-                         : (Locker)new NoLocker();
+                         ? new MonitorWriteLocker(new object())
+                         : new NoLocker();
 
             ProtocolFunctions = new RipcProtocolFunctions(this);
 
@@ -499,12 +513,12 @@ namespace LSEG.Eta.Internal.Interfaces
             InternalFragmentSize = m_ChannelInfo.MaxFragmentSize + RipcDataMessage.HeaderSize;
 
             _readLocker = ConnectionOptions.ChannelReadLocking
-               ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-               : (Locker)new NoLocker();
+               ? new MonitorWriteLocker(new object())
+               : new NoLocker();
 
             _writeLocker = ConnectionOptions.ChannelWriteLocking
-                         ? (Locker)new WriteLocker(new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion))
-                         : (Locker)new NoLocker();
+                         ? new MonitorWriteLocker(new object())
+                         : new NoLocker();
 
             m_SocketProtocol = new SocketProtocol(); // Output buffer pool per protocol type.
             m_AvailableBuffers = new Pool(this);
@@ -761,23 +775,33 @@ namespace LSEG.Eta.Internal.Interfaces
 
                     case ReadBufferStateMachine.BufferState.END_OF_STREAM:
 
-                        if (State != ChannelState.CLOSED)
+                        try
                         {
-                            CloseFromError();
-                        }
+                            _writeLocker.Enter();
 
-                        State = ChannelState.CLOSED;
-
-                        if (error is null)
-                        {
-                            error = new Error
+                            if (State != ChannelState.CLOSED)
                             {
-                                Channel = this,
-                                ErrorId = TransportReturnCode.FAILURE,
-                                SysError = 0,
-                                Text = "SocketChannel.Receive returned -1 (end-of-stream)"
-                            };
+                                CloseFromError();
+                            }
+
+                            State = ChannelState.CLOSED;
+
+                            if (error is null)
+                            {
+                                error = new Error
+                                {
+                                    Channel = this,
+                                    ErrorId = TransportReturnCode.FAILURE,
+                                    SysError = 0,
+                                    Text = "SocketChannel.Receive returned -1 (end-of-stream)"
+                                };
+                            }
                         }
+                        finally
+                        {
+                            _writeLocker.Exit();
+                        }
+
 
                         returnValue = TransportReturnCode.FAILURE;
 
@@ -790,23 +814,32 @@ namespace LSEG.Eta.Internal.Interfaces
                 readArgs.ReadRetVal = returnValue;
                 return transportBuffer;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                if(State != ChannelState.CLOSED)
+                try
                 {
-                    CloseFromError();
+                    _writeLocker.Enter();
+
+                    if (State != ChannelState.CLOSED)
+                    {
+                        CloseFromError();
+                    }
+
+                    State = ChannelState.CLOSED;
+
+                    error = new Error
+                    {
+                        Channel = this,
+                        ErrorId = TransportReturnCode.FAILURE,
+                        SysError = 0,
+                        Text = e.Message
+                    };
+                    readArgs.ReadRetVal = TransportReturnCode.FAILURE;
                 }
-
-                State = ChannelState.CLOSED;
-
-                error = new Error
+                finally
                 {
-                    Channel = this,
-                    ErrorId = TransportReturnCode.FAILURE,
-                    SysError = 0,
-                    Text = e.Message
-                };
-                readArgs.ReadRetVal = TransportReturnCode.FAILURE;
+                    _writeLocker.Exit();
+                }
 
                 return null;
             }
@@ -821,7 +854,7 @@ namespace LSEG.Eta.Internal.Interfaces
             ReleaseAllBuffers();
 
             /* Removes this Channel from the Channel list. */
-            m_SocketProtocol?.CloseChannel(this);
+            m_SocketProtocol.CloseChannel(this);
 
             DisposeInternalBuffers();
 
@@ -887,7 +920,7 @@ namespace LSEG.Eta.Internal.Interfaces
                     ReleaseAllBuffers();
 
                     /* Removes this Channel from the Channel list. */
-                    m_SocketProtocol?.CloseChannel(this);
+                    m_SocketProtocol.CloseChannel(this);
 
                     /* Closes encrypted connection streams if any */
                     if (_socketChannel.IsEncrypted)
@@ -1184,35 +1217,35 @@ namespace LSEG.Eta.Internal.Interfaces
         {
             StringBuilder s = new StringBuilder();
             s.Append("Rssl Channel");
-            s.Append("\n\tscktChannel: ");
-            s.Append(SocketChannel != null? SocketChannel.ToString() : "null");
-            s.Append("\n\tconnected: ");
+            s.Append($"{NewLine}\tscktChannel: ");
+            s.Append(SocketChannel != null ? SocketChannel.ToString() : "null");
+            s.Append($"{NewLine}\tconnected: ");
             if (SocketChannel != null)
                 s.Append(SocketChannel.IsConnected);
             else
                 s.Append("false");
-            s.Append("\n\tstate: ");
+            s.Append($"{NewLine}\tstate: ");
             s.Append(State.ToString());
-            s.Append("\n\tconnectionType: ");
+            s.Append($"{NewLine}\tconnectionType: ");
             s.Append(ConnectionType.ToString());
             if (m_ChannelInfo != null)
             {
-                s.Append("\n\tclientIP: ");
+                s.Append($"{NewLine}\tclientIP: ");
                 s.Append(m_ChannelInfo.ClientIP);
-                s.Append("\n\tclientHostname: ");
+                s.Append($"{NewLine}\tclientHostname: ");
                 s.Append(m_ChannelInfo.ClientHostname);
-                s.Append("\n\tpingTimeout: ");
+                s.Append($"{NewLine}\tpingTimeout: ");
                 s.Append(m_ChannelInfo.PingTimeout);
             }
-            s.Append("\n\tmajorVersion: ");
+            s.Append($"{NewLine}\tmajorVersion: ");
             s.Append(MajorVersion);
-            s.Append("\n\tminorVersion: ");
+            s.Append($"{NewLine}\tminorVersion: ");
             s.Append(MinorVersion);
-            s.Append("\n\tprotocolType: ");
+            s.Append($"{NewLine}\tprotocolType: ");
             s.Append(ProtocolType);
-            s.Append("\n\tuserSpecObject: ");
+            s.Append($"{NewLine}\tuserSpecObject: ");
             s.Append(UserSpecObject != null ? UserSpecObject.ToString() : "null");
-            s.Append("\n");
+            s.Append(NewLine);
 
             return s.ToString();
         }
@@ -1228,13 +1261,12 @@ namespace LSEG.Eta.Internal.Interfaces
             {
                 if (State != ChannelState.ACTIVE)
                 {
-                    error = new Error
-                    {
-                        Channel = this,
-                        ErrorId = TransportReturnCode.FAILURE,
-                        SysError = 0,
-                        Text = "Channel is not in active state for GetBuffer"
-                    };
+                    m_transportError.Text = "Channel is not in active state for GetBuffer";
+                    m_transportError.Channel = this;
+                    m_transportError.ErrorId = TransportReturnCode.FAILURE;
+                    m_transportError.SysError = 0;
+
+                    error = m_transportError;
 
                     return transportBuffer;
                 }
@@ -1254,20 +1286,24 @@ namespace LSEG.Eta.Internal.Interfaces
                         transportBuffer = ProtocolFunctions.GetBigBuffer(size, out error);
                         if (transportBuffer is null)
                         {
-                            error.Channel = this;
-                            error.Text = $"Channel out of buffers, error: {error?.Text}";
+                            m_transportError.Text = $"Channel out of buffers, error: {error?.Text}";
+                            m_transportError.Channel = this;
+                            m_transportError.ErrorId = TransportReturnCode.FAILURE;
+                            m_transportError.SysError = 0;
+
+                            error = m_transportError;
 
                             return transportBuffer;
                         }
                     }
                     else
                     {
-                        error = new Error
-                        {
-                            Channel = this,
-                            ErrorId = TransportReturnCode.FAILURE,
-                            Text = "Packing buffer must fit in maxFragmentSize"
-                        };
+                        m_transportError.Text = "Packing buffer must fit in maxFragmentSize";
+                        m_transportError.Channel = this;
+                        m_transportError.ErrorId = TransportReturnCode.FAILURE;
+                        m_transportError.SysError = 0;
+
+                        error = m_transportError;
 
                         return transportBuffer;
                     }
@@ -1278,12 +1314,12 @@ namespace LSEG.Eta.Internal.Interfaces
 
                     if (transportBuffer is null)
                     {
-                        error = new Error
-                        {
-                            Channel = this,
-                            ErrorId = TransportReturnCode.FAILURE,
-                            Text = "Channel out of buffers"
-                        };
+                        m_transportError.Text = "Channel out of buffers";
+                        m_transportError.Channel = this;
+                        m_transportError.ErrorId = TransportReturnCode.FAILURE;
+                        m_transportError.SysError = 0;
+
+                        error = m_transportError;
 
                         return transportBuffer;
                     }
@@ -2192,6 +2228,15 @@ namespace LSEG.Eta.Internal.Interfaces
                     info.ComponentInfoList = m_ChannelInfo.ComponentInfoList;
                     info.ClientIP = m_ChannelInfo.ClientIP;
                     info.ClientHostname = m_ChannelInfo.ClientHostname;
+
+                    if(SslStream != null)
+                    {
+                        info.EncryptionProtocol = SslStream.SslProtocol;
+                    }
+                    else
+                    {
+                        info.EncryptionProtocol = System.Security.Authentication.SslProtocols.None;
+                    }
                 }
                 else
                 {
@@ -2331,7 +2376,7 @@ namespace LSEG.Eta.Internal.Interfaces
                     case IOCtlCode.NUM_GUARANTEED_BUFFERS:
                         {
                             /* NUM_GUARANTEED_BUFFERS:
-                             * the per channel number of guaranteedOutputBuffers that ETAJ will create for the client. */
+                             * the per channel number of guaranteedOutputBuffers that ETA will create for the client. */
                             if (value >= 0)
                             {
                                 retCode = (TransportReturnCode)AdjustGuaranteedOutputBuffers(value);
@@ -2619,11 +2664,8 @@ namespace LSEG.Eta.Internal.Interfaces
                 // Set the shared key to 0 to cover in reconnect cases
                 Shared_Key = 0;
 
-                if(m_SocketProtocol != null)
-                {
-                    // allocate buffers to this channel, _availableBuffers size will initally be zero.
-                    GrowGuaranteedOutputBuffers(m_ChannelInfo.GuaranteedOutputBuffers);
-                }
+                // allocate buffers to this channel, _availableBuffers size will initally be zero.
+                GrowGuaranteedOutputBuffers(m_ChannelInfo.GuaranteedOutputBuffers);
 
                 if (m_SessionInDecompress > RipcCompressionTypes.NONE)
                 {
@@ -3252,7 +3294,7 @@ namespace LSEG.Eta.Internal.Interfaces
                     {
                         authenticatorResponse = m_ProxyAuthenticator.ProcessResponse(m_ProxyConnectResponse.ToString());
                     }
-                    catch (ResponseCodeException ex)
+                    catch (ResponseCodeException)
                     {
                         ++m_IgnoredConnectResponse;
                         if (m_IgnoredConnectResponse < MAX_IGNORED_RESPONSES)
@@ -3262,7 +3304,7 @@ namespace LSEG.Eta.Internal.Interfaces
                         }
                         else
                         {
-                            throw ex; // too many ignored response
+                            throw; // too many ignored response
                         }
                     }
 
@@ -3290,9 +3332,9 @@ namespace LSEG.Eta.Internal.Interfaces
                     m_ProxyConnectResponse.Length = 0; // we are done with the current response from the proxy.
                 }
             }
-            catch(ProxyAuthenticationException proxyAuthException)
+            catch(ProxyAuthenticationException)
             {
-                throw proxyAuthException;
+                throw;
             }
             catch(Exception)
             {

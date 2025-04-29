@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 
@@ -22,8 +22,8 @@
 static RsslMarketByPriceItem marketByPriceItemList[MAX_MARKET_BY_PRICE_ITEM_LIST_SIZE];
 
 /* re-usable refresh message and state text */
-RsslRefreshMsg refreshMsg;
-char stateText[MAX_ITEM_INFO_STRLEN];
+static RsslRefreshMsg refreshMsg;
+static char stateText[MAX_ITEM_INFO_STRLEN];
 
 /*
  * Create a local set definition.

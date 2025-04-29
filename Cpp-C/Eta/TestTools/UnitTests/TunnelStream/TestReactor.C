@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,8 @@
 #include "Provider.h"
 #include "rtr/rsslGetTime.h"
 #include "gtest/gtest.h"
+
+#include <algorithm>
 
 using namespace testing;
 using namespace std;
@@ -234,7 +236,7 @@ TestReactorEvent* TestReactor::pollEvent()
 	
 void TestReactor::addComponent(TestReactorComponent* pComponent)
 {
-	bool found = (find(_componentList.begin(), _componentList.end(), pComponent) != _componentList.end());
+	bool found = (std::find(_componentList.begin(), _componentList.end(), pComponent) != _componentList.end());
 	ASSERT_EQ(found, false);
 	_componentList.push_back(pComponent);
 }
@@ -247,7 +249,7 @@ void TestReactor::registerComponentServer(TestReactorComponent* pComponent)
 
 void TestReactor::removeComponent(TestReactorComponent* pComponent)
 {
-	bool found = (find(_componentList.begin(), _componentList.end(), pComponent) != _componentList.end());
+	bool found = (std::find(_componentList.begin(), _componentList.end(), pComponent) != _componentList.end());
 	ASSERT_EQ(found, true);
 	_componentList.remove(pComponent);
 }

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -21,7 +21,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
     /// <seealso cref="DictionaryRefresh"/>
     /// <seealso cref="DictionaryRequest"/>
     /// <seealso cref="DictionaryStatus"/>
-    sealed public class DictionaryMsg
+    sealed public class DictionaryMsg : IRdmMsg
     {
         private DictionaryClose? m_DictionaryClose = new DictionaryClose();
         private DictionaryStatus? m_DictionaryStatus = new DictionaryStatus();
@@ -31,11 +31,16 @@ namespace LSEG.Eta.ValueAdd.Rdm
         private DictionaryMsgType m_DictionaryMsgType;
 
         /// <summary>
-        /// StreamId for this message
+        /// The domain type of the message
+        /// </summary>
+        public Eta.Rdm.DomainType DomainType { get => Eta.Rdm.DomainType.DICTIONARY; }
+
+        /// <summary>
+        /// StreamId for this message.
         /// </summary>
         public int StreamId
         {
-            get => GetMsg()!.StreamId;
+            get => GetMsg()?.StreamId ?? 0;
             set { GetMsg()!.StreamId = value; }
         }
 
@@ -166,7 +171,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         /// </summary>
         public void Clear()
         {
-            GetMsg()!.Clear();
+            GetMsg()?.Clear();
         }
 
         /// <summary>
@@ -184,11 +189,23 @@ namespace LSEG.Eta.ValueAdd.Rdm
         /// LoginMsgType needs to be set prior to calling Decode.
         /// </summary>
         /// <param name="decodeIter">Decode iterator that has already decoded the initial message.</param>
-        /// <param name="msg">Decoded Msg object for this LoginClose message.</param>
+        /// <param name="msg">Decoded Msg object for this Dictionary message.</param>
         /// <returns><see cref="CodecReturnCode"/> indicating success or failure.</returns>
         public CodecReturnCode Decode(DecodeIterator decodeIter, Msg msg)
         {
             return GetMsg()!.Decode(decodeIter, msg);
+        }
+
+        /// <summary>
+        /// Decodes this Directory message using the provided <c>decodeIter</c> and the incoming <c>msg</c>.
+        /// DictionaryMsgType needs to be set prior to calling Decode.
+        /// </summary>
+        /// <param name="decodeIter">Decode iterator that has already decoded the initial message.</param>
+        /// <param name="msg">Decoded IMsg instance for this Dictionary message.</param>
+        /// <returns><see cref="CodecReturnCode"/> indicating success or failure.</returns>
+        public CodecReturnCode Decode(DecodeIterator decodeIter, IMsg msg)
+        {
+            return GetMsg()!.Decode(decodeIter, (Msg)msg);
         }
 
         /// <summary>
@@ -197,7 +214,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         /// <returns>String containing the string representation.</returns>
         public override string? ToString()
         {
-            return GetMsg()!.ToString();
+            return GetMsg()?.ToString() ?? String.Empty;
         }
 
         private MsgBase? GetMsg()

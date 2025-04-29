@@ -1,12 +1,13 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace LSEG.Eta.ValueAdd.Common
 {
@@ -24,12 +25,13 @@ namespace LSEG.Eta.ValueAdd.Common
         /// The reference to the <see cref="VaNode"/> at the tail of the queue.
         /// </summary>
         protected VaNode? _tail;
-        private volatile int _size;
+        private int _size;
 
         /// <summary>
         /// Adds to the tail of the queue.
         /// </summary>
         /// <param name="node">The node to add</param>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         virtual public void Add(VaNode node)
         {
             if (node is null)
@@ -57,6 +59,7 @@ namespace LSEG.Eta.ValueAdd.Common
         /// Polls a <see cref="VaNode"/> from this queue.
         /// </summary>
         /// <returns>Removes the oldest <see cref="VaNode"/></returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         virtual public VaNode? Poll()
         {
             if (_head == null)
@@ -87,6 +90,7 @@ namespace LSEG.Eta.ValueAdd.Common
         /// Returns but does not remove the head of the queue.
         /// </summary>
         /// <returns>The head of the queue</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         virtual public VaNode? Peek()
         {
             return _head;
@@ -97,6 +101,7 @@ namespace LSEG.Eta.ValueAdd.Common
         /// </summary>
         /// <param name="node">The node to remove</param>
         /// <returns><c>true</c> if the node was in the queue, or <c>false</c> if the node wasn't</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         virtual public bool Remove(VaNode node)
         {
             if (node == null || _head == null)
@@ -149,11 +154,13 @@ namespace LSEG.Eta.ValueAdd.Common
         /// Returns the size of the queue.
         /// </summary>
         /// <returns>The size of the queue</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         virtual public int Size()
         {
             return _size;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         internal void VerifyQueue()
         {
             int i = 0;

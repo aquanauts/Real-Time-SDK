@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -37,12 +37,12 @@ class ElementEntryImpl extends EntryImpl implements ElementEntry
 		else
 			return _rsslElementEntry.name().toString();
 	}
-	
+
 	@Override
 	public String toString()
 	{
 		if ( _load == null )
-			return "\nDecoding of just encoded object in the same application is not supported\n";
+			return "\nEntity is not encoded yet. Complete encoding to use this method.\n";
 		
 		_toString.setLength(0);
 		_toString.append("ElementEntry ")
@@ -148,6 +148,12 @@ class ElementEntryImpl extends EntryImpl implements ElementEntry
 	public ElementEntry xml(String name, OmmXml value)
 	{
 		return entryValue(name, com.refinitiv.eta.codec.DataTypes.XML, (DataImpl) value);
+	}
+
+	@Override
+	public ElementEntry json(String name, OmmJson value)
+	{
+		return entryValue(name, com.refinitiv.eta.codec.DataTypes.JSON, (DataImpl) value);
 	}
 
 	@Override

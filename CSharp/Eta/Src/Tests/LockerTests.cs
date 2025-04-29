@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -21,6 +21,7 @@ namespace LSEG.Eta.Transports.Tests
     {
         [Fact]
         [Category("Unit")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1031:Do not use blocking task operations in test method", Justification = "<Pending>")]
         public void ReadLockerAllowsMultipleConcurrentReaders()
         {
             long readerCount = 0;
@@ -68,12 +69,13 @@ namespace LSEG.Eta.Transports.Tests
 
         [Fact]
         [Category("Unit")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1031:Do not use blocking task operations in test method", Justification = "<Pending>")]
         public void WriteLockerAllowsNoConcurrentWriter()
         {
             long writerCount = 0;
 
             var slimLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-            Locker locker = new WriteLocker(slimLock);
+            Locker locker = new SlimWriteLocker(slimLock);
 
             Action writerAction = new Action(() =>
             {
@@ -122,6 +124,7 @@ namespace LSEG.Eta.Transports.Tests
         }
 
         [Fact, Category("Unit")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1031:Do not use blocking task operations in test method", Justification = "<Pending>")]
         public void WriteLockerAllowsNoConcurrentReader()
         {
             long criticalCount = 0;
@@ -130,7 +133,7 @@ namespace LSEG.Eta.Transports.Tests
 
             var slimLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
-            Locker writeLocker = new WriteLocker(slimLock);
+            Locker writeLocker = new SlimWriteLocker(slimLock);
             Locker readLocker = new ReadLocker(slimLock);
 
             Action readerAction = new Action(() =>

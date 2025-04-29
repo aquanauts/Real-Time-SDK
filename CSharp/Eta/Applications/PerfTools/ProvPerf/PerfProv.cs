@@ -1,15 +1,19 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
+
+using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+using System.Threading;
 
 using LSEG.Eta.PerfTools.Common;
 using LSEG.Eta.Transports;
 using LSEG.Eta.ValueAdd.Reactor;
-using System.Net.Sockets;
 
 namespace LSEG.Eta.PerfTools.ProvPerf
 {
@@ -198,6 +202,8 @@ namespace LSEG.Eta.PerfTools.ProvPerf
             {
                 m_BindOptions.BindEncryptionOpts.ServerCertificate = ProviderPerfConfig.Cert;
                 m_BindOptions.BindEncryptionOpts.ServerPrivateKey = ProviderPerfConfig.KeyFile;
+
+                m_BindOptions.BindEncryptionOpts.EncryptionProtocolFlags = ProviderPerfConfig.EncryptionProtocol;
             }
             m_BindOptions.MajorVersion = Codec.Codec.MajorVersion();
             m_BindOptions.MinorVersion = Codec.Codec.MajorVersion();

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2020 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2020 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -213,7 +213,7 @@ static const char * const _lbColor[] = {
 			} else if ((__buf[1] & 0x7F) == 127) {\
 				rtrUInt64 __pl127;\
 				rwfGet64(__pl127, (__buf+_WS_CONTROL_HEADER_LEN));\
-				fprintf(stderr, "\t         64 Bit Extended Payload : 0x"RTR_LLX"("RTR_LLD")\n", __pl127, __pl127);\
+				fprintf(stderr, "\t         64 Bit Extended Payload : 0x" RTR_LLX "(" RTR_LLD ")\n", __pl127, __pl127);\
 				if (rwfGetBit(__buf[1], _WS_BIT_POS_MASKKEY)) {\
 					_DEBUG_TRACE_WS_MASK((__buf+_WS_CONTROL_HEADER_LEN+_WS_127PAYLOAD_FIELD_LEN)) \
 				}\

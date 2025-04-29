@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2022 LSEG. All rights reserved.
 */
 
 /*
@@ -167,9 +167,9 @@ RsslReactorCallbackRet loginMsgCallback(RsslReactor *pReactor, RsslReactorChanne
 	{
 		case RDM_LG_MT_REQUEST:
 		{
-			RsslRDMLoginRequest *pLoginRequest = &pLoginMsg->request;
-			LoginRequestInfo *pLoginRequestInfo = 0;
-		   
+			RsslRDMLoginRequest* pLoginRequest = &pLoginMsg->request;
+			LoginRequestInfo* pLoginRequestInfo = 0;
+
 			if (getLoginRequestInfo(pReactorChannel, pLoginRequest, &pLoginRequestInfo) != RSSL_RET_SUCCESS)
 			{
 				removeClientSessionForChannel(pReactor, pReactorChannel);
@@ -184,14 +184,14 @@ RsslReactorCallbackRet loginMsgCallback(RsslReactor *pReactor, RsslReactorChanne
 				return RSSL_RC_CRET_SUCCESS;
 			}
 
-			
+
 			if (pLoginRequest->flags & RDM_LG_RQF_HAS_USERNAME_TYPE && pLoginRequest->userNameType == RDM_LOGIN_USER_AUTHN_TOKEN)
 			{
 				/* If this an authentication token user, the application needs to take the token and verify it against the token infrastructure.
 				 * In this example, the VAProvider will just accept the token */
 				printf("\nReceived Login Request for Token: %.*s\n", pLoginRequest->userName.length, pLoginRequest->userName.data);
 			}
-			else if(pLoginRequest->userName.length != 0 && pLoginRequest->userName.data != NULL)
+			else if (pLoginRequest->userName.length != 0 && pLoginRequest->userName.data != NULL)
 			{
 				printf("\nReceived Login Request for Username: %.*s\n", pLoginRequest->userName.length, pLoginRequest->userName.data);
 			}
@@ -425,6 +425,10 @@ static RsslRet sendLoginRequestReject(RsslReactor *pReactor, RsslReactorChannel*
 		loginStatus.state.streamState = RSSL_STREAM_CLOSED_RECOVER;
 		loginStatus.state.dataState = RSSL_DATA_SUSPECT;
 
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 		/* set-up message */
 		switch(reason)
 		{
@@ -450,6 +454,9 @@ static RsslRet sendLoginRequestReject(RsslReactor *pReactor, RsslReactorChannel*
 			default:
 				break;
 		}
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic pop
+#endif
 
 		/* encode message */
 		rsslClearEncodeIterator(&encodeIter);

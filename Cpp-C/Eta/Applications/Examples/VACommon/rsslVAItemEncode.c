@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 
@@ -27,7 +27,7 @@ RsslRet encodeItemCloseStatus(RsslReactorChannel* pReactorChannel, RsslItemInfo*
 {
 	RsslRet ret = 0;
 	RsslStatusMsg msg = RSSL_INIT_STATUS_MSG;
-	char stateText[MAX_ITEM_INFO_STRLEN];
+	char stateText[MAX_ITEM_INFO_STRLEN+1];
 	RsslEncodeIterator encodeIter;
 
 	/* clear encode iterator */
@@ -42,7 +42,14 @@ RsslRet encodeItemCloseStatus(RsslReactorChannel* pReactorChannel, RsslItemInfo*
 	msg.state.streamState = RSSL_STREAM_CLOSED;
 	msg.state.dataState = RSSL_DATA_SUSPECT;
 	msg.state.code = RSSL_SC_NONE;
-	snprintf(stateText, 128, "Stream closed for item: %s", itemInfo->Itemname);
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+	snprintf(stateText, MAX_ITEM_INFO_STRLEN + 1, "Stream closed for item: %s", itemInfo->Itemname);
+#if defined(__GNUC__) && (__GNUC__ >= 9)
+#pragma GCC diagnostic pop
+#endif
 	msg.state.text.data = stateText;
 	msg.state.text.length = (RsslUInt32)strlen(stateText);
 

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2020 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2020-2024 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -40,6 +40,10 @@
 #include <sys/timeb.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#endif
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
 #endif
 
 void time_sleep(int millisec)
@@ -200,6 +204,8 @@ static RsslReactorCallbackRet loginMsgCallback(RsslReactor* pReactor, RsslReacto
 static RsslReactorCallbackRet authTokenEventCallback(RsslReactor *pReactor, RsslReactorChannel *pReactorChannel, RsslReactorAuthTokenEvent *pAuthTokenEvent);
 static RsslReactorCallbackRet serviceEndpointEventCallback(RsslReactor *pReactor, RsslReactorServiceEndpointEvent *pServiceEndpointEvent);
 static RsslReactorCallbackRet serviceEndpointEventCallbackForError(RsslReactor *pReactor, RsslReactorServiceEndpointEvent *pServiceEndpointEvent);
+static RsslReactorCallbackRet serviceEndpointEventCallbackMultiUserSpec(RsslReactor* pReactor, RsslReactorServiceEndpointEvent* pServiceEndpointEvent);
+static RsslReactorCallbackRet serviceEndpointEventCallbackForErrorMultiUserSpec(RsslReactor* pReactor, RsslReactorServiceEndpointEvent* pServiceEndpointEvent);
 static RsslRet dispatchEvent(MyReactor *pMyReactor, RsslUInt32 timeoutMsec);
 
 void clearMyReactor(MyReactor *pMyReactor)
@@ -406,7 +412,7 @@ TEST_P(ReactorUtilTest, UnreachableAddress)
 	reactorUnitTests_InvalidNetworkInterface(GetParam());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
 	TestingReactorUtilTests,
 	ReactorUtilTest,
 	::testing::Values(
@@ -414,7 +420,24 @@ INSTANTIATE_TEST_CASE_P(
 	));
 
 
-class ReactorSessionMgntTest : public ::testing::Test {
+class ReactorSessionMgntTestParameters
+{
+public:
+	RsslUInt8 oAuthVersion;
+
+	ReactorSessionMgntTestParameters(RsslUInt8 version)
+	{
+		oAuthVersion = version;
+	}
+
+	friend std::ostream& operator<<(std::ostream& out, const ReactorSessionMgntTestParameters& params)
+	{
+		out << "oAuthVersion = " << (int)params.oAuthVersion << std::endl;
+		return out;
+	}
+};
+
+class ReactorSessionMgntTest : public ::testing::TestWithParam<ReactorSessionMgntTestParameters> {
 public:
 
 	static void SetUpTestCase()
@@ -450,9 +473,15 @@ protected:
 		{
 			rsslClearReactorConnectInfo(&_reactorConnectInfo[i]);
 			_reactorConnectInfo[i].rsslConnectOptions.majorVersion = RSSL_RWF_MAJOR_VERSION;
-			_reactorConnectInfo[i].rsslConnectOptions.majorVersion = RSSL_RWF_MINOR_VERSION;
+			_reactorConnectInfo[i].rsslConnectOptions.minorVersion = RSSL_RWF_MINOR_VERSION;
 			_reactorConnectInfo[i].rsslConnectOptions.tcp_nodelay = RSSL_TRUE;
 			_reactorConnectInfo[i].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+
+			if (g_proxyHost.length != 0 && g_proxyPort.length != 0)
+			{
+				_reactorConnectInfo[i].rsslConnectOptions.proxyOpts.proxyHostName = g_proxyHost.data;
+				_reactorConnectInfo[i].rsslConnectOptions.proxyOpts.proxyPort = g_proxyPort.data;
+			}
 		}
 
 		_reactorConnectionOpts.reconnectAttemptLimit = -1;
@@ -492,6 +521,15 @@ protected:
 
 };
 
+INSTANTIATE_TEST_SUITE_P(
+	TestingReactorSessionMgntTests,
+	ReactorSessionMgntTest,
+	::testing::Values(
+
+		ReactorSessionMgntTestParameters(1),
+		ReactorSessionMgntTestParameters(2)
+	));
+
 int ReactorSessionMgntTest::connectInfoCount = 3;
 
 TEST_F(ReactorSessionMgntTest, UnauthorizedUser)
@@ -499,8 +537,13 @@ TEST_F(ReactorSessionMgntTest, UnauthorizedUser)
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
 
-	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
+	// need to provide correct connection type
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
 	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
 
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
@@ -515,17 +558,210 @@ TEST_F(ReactorSessionMgntTest, UnauthorizedUser)
 	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
-	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Failed to request authentication token information with HTTP error 400. Text: {\"error\":\"access_denied\"  ,\"error_description\":\"Invalid username or password.\" } ");
- 
+	// Auth REST's and Servise Discovery REST's parameters are not checked here
+	// expected RSSL_RET_SUCCESS
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 400);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_STREQ(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Failed to request authentication token information. Received HTTP error 400 status code with data body : {\"error\":\"access_denied\"  ,\"error_description\":\"Invalid username or password.\" } .");
+}
+
+TEST_F(ReactorSessionMgntTest, UnauthorizedUser_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	// need to provide correct connection type
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	_reactorOAuthCredential.clientId.data = const_cast<char*>("invalid_client_id");
+	_reactorOAuthCredential.clientId.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientId.data);
+
+	_reactorOAuthCredential.clientSecret.data = const_cast<char*>("invalid_client_secret");
+	_reactorOAuthCredential.clientSecret.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientSecret.data);
+
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+
+	// Auth REST's and Servise Discovery REST's parameters are not checked here
+	// expected RSSL_RET_SUCCESS
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 401);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_STREQ(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Failed to request authentication token information. Received HTTP error 401 status code with data body : {\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid client or client credentials.\" }.");
+}
+
+TEST_F(ReactorSessionMgntTest, UnauthorizedUser_enableWatchlist)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	// need to provide correct connection type
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_rdmLoginRequest.userName.data = const_cast<char*>("invalid_user");
+	_rdmLoginRequest.userName.length = (RsslUInt32)strlen(_rdmLoginRequest.userName.data);
+
+	_rdmLoginRequest.password.data = const_cast<char*>("invalid_password");
+	_rdmLoginRequest.password.length = (RsslUInt32)strlen(_rdmLoginRequest.password.data);
+
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
-	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Failed to request authentication token information with HTTP error 400. Text: {\"error\":\"access_denied\"  ,\"error_description\":\"Invalid username or password.\" } ");
+	// Auth REST's and Servise Discovery REST's parameters are not checked here
+	// expected RSSL_RET_SUCCESS
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 400);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_STREQ(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Failed to request authentication token information. Received HTTP error 400 status code with data body : {\"error\":\"access_denied\"  ,\"error_description\":\"Invalid username or password.\" } .");
+}
+
+TEST_F(ReactorSessionMgntTest, UnauthorizedUser_enableWatchlist_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	// need to provide correct connection type
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	_reactorOAuthCredential.clientId.data = const_cast<char*>("invalid_client_id");
+	_reactorOAuthCredential.clientId.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientId.data);
+
+	_reactorOAuthCredential.clientSecret.data = const_cast<char*>("invalid_client_secret");
+	_reactorOAuthCredential.clientSecret.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientSecret.data);
+
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
+
+	// Auth REST's and Servise Discovery REST's parameters are not checked here
+	// expected RSSL_RET_SUCCESS
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 401);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_STREQ(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Failed to request authentication token information. Received HTTP error 401 status code with data body : {\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid client or client credentials.\" }.");
 }
 
 TEST_F(ReactorSessionMgntTest, NoOAuthCredentialForEnablingSessionMgnt)
@@ -585,6 +821,29 @@ TEST_F(ReactorSessionMgntTest, NoClientIdForEnablingSessionMgnt)
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 
 	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
+	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_INVALID_ARGUMENT);
+	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Failed to copy OAuth credentials for enabling the session management.");
+}
+
+TEST_F(ReactorSessionMgntTest, NoClientIdForEnablingSessionMgnt_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_reactorOmmConsumerRole.pLoginRequest = NULL;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+	_reactorOAuthCredential.clientSecret = g_clientSecret;
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
@@ -862,6 +1121,7 @@ TEST_F(ReactorSessionMgntTest, NoPasswordForEnablingSessionMgnt)
 
 	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
 	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
 
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
@@ -872,9 +1132,73 @@ TEST_F(ReactorSessionMgntTest, NoPasswordForEnablingSessionMgnt)
 	_reactorOAuthCredential.clientId = g_userName;
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 401);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_STREQ(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Failed to request authentication token information. Received HTTP error 401 status code with data body : {\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid client or client credentials.\" }.");
+}
+
+TEST_F(ReactorSessionMgntTest, NoClientSecretForEnablingSessionMgnt)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	_reactorOAuthCredential.clientId = g_userName;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 401);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_STREQ(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Failed to request authentication token information. Received HTTP error 401 status code with data body : {\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid client or client credentials.\" }.");
 }
 
 TEST_F(ReactorSessionMgntTest, UsingOmmNiProviderRoleForSessionMgnt)
@@ -910,6 +1234,24 @@ TEST_F(ReactorSessionMgntTest, EmptyAuthTokenServiceURL)
 	ASSERT_TRUE(rsslCreateReactor(&mOpts, &rsslErrorInfo) != NULL);
 }
 
+TEST_F(ReactorSessionMgntTest, EmptyAuthTokenServiceURL_V1)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL_V1.data = const_cast<char*>("");
+	mOpts.tokenServiceURL_V1.length = 0;
+	cleanupReactor = RSSL_FALSE;
+	ASSERT_TRUE(rsslCreateReactor(&mOpts, &rsslErrorInfo) != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, EmptyAuthTokenServiceURL_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL_V2.data = const_cast<char*>("");
+	mOpts.tokenServiceURL_V2.length = 0;
+	cleanupReactor = RSSL_FALSE;
+	ASSERT_TRUE(rsslCreateReactor(&mOpts, &rsslErrorInfo) != NULL);
+}
+
 TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL)
 {
 	rsslClearCreateReactorOptions(&mOpts);
@@ -922,6 +1264,7 @@ TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL)
 	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
 #endif
 	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
 
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
@@ -933,17 +1276,302 @@ TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL)
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
-	ASSERT_TRUE(strstr(rsslErrorInfo.rsslError.text, "Error: Failed to perform the request") != NULL);
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 0);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL_V1)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL_V1.data = const_cast<char*>("https://#######@_@/token");
+	mOpts.tokenServiceURL_V1.length = (RsslUInt32)strlen(mOpts.tokenServiceURL_V1.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_rdmLoginRequest.userName = g_userName;
+	_rdmLoginRequest.password = g_password;
+	_reactorOmmConsumerRole.clientId = g_userName;
+
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 0);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL_V2.data = const_cast<char*>("https://#######@_@/token");
+	mOpts.tokenServiceURL_V2.length = (RsslUInt32)strlen(mOpts.tokenServiceURL_V2.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_reactorOmmConsumerRole.pLoginRequest = NULL;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	_reactorOAuthCredential.clientId = g_clientId;
+	_reactorOAuthCredential.clientSecret = g_clientSecret;
+
+	_reactorOAuthCredential.pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 0);
+
+	// not need to dispatch channel callback for V2
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL_enableWatchlist)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL.data = const_cast<char*>("https://#######@_@/token");
+	mOpts.tokenServiceURL.length = (RsslUInt32)strlen(mOpts.tokenServiceURL.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_rdmLoginRequest.userName = g_userName;
+	_rdmLoginRequest.password = g_password;
+	_reactorOmmConsumerRole.clientId = g_userName;
+
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 0);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL_enableWatchlist_V1)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL_V1.data = const_cast<char*>("https://#######@_@/token");
+	mOpts.tokenServiceURL_V1.length = (RsslUInt32)strlen(mOpts.tokenServiceURL_V1.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_rdmLoginRequest.userName = g_userName;
+	_rdmLoginRequest.password = g_password;
+	_reactorOmmConsumerRole.clientId = g_userName;
+
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 0);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidAuthTokenServiceURL_enableWatchlist_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.tokenServiceURL_V2.data = const_cast<char*>("https://#######@_@/token");
+	mOpts.tokenServiceURL_V2.length = (RsslUInt32)strlen(mOpts.tokenServiceURL_V2.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_reactorOmmConsumerRole.pLoginRequest = NULL;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	_reactorOAuthCredential.clientId = g_clientId;
+	_reactorOAuthCredential.clientSecret = g_clientSecret;
+
+	_reactorOAuthCredential.pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
 
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
-	ASSERT_TRUE(strstr(rsslErrorInfo.rsslError.text, "Error: Failed to perform the request") != NULL);
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 0);
+
+	// not need to dispatch channel callback for V2
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
 }
 
 TEST_F(ReactorSessionMgntTest, EmptyServiceDiscoveryURL)
@@ -968,6 +1596,7 @@ TEST_F(ReactorSessionMgntTest, InvalidServiceDiscoveryURL)
 	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
 #endif
 	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
 
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
@@ -979,17 +1608,197 @@ TEST_F(ReactorSessionMgntTest, InvalidServiceDiscoveryURL)
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
-	ASSERT_TRUE(strstr(rsslErrorInfo.rsslError.text, "Failed to perform the request") != NULL);
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Watchlist event
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidServiceDiscoveryURL_enableWatchlist)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.serviceDiscoveryURL.data = const_cast<char*>("https://#######@_@/streaming/pricing/v1");
+	mOpts.serviceDiscoveryURL.length = (RsslUInt32)strlen(mOpts.serviceDiscoveryURL.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_rdmLoginRequest.userName = g_userName;
+	_rdmLoginRequest.password = g_password;
+	_reactorOmmConsumerRole.clientId = g_userName;
+
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+
+TEST_F(ReactorSessionMgntTest, InvalidServiceDiscoveryURL_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.serviceDiscoveryURL.data = const_cast<char*>("https://#######@_@/streaming/pricing/v1");
+	mOpts.serviceDiscoveryURL.length = (RsslUInt32)strlen(mOpts.serviceDiscoveryURL.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_reactorOmmConsumerRole.pLoginRequest = NULL;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	_reactorOAuthCredential.clientId = g_clientId;
+	_reactorOAuthCredential.clientSecret = g_clientSecret;
+
+	_reactorOAuthCredential.pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
+}
+
+TEST_F(ReactorSessionMgntTest, InvalidServiceDiscoveryURL_enableWatchlist_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	mOpts.serviceDiscoveryURL.data = const_cast<char*>("https://#######@_@/streaming/pricing/v1");
+	mOpts.serviceDiscoveryURL.length = (RsslUInt32)strlen(mOpts.serviceDiscoveryURL.data);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[0].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[0].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_reactorOmmConsumerRole.pLoginRequest = NULL;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	_reactorOAuthCredential.clientId = g_clientId;
+	_reactorOAuthCredential.clientSecret = g_clientSecret;
+
+	_reactorOAuthCredential.pOAuthCredentialEventCallback = oAuthCredentialEventCallback;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
 
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
 
-	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
-	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_FAILURE);
-	ASSERT_TRUE(strstr(rsslErrorInfo.rsslError.text, "Failed to perform the request") != NULL);
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	// need to dispatch Auth callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
+
+	// need to dispatch channel callback
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN);
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(pConsMon->channelDownEventCount == 1);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.pError->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	ASSERT_TRUE(strstr(pConsMon->mutMsg.channelEvent.pError->rsslError.text, "Error: rsslRestClientDispatch() Curl failed to perform the request with text: URL using bad/illegal format or missing URL") != NULL);
 }
 
 TEST_F(ReactorSessionMgntTest, InvalidConnectionType)
@@ -1023,7 +1832,40 @@ TEST_F(ReactorSessionMgntTest, InvalidConnectionType)
 	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Invalid connection type(0) for requesting RDP service discovery.");
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation)
+TEST_F(ReactorSessionMgntTest, InvalidConnectionType_V2)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_TRUE;
+
+	_reactorConnectionOpts.connectionCount = 1;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	_reactorOmmConsumerRole.pLoginRequest = NULL;
+
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+	_reactorOAuthCredential.clientId = g_clientId;
+	_reactorOAuthCredential.clientSecret = g_clientSecret;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
+	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_INVALID_ARGUMENT);
+	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Invalid connection type(0) for requesting RDP service discovery.");
+
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
+
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
+	ASSERT_TRUE(rsslErrorInfo.rsslErrorInfoCode == RSSL_EIC_FAILURE);
+	ASSERT_TRUE(rsslErrorInfo.rsslError.rsslErrorId == RSSL_RET_INVALID_ARGUMENT);
+	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Invalid connection type(0) for requesting RDP service discovery.");
+}
+
+TEST_P(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
@@ -1037,26 +1879,49 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocat
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_rdmLoginRequest.userName = g_userName;
-	_rdmLoginRequest.password = g_password;
-	_reactorOmmConsumerRole.clientId = g_userName;
-
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
-	_reactorOmmConsumerRole.clientId = g_userName;
+
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName = g_userName;
+		_rdmLoginRequest.password = g_password;
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
+
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
+	RsslRet ret;
+
 	/* Checks for the Channel up event */
 	ASSERT_TRUE(dispatchEvent(pConsMon,500) >= RSSL_RET_SUCCESS); 
-	ASSERT_TRUE(dispatchEvent(pConsMon,800) >= RSSL_RET_SUCCESS); 
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
 	ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && (pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY ||
 		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP));
 
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation_with_RsslReactorOAuthCredential)
+TEST_P(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation_with_RsslReactorOAuthCredential)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
@@ -1070,25 +1935,39 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocat
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_reactorOAuthCredential.userName = g_userName;
-	_reactorOAuthCredential.password = g_password;
-	_reactorOAuthCredential.clientId = g_userName;
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_reactorOAuthCredential.userName = g_userName;
+		_reactorOAuthCredential.password = g_password;
+		_reactorOAuthCredential.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
+	RsslRet ret;
+
 	/* Checks for the Channel up event */
-	ASSERT_TRUE(dispatchEvent(pConsMon, 800) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 800) >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
 	ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && (pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY ||
 		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP));
 
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation_with_RsslReactorOAuthCredential_WebSocket)
+TEST_P(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation_with_RsslReactorOAuthCredential_WebSocket)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
@@ -1102,25 +1981,41 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocat
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_reactorOAuthCredential.userName = g_userName;
-	_reactorOAuthCredential.password = g_password;
-	_reactorOAuthCredential.clientId = g_userName;
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_reactorOAuthCredential.userName = g_userName;
+		_reactorOAuthCredential.password = g_password;
+		_reactorOAuthCredential.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_FALSE;
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
+	RsslRet ret;
+
 	/* Checks for the Channel up event */
-	ASSERT_TRUE(dispatchEvent(pConsMon, 800) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 800) >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
 	ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && (pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY ||
 		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP));
 
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation_with_InvalidRsslRDMLoginRequest_and_RsslReactorOAuthCredential)
+TEST_P(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocation_with_InvalidRsslRDMLoginRequest_and_RsslReactorOAuthCredential)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
@@ -1134,15 +2029,28 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocat
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_rdmLoginRequest.userName.data = const_cast<char*>("invalid_user");
-	_rdmLoginRequest.userName.length = (RsslUInt32)strlen(_rdmLoginRequest.userName.data);
-	_rdmLoginRequest.password.data = const_cast<char*>("invalid_password");
-	_rdmLoginRequest.password.length = (RsslUInt32)strlen(_rdmLoginRequest.password.data);
-	_reactorOmmConsumerRole.clientId = _rdmLoginRequest.userName;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
 
-	_reactorOAuthCredential.userName = g_userName;
-	_reactorOAuthCredential.password = g_password;
-	_reactorOAuthCredential.clientId = g_userName;
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName.data = const_cast<char*>("invalid_user");
+		_rdmLoginRequest.userName.length = (RsslUInt32)strlen(_rdmLoginRequest.userName.data);
+		_rdmLoginRequest.password.data = const_cast<char*>("invalid_password");
+		_rdmLoginRequest.password.length = (RsslUInt32)strlen(_rdmLoginRequest.password.data);
+		_reactorOmmConsumerRole.clientId = _rdmLoginRequest.userName;
+
+		_reactorOAuthCredential.userName = g_userName;
+		_reactorOAuthCredential.password = g_password;
+		_reactorOAuthCredential.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
@@ -1150,16 +2058,26 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_usingDefaultLocat
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
+	RsslRet ret;
+
 	/* Checks for the Channel up event */
-	ASSERT_TRUE(dispatchEvent(pConsMon, 500) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 500) >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
 	ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && (pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY ||
 		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP));
 
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_SpecifiedLocation)
+TEST_P(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_SpecifiedLocation)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
@@ -1175,24 +2093,52 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_SpecifiedLocation
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_rdmLoginRequest.userName = g_userName;
-	_rdmLoginRequest.password = g_password;
-	_reactorOmmConsumerRole.clientId = g_userName;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName = g_userName;
+		_rdmLoginRequest.password = g_password;
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
-	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
+	RsslRet ret;
+
 	/* Checks for the Channel up event */
-	ASSERT_TRUE(dispatchEvent(pConsMon, 400) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 1000) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	if (param.oAuthVersion == 2)
+	{
+		while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+		ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	}
+	ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && (pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP ||
+		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP));
+
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_AuthTokenEventCallback)
+TEST_P(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_AuthTokenEventCallback)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
@@ -1207,24 +2153,47 @@ TEST_F(ReactorSessionMgntTest, ConnectSuccessWithOneConnection_AuthTokenEventCal
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_rdmLoginRequest.userName = g_userName;
-	_rdmLoginRequest.password = g_password;
-	_reactorOmmConsumerRole.clientId = g_userName;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName = g_userName;
+		_rdmLoginRequest.password = g_password;
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
+	/* Checks for the Auth event */
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+
 	/* Check for token information */
 	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
 
+	RsslRet ret;
+
 	/* Checks for the Channel up event */
-	ASSERT_TRUE(dispatchEvent(pConsMon, 500) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 700) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 700) >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
 
 	ASSERT_TRUE((pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP || pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY));
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
@@ -1265,6 +2234,7 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_Unauthori
 
 	time_sleep(300);
 	ASSERT_TRUE(dispatchEvent(pConsMon, 300) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 2000) >= RSSL_RET_SUCCESS);
 
 	/* Ensure that the first connection is down */
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 1);
@@ -1281,21 +2251,106 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_Unauthori
 	ASSERT_TRUE(pConsMon->authTokenInfoErrorTextLength > 0);
 
 	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN_RECONNECTING);
-    ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidAuthTokenServiceURL)
+TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_UnauthorizedUser_V2)
 {
 	rsslClearCreateReactorOptions(&mOpts);
-	mOpts.tokenServiceURL.data = const_cast<char*>("https://#######@_@/token");
-	mOpts.tokenServiceURL.length = (RsslUInt32)strlen(mOpts.tokenServiceURL.data);
 	initReactors(&mOpts, RSSL_TRUE);
 
-	_rdmLoginRequest.userName.data = g_userName.data;
-	_rdmLoginRequest.userName.length = g_userName.length;
+	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
+	_reactorConnectInfo[0].enableSessionManagement = RSSL_FALSE;
+	_reactorConnectInfo[0].rsslConnectOptions.connectionInfo.unified.address = const_cast<char*>("invalidlocalhost");
+	_reactorConnectInfo[0].rsslConnectOptions.connectionInfo.unified.serviceName = const_cast<char*>("15009");
 
-	_rdmLoginRequest.password.data = g_password.data;
-	_rdmLoginRequest.password.length = g_password.length;
+	_reactorConnectInfo[1].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_ENCRYPTED;
+#ifdef _WIN32 // Use OPENSSL for creating the encrypted connection instead of the legacy WinInet-based protocol
+	_reactorConnectInfo[1].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_SOCKET;
+#endif
+	_reactorConnectInfo[1].enableSessionManagement = RSSL_TRUE;
+	_reactorConnectInfo[1].pAuthTokenEventCallback = authTokenEventCallback;
+
+	_reactorConnectionOpts.connectionCount = 2;
+	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
+
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	_reactorOAuthCredential.clientId.data = const_cast<char*>("invalid_client_id");
+	_reactorOAuthCredential.clientId.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientId.data);
+
+	_reactorOAuthCredential.clientSecret.data = const_cast<char*>("invalid_client_secret");
+	_reactorOAuthCredential.clientSecret.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientSecret.data);
+
+	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
+	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
+	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) >= RSSL_RET_SUCCESS);
+
+	time_sleep(300);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 300) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 2000) >= RSSL_RET_SUCCESS);
+
+	/* Ensure that the first connection is down */
+	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 1);
+
+	/* Wait until the connection is switched successfully to the encrypted connection */
+	ASSERT_TRUE(dispatchEvent(pConsMon, 10000) >= RSSL_RET_SUCCESS);
+	time_sleep(2000);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 3000) >= RSSL_RET_SUCCESS);
+
+	/* Check for token information */
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 401);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->authTokenInfoErrorTextLength > 0);
+
+	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN_RECONNECTING);
+	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+}
+
+TEST_P(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidAuthTokenServiceURL)
+{
+	rsslClearCreateReactorOptions(&mOpts);
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		mOpts.tokenServiceURL.data = const_cast<char*>("https://#######@_@/token");
+		mOpts.tokenServiceURL.length = (RsslUInt32)strlen(mOpts.tokenServiceURL.data);
+		break;
+	case 2:
+		mOpts.tokenServiceURL_V2.data = const_cast<char*>("https://#######@_@/token");
+		mOpts.tokenServiceURL_V2.length = (RsslUInt32)strlen(mOpts.tokenServiceURL_V2.data);
+		break;
+	}
+	initReactors(&mOpts, RSSL_TRUE);
+
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName.data = g_userName.data;
+		_rdmLoginRequest.userName.length = g_userName.length;
+
+		_rdmLoginRequest.password.data = g_password.data;
+		_rdmLoginRequest.password.length = g_password.length;
+
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
 	_reactorConnectInfo[0].enableSessionManagement = RSSL_FALSE;
@@ -1313,14 +2368,13 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidAu
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
-	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
-	time_sleep(100);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 100) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 3800) >= RSSL_RET_SUCCESS);
 
 	/* Ensure that the first connection is down */
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount >= 1);
@@ -1340,18 +2394,35 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidAu
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidServiceDiscoveryURL)
+TEST_P(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidServiceDiscoveryURL)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	mOpts.serviceDiscoveryURL.data = const_cast<char*>("https://#######@_@/streaming/pricing/v1");
 	mOpts.serviceDiscoveryURL.length = (RsslUInt32)strlen(mOpts.serviceDiscoveryURL.data);
 	initReactors(&mOpts, RSSL_TRUE);
 
-	_rdmLoginRequest.userName.data = g_userName.data;
-	_rdmLoginRequest.userName.length = g_userName.length;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
 
-	_rdmLoginRequest.password.data = g_password.data;
-	_rdmLoginRequest.password.length = g_password.length;
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName.data = g_userName.data;
+		_rdmLoginRequest.userName.length = g_userName.length;
+
+		_rdmLoginRequest.password.data = g_password.data;
+		_rdmLoginRequest.password.length = g_password.length;
+
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
 	_reactorConnectInfo[0].enableSessionManagement = RSSL_FALSE;
@@ -1369,14 +2440,13 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidSe
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
-	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
-	time_sleep(100);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 100) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 3800) >= RSSL_RET_SUCCESS);
 
 	/* Ensure that the first connection is down */
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount >= 1);
@@ -1395,16 +2465,33 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_InvalidSe
 	ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted)
+TEST_P(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
 
-	_rdmLoginRequest.userName.data = g_userName.data;
-	_rdmLoginRequest.userName.length = g_userName.length;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
 
-	_rdmLoginRequest.password.data = g_password.data;
-	_rdmLoginRequest.password.length = g_password.length;
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName.data = g_userName.data;
+		_rdmLoginRequest.userName.length = g_userName.length;
+
+		_rdmLoginRequest.password.data = g_password.data;
+		_rdmLoginRequest.password.length = g_password.length;
+
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
  
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
@@ -1422,43 +2509,70 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted)
 	_reactorConnectionOpts.connectionCount = 2;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
-	time_sleep(100);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 100) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 3800) >= RSSL_RET_SUCCESS);
 
 	/* Ensure that the first connection is down */
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 1);
 
 	/* Wait until the connection is switched successfully to the encrypted connection */
-	ASSERT_TRUE(dispatchEvent(pConsMon, 10000) >= RSSL_RET_SUCCESS);
-	time_sleep(2000);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 3000) >= RSSL_RET_SUCCESS);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 5000) >= RSSL_RET_SUCCESS);
+
+	RsslRet ret;
+
+	/* Checks for the Channel up event */
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
 
 	/* Check for token information */
 	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
 
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
 	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP ||
 			pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_WebSocket)
+TEST_P(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_WebSocket)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
 
-	_rdmLoginRequest.userName.data = g_userName.data;
-	_rdmLoginRequest.userName.length = g_userName.length;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
 
-	_rdmLoginRequest.password.data = g_password.data;
-	_rdmLoginRequest.password.length = g_password.length;
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName.data = g_userName.data;
+		_rdmLoginRequest.userName.length = g_userName.length;
+
+		_rdmLoginRequest.password.data = g_password.data;
+		_rdmLoginRequest.password.length = g_password.length;
+
+		_reactorOmmConsumerRole.clientId = g_userName;
+		break;
+	case 2:
+		rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+		_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
+
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorConnectInfo[0].rsslConnectOptions.connectionType = RSSL_CONN_TYPE_SOCKET;
@@ -1470,21 +2584,19 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_WebSocket
 	_reactorConnectInfo[1].rsslConnectOptions.encryptionOpts.encryptedProtocol = RSSL_CONN_TYPE_WEBSOCKET;
 	_reactorConnectInfo[1].rsslConnectOptions.wsOpts.protocols = const_cast<char*>("tr_json2");
 
-
 	_reactorConnectInfo[1].enableSessionManagement = RSSL_TRUE;
 	_reactorConnectInfo[1].pAuthTokenEventCallback = authTokenEventCallback;
 
 	_reactorConnectionOpts.connectionCount = 2;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_reactorOmmConsumerRole.clientId = g_userName;
 	_reactorOmmConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
 
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
-	time_sleep(100);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 100) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 3800) >= RSSL_RET_SUCCESS);
 
 	/* Ensure that the first connection is down */
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 1);
@@ -1500,26 +2612,42 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_WebSocket
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
 
+	RsslRet ret;
+
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
 	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP ||
 		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY);
 }
 
-TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_for_RsslReactorOAthCredential_and_ClientSecret)
+TEST_P(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_for_RsslReactorOAthCredential_and_ClientSecret)
 {
 	rsslClearCreateReactorOptions(&mOpts);
 	initReactors(&mOpts, RSSL_TRUE);
 
-	_rdmLoginRequest.userName.data = const_cast<char*>("invalid_user");
-	_rdmLoginRequest.userName.length = (RsslUInt32)strlen(_rdmLoginRequest.userName.data);
-	_rdmLoginRequest.password.data = const_cast<char*>("invalid_password");
-	_rdmLoginRequest.password.length = (RsslUInt32)strlen(_rdmLoginRequest.password.data);
-	_reactorOmmConsumerRole.clientId = _rdmLoginRequest.userName;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
 
-	_reactorOAuthCredential.userName = g_userName;
-	_reactorOAuthCredential.password = g_password;
-	_reactorOAuthCredential.clientId = g_userName;
-	_reactorOAuthCredential.clientSecret.data = const_cast<char*>("ABCDEFG");
-	_reactorOAuthCredential.clientSecret.length = (RsslUInt32)strlen(_reactorOAuthCredential.clientSecret.data);
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName.data = const_cast<char*>("invalid_user");
+		_rdmLoginRequest.userName.length = (RsslUInt32)strlen(_rdmLoginRequest.userName.data);
+		_rdmLoginRequest.password.data = const_cast<char*>("invalid_password");
+		_rdmLoginRequest.password.length = (RsslUInt32)strlen(_rdmLoginRequest.password.data);
+		_reactorOmmConsumerRole.clientId = _rdmLoginRequest.userName;
+
+		_reactorOAuthCredential.userName = g_userName;
+		_reactorOAuthCredential.password = g_password;
+		_reactorOAuthCredential.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
@@ -1543,8 +2671,8 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_for_RsslR
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 0);
 	ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
-	time_sleep(100);
-	ASSERT_TRUE(dispatchEvent(pConsMon, 100) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 1800) >= RSSL_RET_SUCCESS);
+	ASSERT_TRUE(dispatchEvent(pConsMon, 3800) >= RSSL_RET_SUCCESS);
 
 	/* Ensure that the first connection is down */
 	ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == 1);
@@ -1560,11 +2688,16 @@ TEST_F(ReactorSessionMgntTest, ConnectionRecoveryFromSocketToEncrypted_for_RsslR
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
 	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
 
+	RsslRet ret;
+
+	while ((ret = dispatchEvent(pConsMon, 300)) == RSSL_RET_READ_WOULD_BLOCK);
+	ASSERT_TRUE(ret >= RSSL_RET_SUCCESS);
+
 	ASSERT_TRUE(pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP ||
 		pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY);
 }
 
-TEST_F(ReactorSessionMgntTest, MultipleOpenAndCloseConnections)
+TEST_P(ReactorSessionMgntTest, MultipleOpenAndCloseConnections)
 {
 	RsslUInt32 numberOfConnections = 25; /* To ensure that this test reuse the ReactorChannel from the channel pool(size = 10)*/
 	RsslUInt32 index = 0;
@@ -1580,9 +2713,22 @@ TEST_F(ReactorSessionMgntTest, MultipleOpenAndCloseConnections)
 	_reactorConnectionOpts.connectionCount = 1;
 	_reactorConnectionOpts.reactorConnectionList = &_reactorConnectInfo[0];
 
-	_rdmLoginRequest.userName = g_userName;
-	_rdmLoginRequest.password = g_password;
-	_reactorOAuthCredential.clientId = g_userName;
+	rsslClearRDMLoginRequest(&_rdmLoginRequest);
+	rsslClearReactorOAuthCredential(&_reactorOAuthCredential);
+
+	ReactorSessionMgntTestParameters param = GetParam();
+	switch (param.oAuthVersion)
+	{
+	case 1:
+		_rdmLoginRequest.userName = g_userName;
+		_rdmLoginRequest.password = g_password;
+		_reactorOAuthCredential.clientId = g_userName;
+		break;
+	case 2:
+		_reactorOAuthCredential.clientId = g_clientId;
+		_reactorOAuthCredential.clientSecret = g_clientSecret;
+		break;
+	}
 
 	_reactorOmmConsumerRole.pLoginRequest = &_rdmLoginRequest;
 	_reactorOmmConsumerRole.pOAuthCredential = &_reactorOAuthCredential;
@@ -1593,8 +2739,9 @@ TEST_F(ReactorSessionMgntTest, MultipleOpenAndCloseConnections)
 		ASSERT_TRUE(rsslReactorConnect(pConsMon->pReactor, &_reactorConnectionOpts, (RsslReactorChannelRole*)&_reactorOmmConsumerRole, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 
 		/* Checks for the Channel up event */
-		dispatchEvent(pConsMon, 800);
-		dispatchEvent(pConsMon, 800);
+		dispatchEvent(pConsMon, 1800);
+		dispatchEvent(pConsMon, 1800);
+		dispatchEvent(pConsMon, 1800);
 		ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 		dispatchEvent(pConsMon, 800);
 		dispatchEvent(pConsMon, 800);
@@ -1672,6 +2819,7 @@ TEST_F(ReactorSessionMgntTest, MultipleOpenAndCloseConnections_UsingOnly_RsslRMD
 		dispatchEvent(pConsMon, 800);
 		dispatchEvent(pConsMon, 800);
 		dispatchEvent(pConsMon, 800);
+		dispatchEvent(pConsMon, 800);
 		ASSERT_TRUE(rsslReactorCloseChannel(pConsMon->pReactor, pConsMon->mutMsg.pReactorChannel, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 		dispatchEvent(pConsMon, 800);
 		dispatchEvent(pConsMon, 800);
@@ -1679,18 +2827,26 @@ TEST_F(ReactorSessionMgntTest, MultipleOpenAndCloseConnections_UsingOnly_RsslRMD
 	}
 }
 
-TEST_F(ReactorSessionMgntTest, SubmitInvalidUserCredentials_without_tokensession)
+TEST_F(ReactorSessionMgntTest, SubmitInvalidUserCredentials_without_tokensession_V1)
 {
 	RsslReactorOAuthCredentialRenewalOptions renewalOptions;
 	RsslReactorOAuthCredentialRenewal credentialRenewal;
 
 	rsslClearCreateReactorOptions(&mOpts);
+
+	/* Specifies proxy host and port with the RsslCreateReactorOptions */
+	mOpts.restProxyOptions.proxyHostName = g_proxyHost.data;
+	mOpts.restProxyOptions.proxyPort = g_proxyPort.data;
+
 	initReactors(&mOpts, RSSL_TRUE);
 
 	rsslClearReactorOAuthCredentialRenewalOptions(&renewalOptions);
 
 	renewalOptions.renewalMode = RSSL_ROC_RT_RENEW_TOKEN_WITH_PASSWORD;
 	renewalOptions.pAuthTokenEventCallback = authTokenEventCallback;
+
+	renewalOptions.proxyHostName = g_proxyHost;
+	renewalOptions.proxyPort = g_proxyPort;
 
 	rsslClearReactorOAuthCredentialRenewal(&credentialRenewal);
 	credentialRenewal.userName.data = const_cast<char*>("invalid");
@@ -1709,6 +2865,105 @@ TEST_F(ReactorSessionMgntTest, SubmitInvalidUserCredentials_without_tokensession
 	ASSERT_TRUE(pConsMon->authTokenInfoErrorTextLength > 0);
 }
 
+TEST_F(ReactorSessionMgntTest, SubmitInvalidUserCredentials_without_tokensession_V2)
+{
+	RsslReactorOAuthCredentialRenewalOptions renewalOptions;
+	RsslReactorOAuthCredentialRenewal credentialRenewal;
+
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	rsslClearReactorOAuthCredentialRenewalOptions(&renewalOptions);
+
+	renewalOptions.renewalMode = RSSL_ROC_RT_RENEW_TOKEN_WITH_PASSWORD;
+	renewalOptions.pAuthTokenEventCallback = authTokenEventCallback;
+
+	renewalOptions.proxyHostName = g_proxyHost;
+	renewalOptions.proxyPort = g_proxyPort;
+
+	rsslClearReactorOAuthCredentialRenewal(&credentialRenewal);
+	credentialRenewal.clientId.data = const_cast<char*>("invalid ID");
+	credentialRenewal.clientId.length = (RsslUInt32)strlen(credentialRenewal.clientId.data);
+	credentialRenewal.clientSecret.data = const_cast<char*>("invalid value");
+	credentialRenewal.clientSecret.length = (RsslUInt32)strlen(credentialRenewal.clientSecret.data);
+
+	ASSERT_TRUE(rsslReactorSubmitOAuthCredentialRenewal(pConsMon->pReactor, &renewalOptions, &credentialRenewal, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	dispatchEvent(pConsMon, 10000);
+
+	/* Check for token information from the callback */
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 401);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 0);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 1);
+	ASSERT_TRUE(pConsMon->authTokenInfoErrorTextLength > 0);
+}
+
+
+TEST_F(ReactorSessionMgntTest, SubmitUserCredentials_without_tokensession_V1)
+{
+	RsslReactorOAuthCredentialRenewalOptions renewalOptions;
+	RsslReactorOAuthCredentialRenewal credentialRenewal;
+
+	rsslClearCreateReactorOptions(&mOpts);
+	initReactors(&mOpts, RSSL_TRUE);
+
+	rsslClearReactorOAuthCredentialRenewalOptions(&renewalOptions);
+
+	renewalOptions.renewalMode = RSSL_ROC_RT_RENEW_TOKEN_WITH_PASSWORD;
+	renewalOptions.pAuthTokenEventCallback = authTokenEventCallback;
+
+	renewalOptions.proxyHostName = g_proxyHost;
+	renewalOptions.proxyPort = g_proxyPort;
+
+	rsslClearReactorOAuthCredentialRenewal(&credentialRenewal);
+	credentialRenewal.userName = g_userName;
+	credentialRenewal.password = g_password;
+	credentialRenewal.clientId = g_userName;
+
+	ASSERT_TRUE(rsslReactorSubmitOAuthCredentialRenewal(pConsMon->pReactor, &renewalOptions, &credentialRenewal, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	dispatchEvent(pConsMon, 10000);
+
+	/* Check for token information from the callback */
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
+	ASSERT_TRUE(pConsMon->authTokenInfoErrorTextLength == 0);
+}
+
+TEST_F(ReactorSessionMgntTest, SubmitUserCredentials_without_tokensession_V2)
+{
+	RsslReactorOAuthCredentialRenewalOptions renewalOptions;
+	RsslReactorOAuthCredentialRenewal credentialRenewal;
+
+	rsslClearCreateReactorOptions(&mOpts);
+
+	/* Specifies proxy host and port with the RsslCreateReactorOptions */
+	mOpts.restProxyOptions.proxyHostName = g_proxyHost.data;
+	mOpts.restProxyOptions.proxyPort = g_proxyPort.data;
+
+	initReactors(&mOpts, RSSL_TRUE);
+
+	rsslClearReactorOAuthCredentialRenewalOptions(&renewalOptions);
+
+	renewalOptions.renewalMode = RSSL_ROC_RT_RENEW_TOKEN_WITH_PASSWORD;
+	renewalOptions.pAuthTokenEventCallback = authTokenEventCallback;
+
+	rsslClearReactorOAuthCredentialRenewal(&credentialRenewal);
+	credentialRenewal.clientId = g_clientId;
+	credentialRenewal.clientSecret = g_clientSecret;
+
+	ASSERT_TRUE(rsslReactorSubmitOAuthCredentialRenewal(pConsMon->pReactor, &renewalOptions, &credentialRenewal, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	dispatchEvent(pConsMon, 10000);
+
+	/* Check for token information from the callback */
+	ASSERT_TRUE(pConsMon->authEventStatusCode == 200);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoCount == 1);
+	ASSERT_TRUE(pConsMon->numOfAuthTokenInfoErrorCount == 0);
+	ASSERT_TRUE(pConsMon->authTokenInfoErrorTextLength == 0);
+}
+
 struct ReactorServiceDiscoveryEndpointResult
 {
 	RsslUInt32 NumServiceEndpointInfo;
@@ -1724,12 +2979,16 @@ struct ReactorServiceDiscoveryEndpointResult
 	RsslUInt32 Num_tcp_transport;
 	RsslUInt32 Num_websocket_transport;
 	RsslUInt32 HttpStatusCode;
+
+	RsslBool ReceivedResponse;
 };
 
 struct ReactorServiceDiscoveryEndpointError
 {
 	RsslUInt32 HttpStatusCode;
 	char* expectedText;
+
+	RsslBool ReceivedResponse;
 };
 
 void rsslClearReactorServiceDiscoveryEndpointResult(ReactorServiceDiscoveryEndpointResult *result)
@@ -1839,7 +3098,26 @@ RsslBool validateServiceDiscoveryEndpoints(RsslReactorServiceEndpointEvent *even
 	return RSSL_TRUE;
 }
 
-class ReactorQueryServiceDiscoveryTest : public ::testing::Test {
+class ReactorQueryServiceDiscoveryTestParameters
+{
+public:
+	RsslBool restBlocking;
+	RsslUInt8 oAuthVersion;
+
+	ReactorQueryServiceDiscoveryTestParameters(RsslBool blocking, RsslUInt8 version)
+	{
+		restBlocking = blocking;
+		oAuthVersion = version;
+	}
+
+	friend std::ostream& operator<<(std::ostream& out, const ReactorQueryServiceDiscoveryTestParameters& params)
+	{
+		out << "Rest blocking = " << (int)params.restBlocking << " oAuthVersion = " << (int)params.oAuthVersion << std::endl;
+		return out;
+	}
+};
+
+class ReactorQueryServiceDiscoveryTest : public ::testing::TestWithParam<ReactorQueryServiceDiscoveryTestParameters> {
 public:
 
 	static void SetUpTestCase()
@@ -1861,55 +3139,157 @@ protected:
 		ASSERT_TRUE(rsslDestroyReactor(_pReactor, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 	}
 
+	void AddProxyOptions()
+	{
+		if (g_proxyHost.length != 0 && g_proxyPort.length != 0)
+		{
+			_reactorServiceDiscoveryOpts.proxyHostName = g_proxyHost;
+			_reactorServiceDiscoveryOpts.proxyPort = g_proxyPort;
+		}
+	}
+
+	void DispatchServiceDiscoveryEvent(ReactorQueryServiceDiscoveryTestParameters parameters,
+		ReactorServiceDiscoveryEndpointResult* pExpectedResult, ReactorServiceDiscoveryEndpointError* pExpectedError)
+	{
+		if (parameters.restBlocking == RSSL_FALSE)
+		{
+			RsslBool exit = RSSL_FALSE;
+			do
+			{
+				struct timeval 				selectTime;
+				RsslReactorDispatchOptions	dispatchOpts;
+				fd_set readFds, exceptFds;
+				int ret;
+
+				FD_ZERO(&readFds);
+				FD_ZERO(&exceptFds);
+				FD_SET(_pReactor->eventFd, &readFds);
+				FD_SET(_pReactor->eventFd, &exceptFds);
+
+
+				selectTime.tv_sec = 1; selectTime.tv_usec = 0;
+				ret = select(FD_SETSIZE, &readFds, NULL, &exceptFds, &selectTime);
+
+				rsslClearReactorDispatchOptions(&dispatchOpts);
+				while ((ret = rsslReactorDispatch(_pReactor, &dispatchOpts, &rsslErrorInfo)) > RSSL_RET_SUCCESS)
+					;
+
+				exit = pExpectedResult != NULL ? pExpectedResult->ReceivedResponse : pExpectedError->ReceivedResponse;
+
+			} while (!exit);
+		}
+	}
+
 	RsslReactor *_pReactor;
 	RsslReactorServiceDiscoveryOptions _reactorServiceDiscoveryOpts;
 };
 
-TEST_F(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_UserName_NotSpecified)
+class MultiUserSpec
 {
+public:
+	void* pSuccessResult;
+	void* pErrorResult;
+};
+
+INSTANTIATE_TEST_SUITE_P(
+	TestingReactorQueryServiceDiscoveryTests,
+	ReactorQueryServiceDiscoveryTest,
+	::testing::Values(
+
+		ReactorQueryServiceDiscoveryTestParameters(RSSL_TRUE, 1),
+		ReactorQueryServiceDiscoveryTestParameters(RSSL_FALSE, 1),
+		ReactorQueryServiceDiscoveryTestParameters(RSSL_TRUE, 2),
+		ReactorQueryServiceDiscoveryTestParameters(RSSL_FALSE, 2)
+	));
+
+
+TEST_P(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_UserName_NotSpecified)
+{
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	rsslClearCreateReactorOptions(&mOpts);
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
+	AddProxyOptions();
+
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_Password_NotSpecified)
+TEST_P(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_Password_NotSpecified)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
+
 	rsslClearCreateReactorOptions(&mOpts);
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if(parameters.oAuthVersion == 1)
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+	else
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_ClientId_NotSpecified)
+TEST_P(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_ClientId_NotSpecified)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
+
 	rsslClearCreateReactorOptions(&mOpts);
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+	}
+
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_Callback_NotSpecified)
+TEST_P(ReactorQueryServiceDiscoveryTest, RsslReactorServiceDiscoveryOptions_Callback_NotSpecified)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	rsslClearCreateReactorOptions(&mOpts);
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
 	ASSERT_STREQ("RsslReactorServiceDiscoveryOptions.pServiceEndpointEventCallback not provided.", rsslErrorInfo.rsslError.text);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetAllServiceEndpoints)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetAllServiceEndpoints)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorServiceDiscoveryEndpointError expectedError;
+	MultiUserSpec multiUserSpec;
+
+	multiUserSpec.pErrorResult = &expectedError;
+
+	expectedError.expectedText = (char*)"Failed to retrieve token information from the existing token session of the same user name.";
+	expectedError.HttpStatusCode = 0;
+	expectedError.ReceivedResponse = RSSL_FALSE;
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -1928,23 +3308,56 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetAllServiceEndpoints)
 	expectedResult.Num_websocket_transport = 12;
 	expectedResult.HttpStatusCode = 200;
 
-	mOpts.userSpecPtr = &expectedResult;
+	multiUserSpec.pSuccessResult = &expectedResult;
+
+	mOpts.userSpecPtr = &multiUserSpec;
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
 
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
+
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
 	// Checking the service discovery response in the serviceEndpointEventCallback
-	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
+	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackMultiUserSpec;
 
- 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+	if (parameters.oAuthVersion == 1 && parameters.restBlocking == RSSL_FALSE)
+	{
+		ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+		/* Send multiple requests with the same user name for V1 to generate the error as the access is being requested with the first request. */
+		_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForErrorMultiUserSpec;
+		_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
+		ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+		DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
+
+		DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
+	}
+	else
+	{
+		ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+		DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
+	}
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_TcpTransport)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_TcpTransport)
 {
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -1964,20 +3377,34 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_TcpTransport)
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.transport = RSSL_RD_TP_TCP;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
 	// Checking the service discovery response in the serviceEndpointEventCallback
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_RwfDataformat)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_RwfDataformat)
 {
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -1997,20 +3424,33 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_RwfDataformat)
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.dataFormat = RSSL_RD_DP_RWF;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
 	// Checking the service discovery response in the serviceEndpointEventCallback
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_WebsocketTransport)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_WebsocketTransport)
 {
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -2030,20 +3470,34 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_WebsocketTranspo
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.transport = RSSL_RD_TP_WEBSOCKET;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
 	// Checking the service discovery response in the serviceEndpointEventCallback
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_Tr_json2Dataformat)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_Tr_json2Dataformat)
 {
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -2063,20 +3517,34 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsFor_Tr_json2Dataform
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.dataFormat = RSSL_RD_DP_JSON2;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
 	// Checking the service discovery response in the serviceEndpointEventCallback
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_tokenScope_ClientSecret)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_tokenScope_ClientSecret)
 {
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -2092,27 +3560,52 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_tokenScope_Clie
 	expectedResult.Num_websocket_transport = 12;
 	expectedResult.HttpStatusCode = 200;
 
-	mOpts.userSpecPtr = &expectedResult;
-	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
+	ReactorServiceDiscoveryEndpointError expectedError;
+	expectedError.expectedText = (char*)"Invalid client or client credentials";
+	expectedError.HttpStatusCode = 401;
+	expectedError.ReceivedResponse = RSSL_FALSE;
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+		mOpts.userSpecPtr = &expectedResult;
+		_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
+		_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		mOpts.userSpecPtr = &expectedError;
+		_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
+		_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
+	}
+
+	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
+
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+
 	_reactorServiceDiscoveryOpts.clientSecret.length = 5;
 	_reactorServiceDiscoveryOpts.clientSecret.data = const_cast<char*>("ABCDE");
 	_reactorServiceDiscoveryOpts.tokenScope.length = 5;
 	_reactorServiceDiscoveryOpts.tokenScope.data = const_cast<char*>("trapi.streaming.pricing.read");
 	_reactorServiceDiscoveryOpts.transport = RSSL_RD_TP_WEBSOCKET;
 
-	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
-
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	if (parameters.oAuthVersion == 1)
+		DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
+	else
+		DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_empty_tokenscope)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_empty_tokenscope)
 {
 	ReactorServiceDiscoveryEndpointResult expectedResult;
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
 	rsslClearCreateReactorOptions(&mOpts);
@@ -2132,23 +3625,38 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_empty_tokenscop
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.tokenScope.length = 0; 
 	_reactorServiceDiscoveryOpts.tokenScope.data = const_cast<char*>(""); /* the Reactor uses the default scope instead */
 	_reactorServiceDiscoveryOpts.transport = RSSL_RD_TP_WEBSOCKET;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedResult;
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, &expectedResult, NULL);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidCombination_TCP_JSON2)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidCombination_TCP_JSON2)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	ReactorServiceDiscoveryEndpointError expectedError;
 	expectedError.expectedText = (char*)"Operation found no data";
 	expectedError.HttpStatusCode = 404;
+	expectedError.ReceivedResponse = RSSL_FALSE;
 
 	rsslClearCreateReactorOptions(&mOpts);
 
@@ -2156,22 +3664,37 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidCombinat
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.transport = RSSL_RD_TP_TCP;
 	_reactorServiceDiscoveryOpts.dataFormat = RSSL_RD_DP_JSON2;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidCombination_WEBSOCKET_RWF)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidCombination_WEBSOCKET_RWF)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	ReactorServiceDiscoveryEndpointError expectedError;
 	expectedError.expectedText = (char*)"Operation found no data";
 	expectedError.HttpStatusCode = 404;
+	expectedError.ReceivedResponse = RSSL_FALSE;
 
 	rsslClearCreateReactorOptions(&mOpts);
 
@@ -2179,19 +3702,33 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidCombinat
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.transport = RSSL_RD_TP_WEBSOCKET;
 	_reactorServiceDiscoveryOpts.dataFormat = RSSL_RD_DP_RWF;
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidTransportProtocol)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidTransportProtocol)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	ReactorServiceDiscoveryEndpointResult expectedResult;
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
@@ -2201,19 +3738,30 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidTranspor
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.transport = (RsslReactorDiscoveryTransportProtocol)99;
 
-	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
+	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
 	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Invalid transport protocol type 99.");
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidDataformatProtocol)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidDataformatProtocol)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	ReactorServiceDiscoveryEndpointResult expectedResult;
 
 	rsslClearReactorServiceDiscoveryEndpointResult(&expectedResult);
@@ -2223,22 +3771,34 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidDataform
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 	_reactorServiceDiscoveryOpts.dataFormat = (RsslReactorDiscoveryDataFormatProtocol)88;
 
-	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallback;
+	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_INVALID_ARGUMENT);
 	ASSERT_STREQ(rsslErrorInfo.rsslError.text, "Invalid dataformat protocol type 88.");
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidClientID)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidClientID)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	ReactorServiceDiscoveryEndpointError expectedError;
 	expectedError.expectedText = (char*)"clientId field is invalid";
 	expectedError.HttpStatusCode = 401;
+	expectedError.ReceivedResponse = RSSL_FALSE;
 	RsslBuffer clientId = { 17, (char*)"invalid_clientID" };
 
 	rsslClearCreateReactorOptions(&mOpts);
@@ -2247,49 +3807,111 @@ TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidClientID
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = clientId;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
 
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = clientId;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
+
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
 	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_SUCCESS);
+
+	DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidTokenServiceUrl)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidTokenServiceUrl)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	rsslClearCreateReactorOptions(&mOpts);
 
-	mOpts.tokenServiceURL.data = (char *)"https://abc.edp.refinitiv.com/auth/oauth2/beta1/token/xx1";
-	mOpts.tokenServiceURL.length = (RsslUInt32)strlen(mOpts.tokenServiceURL.data);
+	ReactorServiceDiscoveryEndpointError expectedError;
+	expectedError.expectedText = (char*)"Curl failed to perform the request with text: Couldn't resolve host name";
+	expectedError.HttpStatusCode = 0;
+	expectedError.ReceivedResponse = RSSL_FALSE;
+
+	mOpts.userSpecPtr = &expectedError;
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+		mOpts.tokenServiceURL.data = (char*)"https://abc.edp.refinitiv.com/auth/oauth2/beta1/token/xx1";
+		mOpts.tokenServiceURL.length = (RsslUInt32)strlen(mOpts.tokenServiceURL.data);
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+		mOpts.tokenServiceURL_V2.data = (char*)"https://abc.edp.refinitiv.com/auth/oauth2/beta1/token/xx1";
+		mOpts.tokenServiceURL_V2.length = (RsslUInt32)strlen(mOpts.tokenServiceURL_V2.data);
+	}
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
-	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_FAILURE);
+	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
+
+	RsslRet expectedRet = parameters.restBlocking ? -1 : 0;
+
+	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == expectedRet);
+
+	DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
 }
 
-TEST_F(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidServiceDiscoveryUrl)
+TEST_P(ReactorQueryServiceDiscoveryTest, GetServiceEndpointsWith_InvalidServiceDiscoveryUrl)
 {
+	ReactorQueryServiceDiscoveryTestParameters parameters = GetParam();
 	rsslClearCreateReactorOptions(&mOpts);
+
+	ReactorServiceDiscoveryEndpointError expectedError;
+	expectedError.expectedText = (char*)"Curl failed to perform the request with text: Couldn't resolve host name";
+	expectedError.HttpStatusCode = 0;
+	expectedError.ReceivedResponse = RSSL_FALSE;
 
 	mOpts.serviceDiscoveryURL.data = (char *)"https://abc.edp.refinitiv.com/streaming/pricing/xx1";
 	mOpts.serviceDiscoveryURL.length = (RsslUInt32)strlen(mOpts.serviceDiscoveryURL.data);
+	mOpts.userSpecPtr = &expectedError;
 	_pReactor = rsslCreateReactor(&mOpts, &rsslErrorInfo);
 
 	rsslClearReactorServiceDiscoveryOptions(&_reactorServiceDiscoveryOpts);
-	_reactorServiceDiscoveryOpts.userName = g_userName;
-	_reactorServiceDiscoveryOpts.password = g_password;
-	_reactorServiceDiscoveryOpts.clientId = g_userName;
+	AddProxyOptions();
+	_reactorServiceDiscoveryOpts.restBlocking = parameters.restBlocking;
+	if (parameters.oAuthVersion == 1)
+	{
+		_reactorServiceDiscoveryOpts.userName = g_userName;
+		_reactorServiceDiscoveryOpts.password = g_password;
+		_reactorServiceDiscoveryOpts.clientId = g_userName;
+	}
+	else
+	{
+		_reactorServiceDiscoveryOpts.clientId = g_clientId;
+		_reactorServiceDiscoveryOpts.clientSecret = g_clientSecret;
+	}
 
+	_reactorServiceDiscoveryOpts.userSpecPtr = &expectedError;
 	_reactorServiceDiscoveryOpts.pServiceEndpointEventCallback = serviceEndpointEventCallbackForError;
 
-	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == RSSL_RET_FAILURE);
+	RsslRet expectedRet = parameters.restBlocking ? -1 : 0;
+
+	ASSERT_TRUE(rsslReactorQueryServiceDiscovery(_pReactor, &_reactorServiceDiscoveryOpts, &rsslErrorInfo) == expectedRet);
+
+	DispatchServiceDiscoveryEvent(parameters, NULL, &expectedError);
 }
 
 static void copyMutRDMMsg(MutMsg *pMutMsg, RsslRDMMsg *pRDMMsg, RsslReactorChannel *pReactorChannel)
@@ -2605,9 +4227,16 @@ RsslReactorCallbackRet serviceEndpointEventCallback(RsslReactor *pReactor, RsslR
 {
 	ReactorServiceDiscoveryEndpointResult *expectedResult = (ReactorServiceDiscoveryEndpointResult *)pReactor->userSpecPtr;
 
+	EXPECT_TRUE(expectedResult == pServiceEndpointEvent->userSpecPtr);
+
 	EXPECT_TRUE(pServiceEndpointEvent->pErrorInfo == 0);
 
-	EXPECT_TRUE(validateServiceDiscoveryEndpoints(pServiceEndpointEvent, expectedResult));
+	if (pServiceEndpointEvent->pErrorInfo == 0)
+	{
+		EXPECT_TRUE(validateServiceDiscoveryEndpoints(pServiceEndpointEvent, expectedResult));
+	}
+
+	expectedResult->ReceivedResponse = RSSL_TRUE;
 
 	return RSSL_RC_CRET_SUCCESS;
 }
@@ -2616,12 +4245,50 @@ RsslReactorCallbackRet serviceEndpointEventCallbackForError(RsslReactor *pReacto
 {
 	ReactorServiceDiscoveryEndpointError* expectedError = (ReactorServiceDiscoveryEndpointError*)pReactor->userSpecPtr;
 
+	EXPECT_TRUE(expectedError == pServiceEndpointEvent->userSpecPtr);
 	EXPECT_TRUE(pServiceEndpointEvent->pErrorInfo->rsslError.rsslErrorId == RSSL_RET_FAILURE);
 	EXPECT_TRUE(strtok(pServiceEndpointEvent->pErrorInfo->rsslError.text, expectedError->expectedText) != NULL);
 	EXPECT_TRUE(pServiceEndpointEvent->statusCode == expectedError->HttpStatusCode);
 
+	expectedError->ReceivedResponse = RSSL_TRUE;
+
 	return RSSL_RC_CRET_SUCCESS;
 }
+
+RsslReactorCallbackRet serviceEndpointEventCallbackMultiUserSpec(RsslReactor* pReactor, RsslReactorServiceEndpointEvent* pServiceEndpointEvent)
+{
+	MultiUserSpec* pMultiUserSpec = (MultiUserSpec*)pReactor->userSpecPtr;
+	ReactorServiceDiscoveryEndpointResult* expectedResult = (ReactorServiceDiscoveryEndpointResult*)pMultiUserSpec->pSuccessResult;
+
+	EXPECT_TRUE(expectedResult == pServiceEndpointEvent->userSpecPtr);
+
+	EXPECT_TRUE(pServiceEndpointEvent->pErrorInfo == 0);
+
+	if (pServiceEndpointEvent->pErrorInfo == 0)
+	{
+		EXPECT_TRUE(validateServiceDiscoveryEndpoints(pServiceEndpointEvent, expectedResult));
+	}
+
+	expectedResult->ReceivedResponse = RSSL_TRUE;
+
+	return RSSL_RC_CRET_SUCCESS;
+}
+
+RsslReactorCallbackRet serviceEndpointEventCallbackForErrorMultiUserSpec(RsslReactor* pReactor, RsslReactorServiceEndpointEvent* pServiceEndpointEvent)
+{
+	MultiUserSpec* pMultiUserSpec = (MultiUserSpec*)pReactor->userSpecPtr;
+	ReactorServiceDiscoveryEndpointError* expectedError = (ReactorServiceDiscoveryEndpointError*)pMultiUserSpec->pErrorResult;
+
+	EXPECT_TRUE(expectedError == pServiceEndpointEvent->userSpecPtr);
+	EXPECT_TRUE(pServiceEndpointEvent->pErrorInfo->rsslError.rsslErrorId == RSSL_RET_FAILURE);
+	EXPECT_TRUE(strcmp(pServiceEndpointEvent->pErrorInfo->rsslError.text, expectedError->expectedText) == 0);
+	EXPECT_TRUE(pServiceEndpointEvent->statusCode == expectedError->HttpStatusCode);
+
+	expectedError->ReceivedResponse = RSSL_TRUE;
+
+	return RSSL_RC_CRET_SUCCESS;
+}
+
 
 static RsslReactorCallbackRet loginMsgCallbackRaise(RsslReactor* pReactor, RsslReactorChannel* pReactorChannel, RsslRDMLoginMsgEvent *pInfo)
 {
@@ -4832,13 +6499,6 @@ void reactorUnitTests_WaitWhileChannelDown(RsslConnectionTypes connectionType)
 		ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_CONN && pConsMon->mutMsg.channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_DOWN_RECONNECTING);
 		ASSERT_TRUE(pConsMon->channelDownReconnectingEventCount == i+1);
 		ASSERT_TRUE(pConsMon->channelDownEventCount == 0);
-
-		/* Cons: Redudnant channel-down event from the worker (should not be passed to consumer). */
-		if (index != 1)
-		{
-			ASSERT_TRUE(dispatchEvent(pConsMon, 1000) >= RSSL_RET_SUCCESS);
-			ASSERT_TRUE(pConsMon->mutMsg.mutMsgType == MUT_MSG_NONE);
-		}
 	}
 
 	removeConnection(pConsMon, pConsCh);
@@ -4942,7 +6602,7 @@ void reactorUnitTests_ManyConnections(RsslConnectionTypes connectionType)
 		numConnections = rlimit.rlim_cur / 2 - 50;
 	}
 
-	printf("  File descriptor limit is %d. Test will open %d reactor connections between consumer & provider.\n", rlimit.rlim_cur, numConnections);
+	printf("  File descriptor limit is %lu. Test will open %d reactor connections between consumer & provider.\n", rlimit.rlim_cur, numConnections);
 #else
 	numConnections > MAX_REACTOR_CONS ? MAX_REACTOR_CONS : numConnections;
 	printf("  FD_SETSIZE is %d. Test will open %d reactor connections between consumer & provider.\n", FD_SETSIZE, numConnections);
@@ -5456,7 +7116,7 @@ TEST_F(ReactorThreadBindProcessorCoreTest, BindCpuCoreIncorrectChar1ForReactorWo
 
 	rsslClearCreateReactorOptions(&createReactorOpts);
 	createReactorOpts.cpuBindWorkerThread.data = strCpuBind;
-	createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), badCpuCoreStr);
+	createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), "%s", badCpuCoreStr);
 
 	pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
 
@@ -5480,7 +7140,7 @@ TEST_F(ReactorThreadBindProcessorCoreTest, BindCpuCoreIncorrectChar2ForReactorWo
 
 	rsslClearCreateReactorOptions(&createReactorOpts);
 	createReactorOpts.cpuBindWorkerThread.data = strCpuBind;
-	createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), badCpuCoreStr);
+	createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), "%s", badCpuCoreStr);
 
 	pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
 
@@ -5500,13 +7160,24 @@ TEST_F(ReactorThreadBindProcessorCoreTest, BindCpuCoreForReactorWorkerShouldSucc
 
 	char strCpuBind[MAXLEN] = { '\0' };
 
+	// Calculate the id of processor unit
+	unsigned nOnlineProcessorUnit = 0;
+	for (RsslUInt32 cpuId = 0; cpuId < nProcessors && nOnlineProcessorUnit < 2; ++cpuId)
+	{
+		if (isProcessorCoreOnline(cpuId) == RSSL_TRUE)
+		{
+			iProc = cpuId;
+			nOnlineProcessorUnit++;
+		}
+	}
+
 	rsslClearCreateReactorOptions(&createReactorOpts);
 	createReactorOpts.cpuBindWorkerThread.data = strCpuBind;
 	createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), "%u", iProc);
 
 	pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
 
-	ASSERT_NE((void*)NULL, pReactor);
+	ASSERT_NE((void*)NULL, pReactor) << "iProc: " << iProc;
 
 	ASSERT_TRUE(rsslDestroyReactor(pReactor, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
@@ -5546,27 +7217,42 @@ TEST_F(ReactorThreadBindProcessorCoreTest, BindCpuCorePCTForReactorWorkerShouldS
 		return;
 	}
 
-	// Three different topologies for the next processor core.
-	// At least, one of them must be correct.
-	// P:X C:Y T:Z
-	char sCpuCorePCT[3][MAXLEN] = { "P:0 C:0 T:1", "P:0 C:1 T:0", "P:1 C:0 T:0" };
 	char strCpuBind[MAXLEN] = { '\0' };
+	RsslBuffer procUnitPCT = { sizeof(strCpuBind), strCpuBind };
 
-	// Try to choose one of the Cpu core templates
-	for (unsigned k = 0; k < 3; ++k)
+	// Calculate the next processor unit
+	unsigned nOnlineProcessorUnit = 0;
+	for (RsslUInt32 cpuId = 0; cpuId < nProcessors && nOnlineProcessorUnit < 2; ++cpuId)
 	{
-		rsslClearCreateReactorOptions(&createReactorOpts);
-		createReactorOpts.cpuBindWorkerThread.data = strCpuBind;
-		createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), "%s", sCpuCorePCT[k]);
-
-		pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
-		if (pReactor != NULL)
+		if (isProcessorCoreOnline(cpuId) == RSSL_TRUE)
 		{
-			//printf("Binding success: k=%u (%s)\n", k, sCpuCorePCT[k]);
-			break;
+			if (nOnlineProcessorUnit == 1)
+			{
+				*strCpuBind = '\0';
+				procUnitPCT.data = strCpuBind;
+				procUnitPCT.length = sizeof(strCpuBind);
+				if (getPCTByProcessorCoreNumber(cpuId, &procUnitPCT, &rsslErrorInfo) != RSSL_RET_SUCCESS)
+				{
+					continue;
+				}
+			}
+			nOnlineProcessorUnit++;
 		}
 	}
-	ASSERT_NE((void*)NULL, pReactor);
+
+	if (nOnlineProcessorUnit <= 1)
+	{
+		ASSERT_TRUE(1);
+		return;
+	}
+
+	rsslClearCreateReactorOptions(&createReactorOpts);
+	createReactorOpts.cpuBindWorkerThread.data = procUnitPCT.data;
+	createReactorOpts.cpuBindWorkerThread.length = procUnitPCT.length;
+
+	pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
+
+	ASSERT_NE((void*)NULL, pReactor) << "PCT: " << strCpuBind;
 
 	ASSERT_TRUE(rsslDestroyReactor(pReactor, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
@@ -5584,17 +7270,28 @@ TEST_F(ReactorThreadBindProcessorCoreTest, BindCpuCoreForReactorWorkerTest)
 
 	char strCpuBind[MAXLEN] = { '\0' };
 
+	// Calculate the id of processor unit
+	unsigned nOnlineProcessorUnit = 0;
+	for (RsslUInt32 cpuId = 0; cpuId < nProcessors && nOnlineProcessorUnit < 2; ++cpuId)
+	{
+		if (isProcessorCoreOnline(cpuId) == RSSL_TRUE)
+		{
+			proccessorForReactorWorker = cpuId;
+			nOnlineProcessorUnit++;
+		}
+	}
+
 	rsslClearCreateReactorOptions(&createReactorOpts);
 	createReactorOpts.cpuBindWorkerThread.data = strCpuBind;
 	createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), "%u", proccessorForReactorWorker);
 
 	pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
 
-	ASSERT_NE((void*)NULL, pReactor);
+	ASSERT_NE((void*)NULL, pReactor) << "proccessorForReactorWorker: " << proccessorForReactorWorker;
 
 	time_sleep(10);
 
-	ASSERT_EQ(checkProcessorIdByPS(proccessorForReactorWorker), RSSL_TRUE);
+	ASSERT_EQ(checkProcessorIdByPS(proccessorForReactorWorker), RSSL_TRUE) << "proccessorForReactorWorker: " << proccessorForReactorWorker;
 
 	ASSERT_TRUE(rsslDestroyReactor(pReactor, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }
@@ -5616,31 +7313,38 @@ TEST_F(ReactorThreadBindProcessorCoreTest, BindCpuCorePCTForReactorWorkerTest)
 
 	RsslUInt32 proccessorForReactorWorker = (nProcessors > 1 ? 1 : 0);
 	char strCpuBind[MAXLEN] = { '\0' };
+	RsslBuffer procUnitPCT = { sizeof(strCpuBind), strCpuBind };
 
-	// Three different topologies for the next processor core.
-	// At least, one of them must be correct.
-	// P:X C:Y T:Z
-	char sCpuCorePCT[3][MAXLEN] = { "P:0 C:0 T:1", "P:0 C:1 T:0", "P:1 C:0 T:0" };
-
-	// Try to choose one of the Cpu core templates
-	for (unsigned k = 0; k < 3; ++k)
+	// Calculate the processor unit in PCT format
+	unsigned nOnlineProcessorUnit = 0;
+	for (RsslUInt32 cpuId = 0; cpuId < nProcessors && nOnlineProcessorUnit < 2; ++cpuId)
 	{
-		rsslClearCreateReactorOptions(&createReactorOpts);
-		createReactorOpts.cpuBindWorkerThread.data = strCpuBind;
-		createReactorOpts.cpuBindWorkerThread.length = snprintf(strCpuBind, sizeof(strCpuBind), "%s", sCpuCorePCT[k]);
-
-		pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
-		if (pReactor != NULL)
+		if (isProcessorCoreOnline(cpuId) == RSSL_TRUE)
 		{
-			//printf("Binding success: k=%u (%s)\n", k, sCpuCorePCT[k]);
-			break;
+			*strCpuBind = '\0';
+			procUnitPCT.data = strCpuBind;
+			procUnitPCT.length = sizeof(strCpuBind);
+			if (getPCTByProcessorCoreNumber(cpuId, &procUnitPCT, &rsslErrorInfo) != RSSL_RET_SUCCESS)
+			{
+				continue;
+			}
+
+			proccessorForReactorWorker = cpuId;
+			nOnlineProcessorUnit++;
 		}
 	}
-	ASSERT_NE((void*)NULL, pReactor);
+
+	rsslClearCreateReactorOptions(&createReactorOpts);
+	createReactorOpts.cpuBindWorkerThread.data = procUnitPCT.data;
+	createReactorOpts.cpuBindWorkerThread.length = procUnitPCT.length;
+
+	pReactor = rsslCreateReactor(&createReactorOpts, &rsslErrorInfo);
+
+	ASSERT_NE((void*)NULL, pReactor) << "proccessorForReactorWorker: " << proccessorForReactorWorker << "; PCT: " << strCpuBind;
 
 	time_sleep(10);
 
-	ASSERT_EQ(checkProcessorIdByPS(proccessorForReactorWorker), RSSL_TRUE);
+	ASSERT_EQ(checkProcessorIdByPS(proccessorForReactorWorker), RSSL_TRUE) << "proccessorForReactorWorker: " << proccessorForReactorWorker << "; PCT: " << strCpuBind;
 
 	ASSERT_TRUE(rsslDestroyReactor(pReactor, &rsslErrorInfo) == RSSL_RET_SUCCESS);
 }

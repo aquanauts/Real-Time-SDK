@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019, 2024 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,8 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "RdmUtilities.h"
+#include "StaticDecoder.h"
+#include "OmmInvalidUsageException.h"
 
 using namespace refinitiv::ema::access;
 using namespace refinitiv::ema::rdm;
@@ -82,16 +84,15 @@ GenericMsg::GenericMsg(const GenericMsg& other)
 
 GenericMsg::~GenericMsg()
 {
-	if ( _pEncoder && !GlobalPool::isFinalState() )
-		g_pool._genericMsgEncoderPool.returnItem( static_cast<GenericMsgEncoder*>( _pEncoder ) );
+	if ( _pEncoder )
+		g_pool.returnItem( static_cast<GenericMsgEncoder*>( _pEncoder ) );
 
 	if ( _pDecoder )
 	{
 		// Free memory from cloning the message if any
 		MsgDecoder::deallocateCopiedBuffer(this);
 
-		if ( !GlobalPool::isFinalState() )
-			g_pool._genericMsgDecoderPool.returnItem( static_cast<GenericMsgDecoder*>( _pDecoder ) );
+		g_pool.returnItem( static_cast<GenericMsgDecoder*>( _pDecoder ) );
 	}
 }
 
@@ -118,10 +119,33 @@ const EmaString& GenericMsg::toString() const
 	return toString( 0 );
 }
 
+const EmaString& GenericMsg::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	GenericMsg genericMsg;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+	{
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
+		static_cast<Encoder*>(_pEncoder)->acquireEncIterator();
+	}
+	else if (!_pEncoder->ownsIterator())
+		static_cast<Encoder*>(_pEncoder)->acquireEncIterator();
+
+	RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+	StaticDecoder::setRsslData(&genericMsg, &rsslBuffer, RSSL_DT_MSG, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+	_toString.clear().append(genericMsg.toString());
+
+	return _toString;
+}
+
 const EmaString& GenericMsg::toString(  UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );
+	if (!_pDecoder)
+		return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
 
 	const GenericMsgDecoder* pTempDecoder = static_cast<const GenericMsgDecoder*>( _pDecoder );
 
@@ -269,7 +293,7 @@ bool GenericMsg::getComplete() const
 Decoder& GenericMsg::getDecoder()
 {
 	if ( !_pDecoder )
-		setDecoder( g_pool._genericMsgDecoderPool.getItem() );
+		setDecoder( g_pool.getGenericMsgDecoderItem() );
 
 	return *_pDecoder;
 }
@@ -277,7 +301,7 @@ Decoder& GenericMsg::getDecoder()
 GenericMsg& GenericMsg::name( const EmaString& name )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->name( name );
 	return *this;
@@ -286,7 +310,7 @@ GenericMsg& GenericMsg::name( const EmaString& name )
 GenericMsg& GenericMsg::nameType( UInt8 nameType )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->nameType( nameType );
 	return *this;
@@ -295,7 +319,7 @@ GenericMsg& GenericMsg::nameType( UInt8 nameType )
 GenericMsg& GenericMsg::serviceId( UInt32 serviceId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->serviceId( serviceId );
 	return *this;
@@ -304,7 +328,7 @@ GenericMsg& GenericMsg::serviceId( UInt32 serviceId )
 GenericMsg& GenericMsg::id( Int32 id )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->identifier( id );
 	return *this;
@@ -313,7 +337,7 @@ GenericMsg& GenericMsg::id( Int32 id )
 GenericMsg& GenericMsg::filter( UInt32 filter )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->filter( filter );
 	return *this;
@@ -322,7 +346,7 @@ GenericMsg& GenericMsg::filter( UInt32 filter )
 GenericMsg& GenericMsg::streamId( Int32 streamId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->streamId( streamId );
 	return *this;
@@ -338,7 +362,7 @@ GenericMsg& GenericMsg::domainType( UInt16 domainType )
 	}
 
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->domainType( (UInt8)domainType );
 	return *this;
@@ -347,7 +371,7 @@ GenericMsg& GenericMsg::domainType( UInt16 domainType )
 GenericMsg& GenericMsg::seqNum( UInt32 seqNum )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->seqNum( seqNum );
 	return *this;
@@ -356,7 +380,7 @@ GenericMsg& GenericMsg::seqNum( UInt32 seqNum )
 GenericMsg& GenericMsg::secondarySeqNum( UInt32 seqNum )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->secondarySeqNum( seqNum );
 	return *this;
@@ -365,7 +389,7 @@ GenericMsg& GenericMsg::secondarySeqNum( UInt32 seqNum )
 GenericMsg& GenericMsg::partNum( UInt16 partNum )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->partNum( partNum );
 	return *this;
@@ -374,7 +398,7 @@ GenericMsg& GenericMsg::partNum( UInt16 partNum )
 GenericMsg& GenericMsg::permissionData( const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->permissionData( permissionData );
 	return *this;
@@ -383,7 +407,7 @@ GenericMsg& GenericMsg::permissionData( const EmaBuffer& permissionData )
 GenericMsg& GenericMsg::complete( bool complete )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->complete( complete );
 	return *this;
@@ -392,7 +416,7 @@ GenericMsg& GenericMsg::complete( bool complete )
 GenericMsg& GenericMsg::attrib( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->attrib( data );
 	return *this;
@@ -401,7 +425,7 @@ GenericMsg& GenericMsg::attrib( const ComplexType& data )
 GenericMsg& GenericMsg::payload( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	_pEncoder->payload( data );
 	return *this;
@@ -410,7 +434,7 @@ GenericMsg& GenericMsg::payload( const ComplexType& data )
 GenericMsg& GenericMsg::extendedHeader( const EmaBuffer& Buffer )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->extendedHeader( Buffer );
 	return *this;
@@ -419,7 +443,7 @@ GenericMsg& GenericMsg::extendedHeader( const EmaBuffer& Buffer )
 GenericMsg& GenericMsg::providerDriven( bool providerDriven )
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._genericMsgEncoderPool.getItem();
+		_pEncoder = g_pool.getGenericMsgEncoderItem();
 
 	static_cast<GenericMsgEncoder*>(_pEncoder)->providerDriven( providerDriven );
 	return *this;

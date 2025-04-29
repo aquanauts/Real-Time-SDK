@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2019-2023 Refinitiv. All rights reserved.          --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|          Copyright (C) 2019-2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -193,6 +193,27 @@ public interface OmmConsumerConfig
 	public OmmConsumerConfig host(String host);
 
 	/**
+	 * Specifies connection type. Overrides prior value.
+	 *
+	 * @param channelType specifies connection type used by application. Connection type defined in EmaConfig.ConnectionType.
+	 * @throws OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+	 * @throws OmmInvalidUsageException if channelType is not valid.
+	 * @return reference to this object
+	 */
+	public OmmConsumerConfig channelType(int channelType);
+
+	/**
+	 * Specifies encrypted protocol type. Overrides prior value.
+	 *
+	 * @param encProtocolType specifies encrypted protocol type used by application. Encrypted protocol type defined in EmaConfig.EncryptedProtocolType.
+	 * @throws OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+	 * @throws OmmInvalidUsageException if use this API with not encoded channel type.
+	 * @throws OmmInvalidUsageException if encProtocolType is not valid.
+	 * @return reference to this object
+	 */
+	public OmmConsumerConfig encryptedProtocolType(int encProtocolType);
+
+	/**
 	 * Specifies the operation model, overriding the default.<br>
 	 * The operation model specifies whether to dispatch messages
 	 * in the user or application thread of control.
@@ -286,8 +307,7 @@ public interface OmmConsumerConfig
 	
 	/**
 	 * The type of the key store for certificate file.
-     * Defaults to the property keystore.type in the JDK security properties file (java.security).
-     * Sun JDK default = JKS
+     * RTSDK Default = JKS
      * 
 	 * @param keyStoreType specifies the type of key store for tunneling connection.
 	 * @return reference to this object
@@ -313,12 +333,21 @@ public interface OmmConsumerConfig
 	
     /**
 	 * The Cryptographic protocol to be used. Sun JDK default is TLS which will go the latest one
-	 * supported by JDK (currently is TLSv1.2).
+	 * supported by the JDK version in use.
 	 *  
 	 * @param securityProtocol specifies a cryptographic protocol for tunneling connection.
 	 * @return reference to this object
 	 */
     public OmmConsumerConfig tunnelingSecurityProtocol(String securityProtocol); 
+    
+    /**
+	 * The Cryptographic protocol versions to be used. RTSDK default is {"1.3" , "1.2"} for the default protocol "TLS"
+	 * which will go to the latest one supported by the JDK version in use.
+	 *  
+	 * @param securityProtocolVersions specifies a cryptographic protocol versions list to use for tunneling connection.
+	 * @return reference to this object
+	 */
+    public OmmConsumerConfig tunnelingSecurityProtocolVersions(String[] securityProtocolVersions); 
     
     /**
 	 * The Java Cryptography Package provider to be used. The Oracle JDK default is SunJSSE.
@@ -380,4 +409,73 @@ public interface OmmConsumerConfig
 	 * @throws OmmInvalidUsageException if dataDictionary object instance does not contain entire dictionary information.
 	 */
 	public OmmConsumerConfig dataDictionary(DataDictionary dataDictionary, boolean shouldCopyIntoAPI);
+	
+    /** Specifies the address or host name of the proxy server for Rest requests: service discovery and auth token service.
+     * 
+     * @param restProxyHostName specifies the address or host name of the proxy server for Rest requests.
+     * @return reference to this object
+    */
+	public OmmConsumerConfig restProxyHostName(String restProxyHostName);
+	
+    /** Specifies the port of the proxy server for Rest requests: service discovery and auth token service.
+     * 
+     * @param restProxyPort specifies the port of the proxy server for Rest requests.
+     * @return reference to this object
+    */
+	public OmmConsumerConfig restProxyPort(String restProxyPort);
+	
+    /** Specifies the user name to authenticate to the proxy server for Rest requests. Needed for all authentication protocols.
+     * 
+     * @param restProxyUserName specifies user name for the proxy server authentication for Rest requests.
+     * @return reference to this object
+    */
+	public OmmConsumerConfig restProxyUserName(String restProxyUserName);
+	
+    /** Specifies the password to authenticate to the proxy server for Rest requests. Needed for all authentication protocols.
+     * 
+     * @param restProxyPasswd specifies password for the proxy server authentication for Rest requests.
+     * @return reference to this object
+    */
+	public OmmConsumerConfig restProxyPasswd(String restProxyPasswd);
+	
+    /** Specifies the domain of the user to authenticate to the proxy server for Rest requests: service discovery and auth token service.
+     * Needed for NTLM or for Negotiate/Kerberos or for Kerberos authentication protocols.
+     * 
+     * For Negotiate/Kerberos or for Kerberos authentication protocols, restProxyDomain
+     * should be the same as the domain in the 'realms' and 'domain_realm' sections of
+     * the Kerberos configuration file.
+     * 
+     * @param restProxyDomain specifies the domain used for the proxy server authentication for Rest requests.
+     * @return reference to this object
+    */
+	public OmmConsumerConfig restProxyDomain(String restProxyDomain);
+	
+    /** Specifies the local hostname of the client. Needed for NTLM authentication protocol only.
+     * 
+     * @param restProxyLocalHostName specifies local hostname needed for NTLM authentication protocol only.
+     * @return reference to this object
+    */
+	public OmmConsumerConfig restProxyLocalHostName(String restProxyLocalHostName);
+	
+	/**
+     * Specifies the complete path of the Kerberos5 configuration file (krb5.ini or krb5.conf, or custom file).
+     * Needed to Negotiate/Kerberos and Kerberos authentications for the proxy connection.
+     * 
+     * The default locations could be the following:
+     * Windows: c:\winnt\krb5.ini or c:\windows\krb5.ini
+     * Linux: /etc/krb5.conf
+     * Other Unix: /etc/krb5/krb5.conf
+     * 
+     * @param restProxyKrb5ConfigFile the proxy Kerberos5 Config File for the proxy connection.
+     * @return reference to this object
+     */	
+	public OmmConsumerConfig restProxyKrb5ConfigFile(String restProxyKrb5ConfigFile);
+	
+	/**
+	 * Specifies a list of concrete service names which is used to subscribe items with the service list name.
+	 * 
+	 * @param serviceList ServiceList object that contains the concrete service names.
+	 * @return reference to this object
+	 */
+	public OmmConsumerConfig addServiceList(ServiceList serviceList);
 }

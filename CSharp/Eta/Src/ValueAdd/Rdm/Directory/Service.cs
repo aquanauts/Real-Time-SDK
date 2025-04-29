@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -79,7 +79,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public MapEntryActions Action { get; set; } = MapEntryActions.ADD;
 
         private StringBuilder stringBuf = new StringBuilder();
-        private const string eol = "\n";
         private const string tab = "\t";
 
         private FilterEntry filterEntry = new FilterEntry();
@@ -122,16 +121,17 @@ namespace LSEG.Eta.ValueAdd.Rdm
             CodecReturnCode ret = CodecReturnCode.SUCCESS;
             destService.Action = Action;
             destService.ServiceId = ServiceId;
-            destService.HasInfo = HasInfo;
+            
             if (HasInfo)
             {
+                destService.HasInfo = HasInfo;
                 ret = Info.Update(destService.Info);
                 if (ret != CodecReturnCode.SUCCESS)
                     return ret;
             }
-            destService.HasData = HasData;
             if (HasData)
             {
+                destService.HasData = HasData;
                 ret = Data.Update(destService.Data);
                 if (ret != CodecReturnCode.SUCCESS)
                     return ret;
@@ -145,23 +145,23 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 if (ret != CodecReturnCode.SUCCESS)
                     return ret;
             }
-            destService.HasLink = HasLink;
             if (HasLink)
             {
+                destService.HasLink = HasLink;
                 ret = Link.Update(destService.Link);
                 if (ret != CodecReturnCode.SUCCESS)
                     return ret;
-            }
-            destService.HasLoad = HasLoad;
+            }           
             if (HasLoad)
             {
+                destService.HasLoad = HasLoad;
                 ret = Load.Update(destService.Load);
                 if (ret != CodecReturnCode.SUCCESS)
                     return ret;
-            }
-            destService.HasState = HasState;
+            }          
             if (HasState)
             {
+                destService.HasState = HasState;
                 ret = State.Update(destService.State);
                 if (ret != CodecReturnCode.SUCCESS)
                     return ret;
@@ -554,13 +554,13 @@ namespace LSEG.Eta.ValueAdd.Rdm
             stringBuf.Clear();
             stringBuf.Append(tab);
             stringBuf.Append("Service:");
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(tab);
             stringBuf.Append("serviceId: ");
             stringBuf.Append(ServiceId);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             if (HasInfo)
             {

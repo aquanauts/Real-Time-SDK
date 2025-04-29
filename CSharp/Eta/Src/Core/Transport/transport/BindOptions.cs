@@ -1,11 +1,12 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
+using LSEG.Eta.Internal;
 using LSEG.Eta.Transports;
 
 namespace LSEG.Eta.Transports
@@ -119,7 +120,7 @@ namespace LSEG.Eta.Transports
         /// the client. 
         /// </summary>
         /// <remarks>
-        /// Refinitiv Real-Time Distribution System and other Refinitiv components typically
+        /// LSEG Real-Time Distribution System and other LSEG components typically
         /// require this value to be set to <c>true</c>.
         /// </remarks>
         /// <value><c>true</c> indicates heartbeat messages are required from the server otherwise <c>false</c></value>
@@ -129,7 +130,7 @@ namespace LSEG.Eta.Transports
         /// Gets or sets whether messages are required from the client to the server.
         /// </summary>
         /// <remarks>
-        /// Refinitiv Real-Time Distribution System and other Refinitiv components typically
+        /// LSEG Real-Time Distribution System and other LSEG components typically
         /// require this value to be set to <c>true</c>.
         /// </remarks>
         /// <value><c>true</c> indicates heartbeat messages are required from the client otherwise <c>false</c></value>
@@ -389,6 +390,23 @@ namespace LSEG.Eta.Transports
         /// </summary>
         /// <value><see cref="BindEncryptionOptions"/></value>
         public BindEncryptionOptions BindEncryptionOpts { get; internal set; } = new BindEncryptionOptions();
+
+        /// <summary>
+        /// This method will perform a deep copy into the passed in parameter's members from the
+        /// BindOptions calling this method.
+        /// </summary>
+        /// <param name="destOpts">the value getting populated with the values of the calling BindOptions</param>
+        /// <returns><see cref="TransportReturnCode.SUCCESS"/> on success, <see cref="TransportReturnCode.FAILURE"/>
+        /// if the destOpts is null.
+        /// </returns>
+        public TransportReturnCode Copy(BindOptions destOpts)
+        {
+            if (destOpts is null)
+                return TransportReturnCode.FAILURE;
+
+            this.CopyTo(destOpts);
+            return TransportReturnCode.SUCCESS;
+        }
 
         /// <summary>
         /// Clears Bind options.

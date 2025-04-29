@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -31,7 +31,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             Assert.Equal(NIProviderRole.FILTER_TO_REFRESH, directoryRefresh.Filter);
             Assert.Equal(streamId, directoryRefresh.StreamId);
             Assert.Single(directoryRefresh.ServiceList);
-            Assert.True(directoryRefresh.ServiceList[0].Info.ServiceName.ToString().Equals(serviceName));
+            Assert.Equal(directoryRefresh.ServiceList[0].Info.ServiceName.ToString(), serviceName);
         }
 
         private void VerifyDirectoryRequest(DirectoryRequest directoryRequest, int streamId)
@@ -46,7 +46,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             Assert.True(dictionaryRequest.Streaming);
             Assert.Equal(VerbosityValues.NORMAL, dictionaryRequest.Verbosity);
             Assert.Equal(streamId, dictionaryRequest.StreamId);
-            Assert.True(dictionaryRequest.DictionaryName.ToString().Equals(name));
+            Assert.Equal(dictionaryRequest.DictionaryName.ToString(), name);
         }
 
         [Fact]

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -119,6 +119,12 @@ namespace LSEG.Eta.ValueAdd.Reactor
         /// token service.
         /// </summary>
         public ReactorOAuthCredential? ReactorOAuthCredential { get; set; }
+
+        /// <summary>
+        /// Gets options for using the watchlist. <see cref="ConsumerWatchlistOptions"/> is used to enable
+        /// and set watchlist options for ConsumerRole.
+        /// </summary>
+        public ConsumerWatchlistOptions WatchlistOptions { get; private set; } = new ConsumerWatchlistOptions();
 
         /// <summary>
         /// Instantiates a new consumer role.
@@ -285,6 +291,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             DirectoryMsgCallback = role.DirectoryMsgCallback;
             DictionaryMsgCallback = role.DictionaryMsgCallback;
             DictionaryDownloadMode = role.DictionaryDownloadMode;
+            WatchlistOptions.Copy(role.WatchlistOptions);
         }
 
         /// <summary>

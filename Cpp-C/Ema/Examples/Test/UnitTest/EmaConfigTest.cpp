@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -14,6 +14,8 @@
 #include "OmmConsumerImpl.h"
 #include "OmmIProviderImpl.h"
 #include "OmmNiProviderImpl.h"
+#include "EmaConfig.h"
+#include "ConsumerRoutingChannel.h"
 
 using namespace refinitiv::ema::access;
 using namespace refinitiv::ema::rdm;
@@ -85,6 +87,43 @@ const char* EmaConfigTest::enumTableFileNameTest = "./enumtypeTest.def";
 
 const char* EmaConfigTest::fieldDictionaryFileNameDefault = "./RDMFieldDictionary";
 const char* EmaConfigTest::enumTableFileNameDefault = "./enumtype.def";
+
+// change applicationId and applicationName, check that new values are
+// propagated to the login request message
+TEST_F(EmaConfigTest, testConsumerAppIdName)
+{
+	OmmConsumerConfigImpl config{ configPath };
+
+	// check that the default values are as expected
+	EmaString defaultAppId{ "256" };
+	EmaString defaultAppName{ "ema" };
+
+	EmaString defaultAppIdCfg{ config.getLoginReq()->applicationId.data,
+		config.getLoginReq()->applicationId.length };
+	EmaString defaultAppNameCfg{ config.getLoginReq()->applicationName.data,
+		config.getLoginReq()->applicationName.length};
+
+	EXPECT_TRUE(defaultAppId == defaultAppIdCfg);
+	EXPECT_TRUE(defaultAppName == defaultAppNameCfg);
+
+	// modify them via API calls
+	EmaString testAppId{ "652" };
+	EmaString testAppName{ "test-app-name" };
+
+	config.applicationId( testAppId );
+	config.applicationName( testAppName );
+
+	EmaString testAppIdCfg{ config.getLoginReq()->applicationId.data,
+		config.getLoginReq()->applicationId.length };
+	EmaString testAppNameCfg{ config.getLoginReq()->applicationName.data,
+		config.getLoginReq()->applicationName.length };
+
+	EXPECT_FALSE(defaultAppId == testAppIdCfg);
+	EXPECT_FALSE(defaultAppName == testAppNameCfg);
+
+	EXPECT_TRUE(testAppId == testAppIdCfg);
+	EXPECT_TRUE(testAppName == testAppNameCfg);
+}
 
 TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 {
@@ -159,8 +198,6 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	EXPECT_TRUE( debugResult && uintValue == 400) << "extracting MaxDispatchCountApiThread from EmaConfig.xml";
 	debugResult = config.get<UInt64>( "ConsumerGroup|ConsumerList|Consumer.Consumer_2|MaxDispatchCountUserThread", uintValue );
 	EXPECT_TRUE( debugResult && uintValue == 5) << "extracting MaxDispatchCountUserThread from EmaConfig.xml";
-	debugResult = config.get<Int64>( "ConsumerGroup|ConsumerList|Consumer.Consumer_2|PipePort", intValue );
-	EXPECT_TRUE( debugResult && intValue == 7001) << "extracting PipePort from EmaConfig.xml";
 	debugResult = config.get<Int64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|ReconnectAttemptLimit", intValue);
 	EXPECT_TRUE(debugResult && intValue == 10) << "extracting ReconnectAttemptLimit from EmaConfig.xml";
 	debugResult = config.get<Int64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|ReconnectMinDelay", intValue);
@@ -183,6 +220,8 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting XmlTraceRead from EmaConfig.xml";
 	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|XmlTracePing", uintValue);
 	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting XmlTracePing from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|XmlTracePingOnly", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting XmlTracePingOnly from EmaConfig.xml";
 	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|XmlTraceHex", uintValue);
 	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting XmlTraceHex from EmaConfig.xml";
 	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|MsgKeyInUpdates", uintValue);
@@ -207,10 +246,33 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting JsonExpandedEnumFields from EmaConfig.xml";
 	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|OutputBufferSize", uintValue);
 	EXPECT_TRUE(debugResult && uintValue == 99999) << "extracting OutputBufferSize from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|JsonTokenIncrementSize", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 999992) << "extracting JsonTokenIncrementSize from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|ShouldInitializeCPUIDlib", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 0) << "extracting ShouldInitializeCPUIDlib from EmaConfig.xml";
+	debugResult = config.get<EmaString>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|RestProxyHostName", retrievedValue);
+	EXPECT_TRUE(debugResult && retrievedValue == "restproxylocalhost") << "extracting RestProxyHostName name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|RestProxyPort", retrievedValue);
+	EXPECT_TRUE(debugResult && retrievedValue == "9028") << "extracting RestProxyPort name from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|EnablePreferredHostOptions", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting EnablePreferredHostOptions name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|PHDetectionTimeSchedule", retrievedValue);
+	EXPECT_TRUE(debugResult && retrievedValue == "*/5 1,2,3 * * *") << "extracting PHDetectionTimeSchedule name from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|PHDetectionTimeInterval", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 123) << "extracting PHDetectionTimeInterval name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|PreferredChannelName", retrievedValue);
+	EXPECT_TRUE(debugResult && retrievedValue == "Channel_2") << "extracting PreferredChannelName name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|PreferredWSBChannelName", retrievedValue);
+	EXPECT_TRUE(debugResult && retrievedValue == "Channel_3") << "extracting PreferredWSBChannelName name from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|PHFallBackWithInWSBGroup", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting PHFallBackWithInWSBGroup name from EmaConfig.xml";
 
 	/*Check sendJsonConvError in Consumer group*/
 	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_2|SendJsonConvError", uintValue);
 	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting  SendJsonConvError from EmaConfig.xml";
+
+	debugResult = config.get<UInt64>("ConsumerGroup|ConsumerList|Consumer.Consumer_3|ShouldInitializeCPUIDlib", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 1) << "extracting ShouldInitializeCPUIDlib from EmaConfig.xml";
 
 	// Checks all values from Consumer_8
 	debugResult = config.get<EmaString>("ConsumerGroup|ConsumerList|Consumer.Consumer_8|WarmStandbyChannelSet", retrievedValue);
@@ -308,6 +370,14 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	debugResult = config.get<UInt64>("ChannelGroup|ChannelList|Channel.Channel_2|InitializationTimeout", uintValue);
 	EXPECT_TRUE(debugResult && uintValue == 55) << "extracting InitializationTimeout from EmaConfig.xml";
 
+	// Checks proxy settings
+	debugResult = config.get<EmaString>("ChannelGroup|ChannelList|Channel.Channel_4|ProxyHost", retrievedValue);
+	EXPECT_TRUE( debugResult && retrievedValue == "proxylocalhost" ) << "extracting ProxyHost from EmaConfig.xml";
+	debugResult = config.get<EmaString>("ChannelGroup|ChannelList|Channel.Channel_4|ProxyPort", retrievedValue);
+	EXPECT_TRUE( debugResult && retrievedValue == "9018" ) << "extracting ProxyPort from EmaConfig.xml";
+	debugResult = config.get<UInt64>("ChannelGroup|ChannelList|Channel.Channel_4|ProxyConnectionTimeout", uintValue);
+	EXPECT_TRUE( debugResult && uintValue == 17 ) << "extracting ProxyConnectionTimeout from EmaConfig.xml";
+
 	// Checks ChannelType == RSSL_CONN_TYPE_WEBSOCKET values from Channel_11
 	channelType = RSSL_CONN_TYPE_INIT;
 	debugResult = config.get<RsslConnectionTypes>("ChannelGroup|ChannelList|Channel.Channel_11|ChannelType", channelType);
@@ -326,6 +396,15 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	channelType = RSSL_CONN_TYPE_INIT;
 	debugResult = config.get<RsslConnectionTypes>("ChannelGroup|ChannelList|Channel.Channel_12|EncryptedProtocolType", channelType);
 	EXPECT_TRUE(debugResult && channelType == RSSL_CONN_TYPE_WEBSOCKET) << "extracting EncryptedProtocolType from EmaConfig.xml";
+
+	// Checks ServerType == RSSL_CONN_TYPE_ENCRYPTED values from Server_13
+	serverType = RSSL_CONN_TYPE_INIT;
+	debugResult = config.get<RsslConnectionTypes>("ServerGroup|ServerList|Server.Server_13|ServerType", serverType);
+	EXPECT_TRUE(debugResult && serverType == RSSL_CONN_TYPE_ENCRYPTED) << "extracting ServerType from EmaConfig.xml";
+	// Checks Server:SecurityProtocol values from Server_13
+	uintValue = 0;
+	debugResult = config.get<UInt64>("ServerGroup|ServerList|Server.Server_13|SecurityProtocol", uintValue);
+	EXPECT_TRUE(debugResult && uintValue == 8) << "extracting Server_13|SecurityProtocol from EmaConfig.xml";
 
 	// Checks all values from Channel:DirectWrite
 	uintValue = 0;
@@ -384,6 +463,10 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	debugResult = config.get<OmmLoggerClient::Severity>( "LoggerGroup|LoggerList|Logger.Logger_2|LoggerSeverity", loggerSeverity );
 	EXPECT_TRUE( debugResult && loggerSeverity == OmmLoggerClient::ErrorEnum) << "extracting LoggerSeverity from EmaConfig.xml";
 
+	// Checks all values from Logger_3
+	debugResult = config.get<OmmLoggerClient::LoggerType>("LoggerGroup|LoggerList|Logger.Logger_3|LoggerType", loggerType);
+	EXPECT_TRUE(debugResult && loggerType == OmmLoggerClient::StderrEnum) << "extracting LoggerType::StderrEnum from EmaConfig.xml";
+
 	// Checks all values from Dictionary_1
 	debugResult = config.get<EmaString>( "DictionaryGroup|DictionaryList|Dictionary|Name", retrievedValue );
 	EXPECT_TRUE( debugResult && retrievedValue == "Dictionary_1" ) << "extracting the first dictionary name from EmaConfig.xml";
@@ -400,23 +483,6 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 
 	debugResult = config.get<EmaString>( "ConsumerGroup|ConsumerList|Consumer.Consumer_15|Dictionary", retrievedValue );
 	EXPECT_TRUE( ! debugResult ) << "correctly detecting missing name item in a list";
-
-	// verify item with multiple occurrences
-	debugResult = config.get<EmaString>( "ConsumerGroup|ConsumerList|Consumer.Check_Multiple_Occurrences|Logger", retrievedValue );
-	EXPECT_TRUE( debugResult && retrievedValue == "Logger_3" ) << "extracting last value for item with multiple values";
-
-	EmaVector< EmaString > v;
-	debugResult = config.get<EmaString>( "ConsumerGroup|ConsumerList|Consumer.Check_Multiple_Occurrences|Logger", v );
-	EXPECT_TRUE( debugResult && v.size() == 3 && v[0] == "Logger_1" && v[1] == "Logger_2" && v[2] == "Logger_3" ) << "extracting all values for item with multiple values";
-
-	debugResult = config.get<EmaString>( "ConsumerGroup|ConsumerList|Consumer.Check_Multiple_Occurrences|Dictionary", v );
-	EXPECT_TRUE( debugResult && v.size() == 1 && v[0] == "Dictionary_1") << "extracting values into vector for item with single value";
-
-	debugResult = config.get<EmaString>( "ConsumerGroup|ConsumerList|Consumer.Check_Multiple_Occurrences|Channel", v );
-	EXPECT_TRUE( debugResult == false) << "correctly ignored Channels when Channel_Set was last";
-
-	debugResult = config.get<EmaString>( "ConsumerGroup|ConsumerList|Consumer.Check_Multiple_Occurrences|ChannelSet", v );
-	EXPECT_TRUE( debugResult && v.size() == 1 && v[0] == "CS2" ) << "correctly extracted only last ChannelSet value (into vector) when both Channel and Channel_Sets configured";
 
 	// Checks all values from Server:ServerSharedSocket
 	uintValue = 0;
@@ -462,6 +528,94 @@ TEST_F(EmaConfigTest, testLoadingConfigurationsFromFile)
 	debugResult = config.get<UInt64>("DirectoryGroup|DirectoryList|Directory.Directory_2|Service.DIRECT_FEED|LoadFilter|LoadFactor", uintValue);
 	EXPECT_TRUE(debugResult == true && uintValue == 65535) << "extracting  LoadFilter|LoadFactor from EmaConfig.xml";
 
+	/* Check the session channel configuration */
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo|Name", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "xmlTestSessionChannel") << "extracting the first session channel from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|ChannelSet", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "Channel_1, Channel_2") << "extracting SessionChannelInfo.xmlTestSessionChannel|ChannelSet from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|WarmStandbyChannelSet", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "WarmStandbyChannel_1, WarmStandbyChannel_2") << "extracting SessionChannelInfo.xmlTestSessionChannel|WarmStandbyChannelSet from EmaConfig.xml";
+	uintValue = 0;
+	intValue = 0;
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|ReconnectAttemptLimit", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 200) << "extracting SessionChannelInfo.xmlTestSessionChannel|ReconnectAttemptLimit from EmaConfig.xml";
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|ReconnectMinDelay", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 300) << "extracting SessionChannelInfo.xmlTestSessionChannel|ReconnectMinDelay from EmaConfig.xml";
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|ReconnectMaxDelay", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 400) << "extracting SessionChannelInfo.xmlTestSessionChannel|ReconnectMaxDelay from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceFileName", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "SessionChannelTrace_1") << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceFileName from EmaConfig.xml";
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceMaxFileSize", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 500) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceMaxFileSize from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceToFile", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceToFile from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceToMultipleFiles", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceToMultipleFiles from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceToStdout", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceToStdout from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceToMultipleFiles", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceToMultipleFiles from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceWrite", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceWrite from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceRead", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceRead from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTracePing", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTracePing from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTracePingOnly", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTracePingOnly from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceHex", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceHex from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel|XmlTraceDump", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel|XmlTraceDump from EmaConfig.xml";
+
+	/* Check the second session channel configuration */
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|ChannelSet", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "Channel_1, Channel_2") << "extracting SessionChannelInfo.xmlTestSessionChannel_2|ChannelSet from EmaConfig.xml";
+	uintValue = 0;
+	intValue = 0;
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|ReconnectAttemptLimit", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 200) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|ReconnectAttemptLimit from EmaConfig.xml";
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|ReconnectMinDelay", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 300) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|ReconnectMinDelay from EmaConfig.xml";
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|ReconnectMaxDelay", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 400) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|ReconnectMaxDelay from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceFileName", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "SessionChannelTrace_2") << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceFileName from EmaConfig.xml";
+	debugResult = config.get<Int64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceMaxFileSize", intValue);
+	EXPECT_TRUE(debugResult == true && intValue == 500) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceMaxFileSize from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToFile", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToFile from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToMultipleFiles", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToMultipleFiles from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToStdout", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToStdout from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToMultipleFiles", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceToMultipleFiles from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceWrite", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceWrite from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceRead", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceRead from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTracePing", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTracePing from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTracePingOnly", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTracePingOnly from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceHex", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceHex from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceDump", uintValue);
+	EXPECT_TRUE(debugResult == true && uintValue == 0) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|XmlTraceDump from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|EnablePreferredHostOptions", uintValue);
+	EXPECT_TRUE(debugResult&& uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|EnablePreferredHostOptions name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|PHDetectionTimeSchedule", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "1 2 3 4 5") << "extracting SessionChannelInfo.xmlTestSessionChannel_2|PHDetectionTimeSchedule name from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|PHDetectionTimeInterval", uintValue);
+	EXPECT_TRUE(debugResult&& uintValue == 10) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|PHDetectionTimeInterval name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|PreferredChannelName", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "Channel_2") << "extracting SessionChannelInfo.xmlTestSessionChannel_2|PreferredChannelName name from EmaConfig.xml";
+	debugResult = config.get<EmaString>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|PreferredWSBChannelName", retrievedValue);
+	EXPECT_TRUE(debugResult&& retrievedValue == "WarmStandbyChannel_2") << "extracting SessionChannelInfo.xmlTestSessionChannel_2|PreferredWSBChannelName name from EmaConfig.xml";
+	debugResult = config.get<UInt64>("SessionChannelGroup|SessionChannelList|SessionChannelInfo.xmlTestSessionChannel_2|PHFallBackWithInWSBGroup", uintValue);
+	EXPECT_TRUE(debugResult&& uintValue == 1) << "extracting SessionChannelInfo.xmlTestSessionChannel_2|PHFallBackWithInWSBGroup name from EmaConfig.xml";
+
 	config.configErrors().printErrors(OmmLoggerClient::WarningEnum);
 }
 
@@ -483,6 +637,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigHttp)
 			.addAscii("Dictionary", "Dictionary_1")
 			.addAscii("RestLogFileName", "Rest.log")
 			.addUInt("RestEnableLog", 1)
+			.addUInt("RestVerboseMode", 1)
 			.addUInt("SendJsonConvError", 1)
 			.addUInt("ItemCountHint", 5000)
 			.addUInt("ServiceCountHint", 2000)
@@ -505,8 +660,18 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigHttp)
 			.addUInt("XmlTraceWrite", 1)
 			.addUInt("XmlTraceRead", 1)
 			.addUInt("XmlTracePing", 1)
+			.addUInt("XmlTracePingOnly", 1)
 			.addUInt("XmlTraceHex", 1)
-			.addUInt("MaxDispatchCountUserThread", 700).complete()).complete();
+			.addAscii("RestProxyHostName", "restProxySrv1")
+			.addAscii("RestProxyPort", "39918")
+			.addUInt("MaxDispatchCountUserThread", 700)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "45 23 * * 6")
+			.addUInt("PHDetectionTimeInterval", 321)
+			.addAscii("PreferredChannelName", "Channel_1")
+			.addAscii("PreferredWSBChannelName", "Channel_2")
+			.addUInt("PHFallBackWithInWSBGroup", 1)
+			.complete()).complete();
 
 		elementList.addMap("ConsumerList", innerMap);
 
@@ -584,7 +749,9 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigHttp)
 		EXPECT_TRUE( activeConfig.dictionaryConfig.dictionaryName == "Dictionary_1" ) << "dictionaryName , \"Dictionary_1\"";
 		EXPECT_TRUE( activeConfig.restLogFileName == "Rest.log" ) << "restLogFileName , \"Rest.log\"";
 		EXPECT_TRUE( activeConfig.restEnableLog == 1) << "restEnableLog , \"True\"";
+		EXPECT_TRUE(activeConfig.restVerboseMode == 1) << "restVerboseMode , \"True\"";
 		EXPECT_TRUE( activeConfig.sendJsonConvError == 1) << "sendJsonConvError , \"True\"";
+		EXPECT_TRUE( activeConfig.shouldInitializeCPUIDlib == 1) << "shouldInitializeCPUIDlib , \"True\"";
 		EXPECT_TRUE( activeConfig.itemCountHint == 5000) << "itemCountHint , 5000";
 		EXPECT_TRUE( activeConfig.serviceCountHint == 2000) << "serviceCountHint , 2000";
 		EXPECT_TRUE( activeConfig.obeyOpenWindow == 1) << "obeyOpenWindow , 1";
@@ -607,8 +774,17 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigHttp)
 		EXPECT_TRUE( activeConfig.xmlTraceWrite == 1) << "xmlTraceWrite , 1";
 		EXPECT_TRUE( activeConfig.xmlTraceRead == 1) << "xmlTraceRead , 1";
 		EXPECT_TRUE( activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+		EXPECT_TRUE( activeConfig.xmlTracePingOnly == 1) << "xmlTracePingOnly , 1";
 		EXPECT_TRUE( activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
+		EXPECT_TRUE( activeConfig.restProxyHostName == "restProxySrv1" ) << "restProxyHostName == \"restProxySrv1\"";
+		EXPECT_TRUE( activeConfig.restProxyPort == "39918" ) << "restProxyPort == \"39918\"";
 		EXPECT_TRUE( activeConfig.msgKeyInUpdates == 1) << "msgKeyInUpdates , 1";
+		EXPECT_TRUE( activeConfig.enablePreferredHostOptions == 1) << "enablePreferredHostOptions , \"True\"";
+		EXPECT_TRUE( activeConfig.phDetectionTimeSchedule == "45 23 * * 6") << "phDetectionTimeSchedule , 45 23 * * 6";
+		EXPECT_TRUE( activeConfig.phDetectionTimeInterval == 321) << "phDetectionTimeSchedule , 321";
+		EXPECT_TRUE( activeConfig.preferredChannelName == "Channel_1") << "preferredChannelName , Channel_1";
+		EXPECT_TRUE( activeConfig.preferredWSBChannelName == "Channel_2") << "preferredWSBChannelName , Channel_2";
+		EXPECT_TRUE( activeConfig.phFallBackWithInWSBGroup == 1) << "phFallBackWithInWSBGroup , \"True\"";
 		EXPECT_TRUE( activeConfig.configChannelSet[0]->interfaceName == "localhost" ) << "interfaceName , \"localhost\"";
 		EXPECT_TRUE( activeConfig.configChannelSet[0]->guaranteedOutputBuffers == 8000) << "guaranteedOutputBuffers , 8000";
 		EXPECT_TRUE( activeConfig.configChannelSet[0]->numInputBuffers == 7777) << "numInputBuffers , 7777";
@@ -654,7 +830,9 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWS)
 			.addAscii("Dictionary", "Dictionary_1")
 			.addAscii("RestLogFileName", "Rest.log")
 			.addUInt("RestEnableLog", 1)
+			.addUInt("RestVerboseMode", 1)
 			.addUInt("SendJsonConvError", 1)
+			.addUInt("ShouldInitializeCPUIDlib", 1)
 			.addUInt("ItemCountHint", 5000)
 			.addUInt("ServiceCountHint", 2000)
 			.addUInt("ObeyOpenWindow", 1)
@@ -675,6 +853,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWS)
 			.addUInt("XmlTraceWrite", 1)
 			.addUInt("XmlTraceRead", 1)
 			.addUInt("XmlTracePing", 1)
+			.addUInt("XmlTracePingOnly", 1)
 			.addUInt("XmlTraceHex", 1)
 			.addUInt("XmlTraceDump", 1)
 			.addUInt("CatchUnknownJsonFids", 0)
@@ -683,8 +862,16 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWS)
 			.addUInt("DefaultServiceID", 1)
 			.addUInt("JsonExpandedEnumFields", 1)
 			.addUInt("OutputBufferSize", 4294967296)
+			.addUInt("JsonTokenIncrementSize", 4294967296)
 			.addUInt("MaxDispatchCountUserThread", 700)
-			.addUInt("SendJsonConvError", 1).complete()).complete();
+			.addUInt("SendJsonConvError", 1)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "45 23 * * 6")
+			.addUInt("PHDetectionTimeInterval", 321)
+			.addAscii("PreferredChannelName", "Channel_1")
+			.addAscii("PreferredWSBChannelName", "Channel_2")
+			.addUInt("PHFallBackWithInWSBGroup", 1)
+			.complete()).complete();
 
 		elementList.addMap("ConsumerList", innerMap);
 
@@ -765,7 +952,9 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWS)
 		EXPECT_TRUE(activeConfig.dictionaryConfig.dictionaryName == "Dictionary_1") << "dictionaryName , \"Dictionary_1\"";
 		EXPECT_TRUE(activeConfig.restLogFileName == "Rest.log") << "restLogFileName , \"Rest.log\"";
 		EXPECT_TRUE(activeConfig.restEnableLog == 1) << "restEnableLog , \"True\"";
+		EXPECT_TRUE(activeConfig.restVerboseMode == 1) << "restVerboseMode , \"True\"";
 		EXPECT_TRUE(activeConfig.sendJsonConvError == 1) << "sendJsonConvError , \"True\"";
+		EXPECT_TRUE(activeConfig.shouldInitializeCPUIDlib == 1) << "shouldInitializeCPUIDlib , \"True\"";
 		EXPECT_TRUE(activeConfig.itemCountHint == 5000) << "itemCountHint , 5000";
 		EXPECT_TRUE(activeConfig.serviceCountHint == 2000) << "serviceCountHint , 2000";
 		EXPECT_TRUE(activeConfig.obeyOpenWindow == 1) << "obeyOpenWindow , 1";
@@ -787,6 +976,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWS)
 		EXPECT_TRUE(activeConfig.xmlTraceWrite == 1) << "xmlTraceWrite , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceRead == 1) << "xmlTraceRead , 1";
 		EXPECT_TRUE(activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+		EXPECT_TRUE(activeConfig.xmlTracePingOnly == 1) << "xmlTracePingOnly , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceDump == 1) << "xmlTraceDump , 1";
 		EXPECT_TRUE(activeConfig.catchUnknownJsonFids == 0) << "catchUnknownJsonFids , 0";
@@ -795,7 +985,14 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWS)
 		EXPECT_TRUE(activeConfig.defaultServiceIDForConverter == 1) << "defaultServiceID , 1";
 		EXPECT_TRUE(activeConfig.jsonExpandedEnumFields == 1) << "jsonExpandedEnumFields , 1";
 		EXPECT_TRUE(activeConfig.outputBufferSize == 4294967295) << "outputBufferSize , 4294967295"; // Use the max UINT32 instead
+		EXPECT_TRUE(activeConfig.jsonTokenIncrementSize == 4294967295) << "jsonTokenIncrementSize , 4294967295"; // Use the max UINT32 instead
 		EXPECT_TRUE(activeConfig.msgKeyInUpdates == 1) << "msgKeyInUpdates , 1";
+		EXPECT_TRUE(activeConfig.enablePreferredHostOptions == 1) << "enablePreferredHostOptions , \"True\"";
+		EXPECT_TRUE(activeConfig.phDetectionTimeSchedule == "45 23 * * 6") << "detectionTimeSchedule , 45 23 * * 6";
+		EXPECT_TRUE(activeConfig.phDetectionTimeInterval == 321) << "phDetectionTimeSchedule , 321";
+		EXPECT_TRUE(activeConfig.preferredChannelName == "Channel_1") << "preferredChannelName , Channel_1";
+		EXPECT_TRUE(activeConfig.preferredWSBChannelName == "Channel_2") << "preferredWSBChannelName , Channel_2";
+		EXPECT_TRUE(activeConfig.phFallBackWithInWSBGroup == 1) << "phFallBackWithInWSBGroup , \"True\"";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->interfaceName == "localhost") << "interfaceName , \"localhost\"";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->guaranteedOutputBuffers == 8000) << "guaranteedOutputBuffers , 8000";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->numInputBuffers == 7777) << "numInputBuffers , 7777";
@@ -842,6 +1039,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWSEncrypted)
 			.addAscii("Dictionary", "Dictionary_1")
 			.addAscii("RestLogFileName", "Rest.log")
 			.addUInt("RestEnableLog", 1)
+			.addUInt("RestVerboseMode", 1)
 			.addUInt("SendJsonConvError", 1)
 			.addUInt("ItemCountHint", 5000)
 			.addUInt("ServiceCountHint", 2000)
@@ -863,6 +1061,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWSEncrypted)
 			.addUInt("XmlTraceWrite", 1)
 			.addUInt("XmlTraceRead", 1)
 			.addUInt("XmlTracePing", 1)
+			.addUInt("XmlTracePingOnly", 1)
 			.addUInt("XmlTraceHex", 1)
 			.addUInt("XmlTraceDump", 1)
 			.addUInt("CatchUnknownJsonFids", 0)
@@ -871,7 +1070,15 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWSEncrypted)
 			.addUInt("DefaultServiceID", 1)
 			.addUInt("JsonExpandedEnumFields", 1)
 			.addUInt("OutputBufferSize", 4294967296)
-			.addUInt("MaxDispatchCountUserThread", 700).complete()).complete();
+			.addUInt("JsonTokenIncrementSize", 4294967296)
+			.addUInt("MaxDispatchCountUserThread", 700)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "45 23 * * 6")
+			.addUInt("PHDetectionTimeInterval", 321)
+			.addAscii("PreferredChannelName", "Channel_1")
+			.addAscii("PreferredWSBChannelName", "Channel_2")
+			.addUInt("PHFallBackWithInWSBGroup", 1)
+			.complete()).complete();
 
 		elementList.addMap("ConsumerList", innerMap);
 
@@ -953,7 +1160,9 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWSEncrypted)
 		EXPECT_TRUE(activeConfig.dictionaryConfig.dictionaryName == "Dictionary_1") << "dictionaryName , \"Dictionary_1\"";
 		EXPECT_TRUE(activeConfig.restLogFileName == "Rest.log") << "restLogFileName , \"Rest.log\"";
 		EXPECT_TRUE(activeConfig.restEnableLog == 1) << "restEnableLog , \"True\"";
+		EXPECT_TRUE(activeConfig.restVerboseMode == 1) << "restVerboseMode , \"True\"";
 		EXPECT_TRUE(activeConfig.sendJsonConvError == 1) << "sendJsonConvError , \"True\"";
+		EXPECT_TRUE(activeConfig.shouldInitializeCPUIDlib == 1) << "shouldInitializeCPUIDlib , \"True\"";
 		EXPECT_TRUE(activeConfig.itemCountHint == 5000) << "itemCountHint , 5000";
 		EXPECT_TRUE(activeConfig.serviceCountHint == 2000) << "serviceCountHint , 2000";
 		EXPECT_TRUE(activeConfig.obeyOpenWindow == 1) << "obeyOpenWindow , 1";
@@ -975,6 +1184,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWSEncrypted)
 		EXPECT_TRUE(activeConfig.xmlTraceWrite == 1) << "xmlTraceWrite , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceRead == 1) << "xmlTraceRead , 1";
 		EXPECT_TRUE(activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+		EXPECT_TRUE(activeConfig.xmlTracePingOnly == 1) << "xmlTracePing , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceDump == 1) << "xmlTraceDump , 1";
 		EXPECT_TRUE(activeConfig.catchUnknownJsonFids == 0) << "catchUnknownJsonFids , 0";
@@ -983,7 +1193,14 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigWSEncrypted)
 		EXPECT_TRUE(activeConfig.defaultServiceIDForConverter == 1) << "defaultServiceID , 1";
 		EXPECT_TRUE(activeConfig.jsonExpandedEnumFields == 1) << "jsonExpandedEnumFields , 1";
 		EXPECT_TRUE(activeConfig.outputBufferSize == 4294967295) << "outputBufferSize , 4294967295"; // Use the max UINT32 instead
+		EXPECT_TRUE(activeConfig.jsonTokenIncrementSize == 4294967295) << "jsonTokenIncrementSize , 4294967295"; // Use the max UINT32 instead
 		EXPECT_TRUE(activeConfig.msgKeyInUpdates == 1) << "msgKeyInUpdates , 1";
+		EXPECT_TRUE(activeConfig.enablePreferredHostOptions == 1) << "enablePreferredHostOptions , \"True\"";
+		EXPECT_TRUE(activeConfig.phDetectionTimeSchedule == "45 23 * * 6") << "phDetectionTimeSchedule , 45 23 * * 6";
+		EXPECT_TRUE(activeConfig.phDetectionTimeInterval == 321) << "phDetectionTimeSchedule , 321";
+		EXPECT_TRUE(activeConfig.preferredChannelName == "Channel_1") << "preferredChannelName , Channel_1";
+		EXPECT_TRUE(activeConfig.preferredWSBChannelName == "Channel_2") << "preferredWSBChannelName , Channel_2";
+		EXPECT_TRUE(activeConfig.phFallBackWithInWSBGroup == 1) << "phFallBackWithInWSBGroup , \"True\"";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->interfaceName == "localhost") << "interfaceName , \"localhost\"";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->guaranteedOutputBuffers == 8000) << "guaranteedOutputBuffers , 8000";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->numInputBuffers == 7777) << "numInputBuffers , 7777";
@@ -1029,6 +1246,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfig)
 			.addAscii("Dictionary", "Dictionary_1")
 			.addAscii("RestLogFileName", "Rest.log")
 			.addUInt("RestEnableLog", 1)
+			.addUInt("RestVerboseMode", 1)
 			.addUInt("SendJsonConvError", 1)
 			.addUInt("ItemCountHint", 5000)
 			.addUInt("ServiceCountHint", 2000)
@@ -1049,13 +1267,22 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfig)
 			.addUInt("XmlTraceWrite", 1)
 			.addUInt("XmlTraceRead", 1)
 			.addUInt("XmlTracePing", 1)
+			.addUInt("XmlTracePingOnly", 1)
 			.addUInt("XmlTraceHex", 1)
+			.addAscii("RestProxyHostName", "restProxySrv11")
+			.addAscii("RestProxyPort", "39919")
 			.addUInt("MsgKeyInUpdates", 1)
 			.addInt("ReconnectAttemptLimit", 10)
 			.addInt("ReconnectMinDelay", 4444)
 			.addInt("ReconnectMaxDelay", 7777)
-			.addInt("PipePort", 13650)
-			.addDouble("TokenReissueRatio", 0.55).complete())
+			.addDouble("TokenReissueRatio", 0.55)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "45 23 * * 6")
+			.addUInt("PHDetectionTimeInterval", 321)
+			.addAscii("PreferredChannelName", "Channel_1")
+			.addAscii("PreferredWSBChannelName", "Channel_2")
+			.addUInt("PHFallBackWithInWSBGroup", 1)
+			.complete())
 			.addKeyAscii("Consumer_2", MapEntry::AddEnum, ElementList()
 				.addAscii("Channel", "Channel_2")
 				.addAscii("Dictionary", "Dictionary_1")
@@ -1144,6 +1371,7 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfig)
 		EXPECT_TRUE(activeConfig.dictionaryConfig.dictionaryName == "Dictionary_1" ) << "dictionaryName , \"Dictionary_1\"";
 		EXPECT_TRUE(activeConfig.restLogFileName == "Rest.log") << "restLogFileName , \"Rest.log\"";
 		EXPECT_TRUE(activeConfig.restEnableLog == 1) << "restEnableLog , \"True\"";
+		EXPECT_TRUE(activeConfig.restVerboseMode == 1) << "restVerboseMode , \"True\"";
 		EXPECT_TRUE(activeConfig.sendJsonConvError == 1) << "sendJsonConvError , \"True\"";
 		EXPECT_TRUE(activeConfig.itemCountHint == 5000) << "itemCountHint , 5000";
 		EXPECT_TRUE(activeConfig.serviceCountHint == 2000) << "serviceCountHint , 2000";
@@ -1167,12 +1395,20 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfig)
 		EXPECT_TRUE(activeConfig.xmlTraceWrite == 1) << "xmlTraceWrite , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceRead == 1) << "xmlTraceRead , 1";
 		EXPECT_TRUE(activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+		EXPECT_TRUE(activeConfig.xmlTracePingOnly == 1) << "xmlTracePingOnly , 1";
 		EXPECT_TRUE(activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
+		EXPECT_TRUE(activeConfig.restProxyHostName == "restProxySrv11") << "restProxyHostName == \"restProxySrv11\"";
+		EXPECT_TRUE(activeConfig.restProxyPort == "39919") << "restProxyPort == \"39919\"";
 		EXPECT_TRUE(activeConfig.msgKeyInUpdates == 1) << "msgKeyInUpdates , 1";
-		EXPECT_TRUE(activeConfig.pipePort == 13650) << "pipePort , 13650";
 		EXPECT_TRUE(activeConfig.tokenReissueRatio == 0.55) << "tokenReissueRatio , 0.55";
 		EXPECT_TRUE(activeConfig.reissueTokenAttemptLimit == -1) << "reissueTokenAttemptLimit , -1";
 		EXPECT_TRUE(activeConfig.reissueTokenAttemptInterval == 5000) << "reissueTokenAttemptInterval , 5000";
+		EXPECT_TRUE(activeConfig.enablePreferredHostOptions == 1) << "enablePreferredHostOptions , \"True\"";
+		EXPECT_TRUE(activeConfig.phDetectionTimeSchedule == "45 23 * * 6") << "phDetectionTimeSchedule , 45 23 * * 6";
+		EXPECT_TRUE(activeConfig.phDetectionTimeInterval == 321) << "phDetectionTimeSchedule , 321";
+		EXPECT_TRUE(activeConfig.preferredChannelName == "Channel_1") << "preferredChannelName , Channel_1";
+		EXPECT_TRUE(activeConfig.preferredWSBChannelName == "Channel_2") << "preferredWSBChannelName , Channel_2";
+		EXPECT_TRUE(activeConfig.phFallBackWithInWSBGroup == 1) << "phFallBackWithInWSBGroup , \"True\"";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->interfaceName == "localhost" ) << "interfaceName , \"localhost\"";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->guaranteedOutputBuffers == 8000) << "guaranteedOutputBuffers , 8000";
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->numInputBuffers == 7777) << "numInputBuffers , 7777";
@@ -1260,7 +1496,9 @@ TEST_F(EmaConfigTest, testLoadingConfigurationFromProgrammaticConfigForSessionMa
 		outermostMap.complete();
 
 		SCOPED_TRACE("Must load data dictionary files from current working location\n");
-		OmmConsumerImpl ommConsumerImpl(OmmConsumerConfig().config(outermostMap).username(g_userName).password(g_password).clientId(g_userName));
+		OmmConsumerImpl ommConsumerImpl(OmmConsumerConfig().config(outermostMap)
+			.username(g_userName).password(g_password).clientId(g_userName)
+			.tunnelingProxyHostName(g_proxyHost).tunnelingProxyPort(g_proxyPort));
 
 		OmmConsumerActiveConfig& activeConfig = static_cast<OmmConsumerActiveConfig&>(ommConsumerImpl.getActiveConfig());
 		bool found = ommConsumerImpl.getInstanceName().find("Consumer_1") >= 0 ? true : false;
@@ -1293,6 +1531,7 @@ TEST_F(EmaConfigTest, testLoadingProgrammaticConfigForWarmStandby)
 		elementList.addAscii("DefaultConsumer", "Consumer_8");
 
 		innerMap.addKeyAscii("Consumer_8", MapEntry::AddEnum, ElementList()
+			.addAscii("ChannelSet", "Channel_1, Channel_2")
 			.addAscii("WarmStandbyChannelSet", "WarmStandbyChannel_1, WarmStandbyChannel_2")
 			.addAscii("Logger", "Logger_1")
 			.addUInt("XmlTraceToStdout", 0)
@@ -1399,7 +1638,7 @@ TEST_F(EmaConfigTest, testLoadingProgrammaticConfigForWarmStandby)
 		OmmConsumerActiveConfig& activeConfig = static_cast<OmmConsumerActiveConfig&>(ommConsumerImpl.getActiveConfig());
 		bool found = ommConsumerImpl.getInstanceName().find("Consumer_8") >= 0 ? true : false;
 		EXPECT_TRUE(found) << "ommConsumerImpl.getConsumerName() , \"Consumer_8_1\"";
-		EXPECT_TRUE(activeConfig.configChannelSet.size() == 0) << "Connection list size , \"0\"";
+		EXPECT_TRUE(activeConfig.configChannelSet.size() == 2) << "Connection list size , \"0\"";
 		EXPECT_TRUE(activeConfig.configWarmStandbySet.size() == 2) << "Warm standby Channel size, 2";
 		EXPECT_TRUE(activeConfig.configWarmStandbySet[0]->name == "WarmStandbyChannel_1") << "Warm standby Channel name, WarmStandbyChannel_1";
 		EXPECT_TRUE(activeConfig.configWarmStandbySet[0]->startingActiveServer->name == "Server_Info_1") << "StartingActiveServer name, Server_Info_1";
@@ -1440,6 +1679,10 @@ TEST_F(EmaConfigTest, testLoadingProgrammaticConfigForWarmStandby)
 		EXPECT_TRUE(activeConfig.dictionaryConfig.dictionaryType == Dictionary::FileDictionaryEnum) << "dictionaryType , Dictionary::FileDictionaryEnum";
 		EXPECT_TRUE(activeConfig.dictionaryConfig.rdmfieldDictionaryFileName == fieldDictionaryFileNameTest) << "rdmfieldDictionaryFileName , " << fieldDictionaryFileNameTest;
 		EXPECT_TRUE(activeConfig.dictionaryConfig.enumtypeDefFileName == enumTableFileNameTest) << "enumtypeDefFileName , " << enumTableFileNameTest;
+
+		EXPECT_TRUE(activeConfig.configChannelSet[0]->name == "Channel_1");
+		EXPECT_TRUE(activeConfig.configChannelSet[1]->name == "Channel_2");
+
 	}
 	catch (const OmmException& excp)
 	{
@@ -1448,21 +1691,59 @@ TEST_F(EmaConfigTest, testLoadingProgrammaticConfigForWarmStandby)
 	}
 }
 
-TEST_F(EmaConfigTest, testOverridingFromInterface)
+TEST_F(EmaConfigTest, testLoadingProgrammaticConfigRequestRouting)
 {
 	Map outermostMap, innerMap;
 	ElementList elementList;
-
 	try
 	{
-		elementList.addAscii("DefaultConsumer", "Consumer_1");
+		elementList.addAscii("DefaultConsumer", "Consumer_8");
 
-		innerMap.addKeyAscii("Consumer_1", MapEntry::AddEnum,
-			ElementList()
+		innerMap.addKeyAscii("Consumer_8", MapEntry::AddEnum, ElementList()
+			.addAscii("SessionChannelSet", "SessionChannel_1, SessionChannel_2")
+			.addAscii("Logger", "Logger_1")
+			.addAscii("Dictionary", "Dictionary_2")
 			.addAscii("Channel", "Channel_1")
 			.addAscii("Logger", "Logger_1")
-			.addAscii("Dictionary", "Dictionary_1")
-			.complete()).complete();
+			.addAscii("RestLogFileName", "Rest.log")
+			.addUInt("RestEnableLog", 1)
+			.addUInt("RestVerboseMode", 1)
+			.addUInt("SendJsonConvError", 1)
+			.addUInt("ItemCountHint", 5000)
+			.addUInt("ServiceCountHint", 2000)
+			.addUInt("ObeyOpenWindow", 1)
+			.addUInt("PostAckTimeout", 1200)
+			.addUInt("RequestTimeout", 2400)
+			.addUInt("MaxOutstandingPosts", 9999)
+			.addInt("DispatchTimeoutApiThread", 60)
+			.addUInt("CatchUnhandledException", 1)
+			.addUInt("MaxDispatchCountApiThread", 300)
+			.addUInt("MaxDispatchCountUserThread", 700)
+			.addInt("MaxEventsInPool", 300)
+			.addAscii("XmlTraceFileName", "MyXMLTrace")
+			.addInt("XmlTraceMaxFileSize", 50000000)
+			.addUInt("XmlTraceToFile", 0)
+			.addUInt("XmlTraceToStdout", 1)
+			.addUInt("XmlTraceToMultipleFiles", 1)
+			.addUInt("XmlTraceWrite", 1)
+			.addUInt("XmlTraceRead", 1)
+			.addUInt("XmlTracePing", 1)
+			.addUInt("XmlTracePingOnly", 1)
+			.addUInt("XmlTraceHex", 1)
+			.addAscii("RestProxyHostName", "restProxySrv11")
+			.addAscii("RestProxyPort", "39919")
+			.addUInt("MsgKeyInUpdates", 1)
+			.addInt("ReconnectAttemptLimit", 10)
+			.addInt("ReconnectMinDelay", 4444)
+			.addInt("ReconnectMaxDelay", 7777)
+			.addDouble("TokenReissueRatio", 0.55)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "45 23 * * 6")
+			.addUInt("PHDetectionTimeInterval", 321)
+			.addAscii("PreferredChannelName", "Channel_1")
+			.addAscii("PreferredWSBChannelName", "Channel_2")
+			.addUInt("PHFallBackWithInWSBGroup", 1).complete())
+			.complete();
 
 		elementList.addMap("ConsumerList", innerMap);
 
@@ -1471,15 +1752,41 @@ TEST_F(EmaConfigTest, testOverridingFromInterface)
 
 		outermostMap.addKeyAscii("ConsumerGroup", MapEntry::AddEnum, elementList);
 
-		elementList.clear();
-
-		innerMap.addKeyAscii("Channel_1", MapEntry::AddEnum,
-			ElementList()
+		innerMap.addKeyAscii("Channel_1", MapEntry::AddEnum, ElementList()
 			.addEnum("ChannelType", 0)
-			.addAscii("Host", "10.0.0.1")
-			.addAscii("Port", "8001")
-			.complete()).complete();
+			.addAscii("InterfaceName", "localhost")
+			.addEnum("CompressionType", 1)
+			.addUInt("GuaranteedOutputBuffers", 8000)
+			.addUInt("NumInputBuffers", 7777)
+			.addUInt("SysRecvBufSize", 150000)
+			.addUInt("SysSendBufSize", 200000)
+			.addUInt("CompressionThreshold", 12856)
+			.addUInt("ConnectionPingTimeout", 30000)
+			.addAscii("Host", "localhost")
+			.addAscii("Port", "14002")
+			.addUInt("TcpNodelay", 0)
+			.addUInt("InitializationTimeout", 56)
+			.addUInt("DirectWrite", 0)
+			.complete());
 
+		innerMap.addKeyAscii("Channel_2", MapEntry::AddEnum, ElementList()
+			.addEnum("ChannelType", 0)
+			.addAscii("Host", "localhost")
+			.addAscii("Port", "15008").complete());
+
+		innerMap.addKeyAscii("Channel_3", MapEntry::AddEnum, ElementList()
+			.addEnum("ChannelType", 0)
+			.addAscii("Host", "localhost")
+			.addAscii("Port", "14008").complete());
+
+		innerMap.addKeyAscii("Channel_4", MapEntry::AddEnum, ElementList()
+			.addEnum("ChannelType", 0)
+			.addAscii("Host", "localhost")
+			.addAscii("Port", "14008").complete());
+
+		innerMap.complete();
+
+		elementList.clear();
 		elementList.addMap("ChannelList", innerMap);
 
 		elementList.complete();
@@ -1489,27 +1796,102 @@ TEST_F(EmaConfigTest, testOverridingFromInterface)
 
 		elementList.clear();
 
-		innerMap.addKeyAscii("Logger_1", MapEntry::AddEnum,
-			ElementList()
-			.addEnum("LoggerType", 0)
-			.addAscii("FileName", "logFile")
-			.addUInt("NumberOfLogFiles", 42)
-			.addUInt("MaxLogFileSize", 84000)
-			.addEnum("LoggerSeverity", 3).complete()).complete();
+		innerMap.addKeyAscii("Server_Info_1", MapEntry::AddEnum, ElementList()
+			.addAscii("Channel", "Channel_1")
+			.addAscii("PerServiceNameSet", "Service_A, Service_B").complete());
 
-		elementList.addMap("LoggerList", innerMap);
+		innerMap.addKeyAscii("Server_Info_2", MapEntry::AddEnum, ElementList()
+			.addAscii("Channel", "Channel_2")
+			.addAscii("PerServiceNameSet", "Service_C, Service_D").complete());
+
+		innerMap.addKeyAscii("Server_Info_3", MapEntry::AddEnum, ElementList()
+			.addAscii("Channel", "Channel_3")
+			.addAscii("PerServiceNameSet", "Service_E, Service_F").complete());
+
+		innerMap.complete();
+
+		elementList.addMap("WarmStandbyServerInfoList", innerMap);
 
 		elementList.complete();
 		innerMap.clear();
 
-		outermostMap.addKeyAscii("LoggerGroup", MapEntry::AddEnum, elementList);
+		outermostMap.addKeyAscii("WarmStandbyServerInfoGroup", MapEntry::AddEnum, elementList);
+
 		elementList.clear();
 
-		innerMap.addKeyAscii("Dictionary_1", MapEntry::AddEnum,
+		innerMap.addKeyAscii("WarmStandbyChannel_1", MapEntry::AddEnum, ElementList()
+			.addAscii("StartingActiveServer", "Server_Info_1")
+			.addAscii("StandbyServerSet", "Server_Info_2, Server_Info_3")
+			.addEnum("WarmStandbyMode", 1)
+			.complete());
+
+		innerMap.addKeyAscii("WarmStandbyChannel_2", MapEntry::AddEnum, ElementList()
+			.addAscii("StartingActiveServer", "Server_Info_2")
+			.addAscii("StandbyServerSet", "Server_Info_1, Server_Info_3")
+			.addEnum("WarmStandbyMode", 2)
+			.complete());
+
+		innerMap.complete();
+
+		elementList.addMap("WarmStandbyList", innerMap);
+
+		elementList.complete();
+		innerMap.clear();
+
+		outermostMap.addKeyAscii("WarmStandbyGroup", MapEntry::AddEnum, elementList);
+
+		elementList.clear();
+
+		innerMap.addKeyAscii("SessionChannel_1", MapEntry::AddEnum,
 			ElementList()
-			.addEnum("DictionaryType", 1)
+			.addAscii("ChannelSet", "Channel_1, Channel_2")
+			.addAscii("WarmStandbyChannelSet", "WarmStandbyChannel_1, WarmStandbyChannel_2")
+			.addInt("ReconnectAttemptLimit", 4)
+			.addInt("ReconnectMinDelay", 2000)
+			.addInt("ReconnectMaxDelay", 6000)
+			.addAscii("XmlTraceFileName", "OtherXmlTrace")
+			.addInt("XmlTraceMaxFileSize", 1234)
+			.addUInt("XmlTraceToFile", 1)
+			.addUInt("XmlTraceToStdout", 0)
+			.addUInt("XmlTraceToMultipleFiles", 0)
+			.addUInt("XmlTraceWrite", 0)
+			.addUInt("XmlTraceRead", 0)
+			.addUInt("XmlTracePing", 0)
+			.addUInt("XmlTracePingOnly", 0)
+			.addUInt("XmlTraceHex", 0)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "1 2 3 4 5")
+			.addUInt("PHDetectionTimeInterval", 123)
+			.addAscii("PreferredChannelName", "Channel_2")
+			.addAscii("PreferredWSBChannelName", "WarmStandbyChannel_1")
+			.addUInt("PHFallBackWithInWSBGroup", 0).complete());
+
+		innerMap.addKeyAscii("SessionChannel_2", MapEntry::AddEnum,
+			ElementList()
+			.addAscii("ChannelSet", "Channel_3, Channel_4")
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PreferredChannelName", "Channel_3")
+			.complete());
+
+		innerMap.complete();
+
+		elementList.addMap("SessionChannelList", innerMap);
+
+		elementList.complete();
+
+		outermostMap.addKeyAscii("SessionChannelGroup", MapEntry::AddEnum, elementList);
+
+		innerMap.clear();
+
+		elementList.clear();
+
+		innerMap.addKeyAscii("Dictionary_2", MapEntry::AddEnum,
+			ElementList()
+			.addEnum("DictionaryType", 0)
 			.addAscii("RdmFieldDictionaryFileName", fieldDictionaryFileNameTest)
-			.addAscii("EnumTypeDefFileName", enumTableFileNameTest).complete()).complete();
+			.addAscii("EnumTypeDefFileName", enumTableFileNameTest).complete());
+		
+		innerMap.complete();
 
 		elementList.addMap("DictionaryList", innerMap);
 
@@ -1519,14 +1901,262 @@ TEST_F(EmaConfigTest, testOverridingFromInterface)
 
 		outermostMap.complete();
 
-		// Must load data dictionary files from current working location.
-		OmmConsumerImpl ommConsumerImpl(OmmConsumerConfig().config(outermostMap).host("localhost:14002"));
+		SCOPED_TRACE("Must load data dictionary files from current working location\n");
+		OmmConsumerImpl ommConsumerImpl(OmmConsumerConfig().config(outermostMap), true);
 
-		const OmmConsumerActiveConfig& activeConfig = static_cast<OmmConsumerActiveConfig&>( ommConsumerImpl.getActiveConfig() );
+		OmmConsumerActiveConfig& activeConfig = static_cast<OmmConsumerActiveConfig&>(ommConsumerImpl.getActiveConfig());
 
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_SOCKET) << "connectionType , ChannelType::RSSL_SOCKET";
-		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[0] )->hostName == "localhost" ) << "SocketChannelConfig::hostname , \"localhost\"";
-		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[0] )->serviceName == "14002" ) << "SocketChannelConfig::serviceName , \"14002\"";
+		SocketChannelConfig* pChnlConfig = static_cast<SocketChannelConfig*>(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[1]);
+
+		bool found = ommConsumerImpl.getInstanceName().find("Consumer_8") >= 0 ? true : false;
+		EXPECT_TRUE(found) << "ommConsumerImpl.getConsumerName() , \"Consumer_8_1\"";
+		EXPECT_TRUE(activeConfig.configChannelSet.size() == 0) << "Connection list size , \"0\"";
+		EXPECT_TRUE(activeConfig.configWarmStandbySet.size() == 0) << "Warm standby Channel size, 0";
+		EXPECT_TRUE(activeConfig.dictionaryConfig.dictionaryName == "Dictionary_2") << "dictionaryName , \"Dictionary_2\"";
+		EXPECT_TRUE(activeConfig.dictionaryConfig.dictionaryType == Dictionary::FileDictionaryEnum) << "dictionaryType , Dictionary::FileDictionaryEnum";
+		EXPECT_TRUE(activeConfig.dictionaryConfig.rdmfieldDictionaryFileName == fieldDictionaryFileNameTest) << "rdmfieldDictionaryFileName , " << fieldDictionaryFileNameTest;
+		EXPECT_TRUE(activeConfig.dictionaryConfig.enumtypeDefFileName == enumTableFileNameTest) << "enumtypeDefFileName , " << enumTableFileNameTest;
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet.size() == 2);
+		// Config 0 tests overwriting the defaults set by Consumer_8.
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->name == "SessionChannel_1") << "activeConfig.consumerRoutingSessionSet[0]->name, SessionChannel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->reconnectAttemptLimit == 4) << "activeConfig.consumerRoutingSessionSet[0]->reconnectAttemptLimit, 4";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->reconnectMaxDelay == 6000) << "activeConfig.consumerRoutingSessionSet[0]->reconnectMaxDelay, 6000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->reconnectMinDelay == 2000) << "activeConfig.consumerRoutingSessionSet[0]->reconnectMinDelay, 2000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceFileName == "OtherXmlTrace") << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceFileName, OtherXmlTrace";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceMaxFileSize == 1234) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceFileSize, 1234";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceToFile == 1) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceToFile, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceToStdout == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceToStdout, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceToMultipleFiles == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceToMultipleFiles, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceWrite == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceWrite, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceRead == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceRead, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTracePing == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTracePing, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTracePingOnly == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTracePingOnly, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceHex == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceHex, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->enablePreferredHostOptions == 1) << "activeConfig.consumerRoutingSessionSet[0]->enablePreferredHostOptions, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeInterval == 123) << "activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeInterval, 123";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeSchedule == "1 2 3 4 5") << "activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeSchedule, 1 2 3 4 5";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->preferredChannelName == "Channel_2") << "activeConfig.consumerRoutingSessionSet[0]->preferredChannelName, Channel_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->preferredWSBChannelName == "WarmStandbyChannel_1") << "activeConfig.consumerRoutingSessionSet[0]->preferredWSBChannelName, WarmStandbyChannel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->phFallBackWithInWSBGroup == 0) << "activeConfig.consumerRoutingSessionSet[0]->phFallBackWithInWSBGroup, 0";
+
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet.size() == 2) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet.size(), 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->name == "Channel_1") << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->name , Channel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->interfaceName == "localhost") << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->interfaceName , \"localhost\"";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->guaranteedOutputBuffers == 8000) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->guaranteedOutputBuffers , 8000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->numInputBuffers == 7777) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->numInputBuffers , 7777";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->sysRecvBufSize == 150000) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->sysRecvBufSize , 150000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->sysSendBufSize == 200000) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->sysSendBufSize , 200000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->compressionThreshold == 12856) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->CompressionThreshold , 12856";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->connectionPingTimeout == 30000) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->connectionPingTimeout , 30000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->connectionType == RSSL_CONN_TYPE_SOCKET) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->connectionType , ChannelType::RSSL_SOCKET";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->directWrite == 0) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->directWrite , 0";
+		EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0])->hostName == "localhost") << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->SocketChannelConfig::hostname , \"localhost\"";
+		EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0])->serviceName == "14002") << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->SocketChannelConfig::serviceName , \"14002\"";
+		EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0])->tcpNodelay == 0) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->SocketChannelConfig::tcpNodelay , 0";
+		EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0])->initializationTimeout == 56) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->SocketChannelConfig::initializationTimeout , 56";
+		pChnlConfig = static_cast<SocketChannelConfig*>(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[1]);
+		// Just check that Channel_2 is present
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[1]->name == "Channel_2") << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[1]->name , Channel_2";
+
+		// Check the WSB config
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet.size() == 2) << "Warm standby Channel size, 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->name == "WarmStandbyChannel_1") << "Warm standby Channel name, WarmStandbyChannel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->startingActiveServer->name == "Server_Info_1") << "StartingActiveServer name, Server_Info_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->startingActiveServer->channelConfig->name == "Channel_1") << "Channel config name, Channel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->startingActiveServer->perServiceNameSet.size() == 2) << "Per service name list size, 2";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->startingActiveServer->perServiceNameSet[0] == "Service_A") << "The first per service name, Service_A";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->startingActiveServer->perServiceNameSet[1] == "Service_B") << "The second per service name, Service_B";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->warmStandbyMode == 1) << "Warm standby mode, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet.size() == 2) << "Standby server list size, 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[0]->name == "Server_Info_2") << "First standby server name, Server_Info_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[0]->channelConfig->name == "Channel_2") << "Channel config name, Channel_2";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[0]->perServiceNameSet[0] == "Service_C") << "The first per service name, Service_C";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[0]->perServiceNameSet[1] == "Service_D") << "The second per service name, Service_D";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[1]->name == "Server_Info_3") << "Second standby server name, Server_Info_3";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[1]->channelConfig->name == "Channel_3") << "Channel config name, Channel_3";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[1]->perServiceNameSet[0] == "Service_E") << "The first per service name, Service_E";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[0]->standbyServerSet[1]->perServiceNameSet[1] == "Service_F") << "The second per service name, Service_F";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->name == "WarmStandbyChannel_2") << "Warm standby Channel name, WarmStandbyChannel_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->startingActiveServer->name == "Server_Info_2") << "StartingActiveServer name, Server_Info_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->startingActiveServer->perServiceNameSet.size() == 2) << "Per service name list size, 2";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->startingActiveServer->perServiceNameSet[0] == "Service_C") << "The first per service name, Service_C";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->startingActiveServer->perServiceNameSet[1] == "Service_D") << "The second per service name, Service_D";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->warmStandbyMode == 2) << "Warm standby mode, 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet.size() == 2) << "Standby server list size, 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[0]->name == "Server_Info_1") << "First standby server name, Server_Info_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[0]->channelConfig->name == "Channel_1") << "Channel config name, Channel_1";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[0]->perServiceNameSet[0] == "Service_A") << "The first per service name, Service_A";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[0]->perServiceNameSet[1] == "Service_B") << "The second per service name, Service_B";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[1]->name == "Server_Info_3") << "Second standby server name, Server_Info_3";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[1]->channelConfig->name == "Channel_3") << "Channel config name, Channel_3";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[1]->perServiceNameSet[0] == "Service_E") << "The first per service name, Service_E";
+		EXPECT_TRUE(*activeConfig.consumerRoutingSessionSet[0]->configWarmStandbySet[1]->standbyServerSet[1]->perServiceNameSet[1] == "Service_F") << "The second per service name, Service_F";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSetForWSB.size() == 6) << "Connection list size for warm standby, 6";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSetForWSB[0]->name == "Channel_1") << "Channe name, Channel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSetForWSB[1]->name == "Channel_2") << "Channe name, Channel_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSetForWSB[2]->name == "Channel_3") << "Channe name, Channel_3";
+
+		// Config 1 tests the values tricking down that were set by Consumer_8.
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->name == "SessionChannel_2") << "activeConfig.consumerRoutingSessionSet[1]->name, SessionChannel_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->reconnectAttemptLimit == 10) << "activeConfig.consumerRoutingSessionSet[1]->reconnectAttemptLimit, 10";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->reconnectMaxDelay == 7777) << "activeConfig.consumerRoutingSessionSet[1]->reconnectMaxDelay, 7777";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->reconnectMinDelay == 4444) << "activeConfig.consumerRoutingSessionSet[1]->reconnectMinDelay, 4444";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceFileName == "MyXMLTrace") << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceFileName, MyXMLTrace";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceMaxFileSize == 50000000) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceFileSize, 50000000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceToFile == 0) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceToFile, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceToStdout == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceToStdout, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceToMultipleFiles == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceToMultipleFiles, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceWrite == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceWrite, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceRead == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceRead, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTracePing == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTracePing, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTracePingOnly == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTracePingOnly, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->xmlTraceHex == 1) << "activeConfig.consumerRoutingSessionSet[1]->xmlTraceHex, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->enablePreferredHostOptions == 1) << "activeConfig.consumerRoutingSessionSet[1]->enablePreferredHostOptions, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->phDetectionTimeInterval == 321) << "activeConfig.consumerRoutingSessionSet[1]->phDetectionTimeInterval, 321";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->phDetectionTimeSchedule == "45 23 * * 6") << "activeConfig.consumerRoutingSessionSet[1]->phDetectionTimeSchedule, 1 2 3 4 5";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->preferredChannelName == "Channel_3") << "activeConfig.consumerRoutingSessionSet[1]->preferredChannelName, Channel_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->phFallBackWithInWSBGroup == 1) << "activeConfig.consumerRoutingSessionSet[1]->phFallBackWithInWSBGroup, 0";
+
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->configChannelSet.size() == 2) << "activeConfig.consumerRoutingSessionSet[1]->configChannelSet.size(), 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->configChannelSet[0]->name == "Channel_3") << "activeConfig.consumerRoutingSessionSet[1]->configChannelSet[0]->name , Channel_3";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[1]->configChannelSet[1]->name == "Channel_4") << "activeConfig.consumerRoutingSessionSet[1]->configChannelSet[1]->name , Channel_4";
+	}
+	catch (const OmmException& excp)
+	{
+		std::cout << "Caught unexpected exception!!!" << std::endl << excp << std::endl;
+		EXPECT_TRUE(false) << "Unexpected exception in testLoadingProgrammaticConfigRequestRouting()";
+	}
+}
+
+TEST_F(EmaConfigTest, testOverridingFromInterface)
+{
+	//two testcases:
+	//case 1: override consumer config
+	//case 2: override niprov config
+	try
+	{
+		for (int testCase = 1; testCase <= 2; testCase++)
+		{
+			Map outermostMap, innerMap;
+			ElementList elementList;
+
+			std::cout << std::endl << " #####Now it is running test case " << testCase << std::endl;
+
+			if (testCase == 1)
+			{
+
+				elementList.addAscii("DefaultConsumer", "Consumer_1");
+
+				innerMap.addKeyAscii("Consumer_1", MapEntry::AddEnum,
+					ElementList()
+					.addAscii("Channel", "Channel_1")
+					.addAscii("Logger", "Logger_1")
+					.addAscii("Dictionary", "Dictionary_1")
+					.complete()).complete();
+
+				elementList.addMap("ConsumerList", innerMap);
+
+				elementList.complete();
+				innerMap.clear();
+
+				outermostMap.addKeyAscii("ConsumerGroup", MapEntry::AddEnum, elementList);
+				elementList.clear();
+			}
+			else if (testCase == 2)
+			{
+				elementList.addAscii("DefaultNiProvider", "Provider_5");
+				innerMap.addKeyAscii("Provider_1", MapEntry::AddEnum, ElementList()
+					.addAscii("Channel", "Channel_1")
+					.addAscii("Logger", "Logger_1")
+					.addAscii("Directory", "Directory_5")
+					.addUInt("LoginRequestTimeOut", 50000).complete())
+					.complete();
+
+				elementList.addMap("NiProviderList", innerMap);
+				elementList.complete();
+				innerMap.clear();
+
+				outermostMap.addKeyAscii("NiProviderGroup", MapEntry::AddEnum, elementList);
+				elementList.clear();
+			}
+
+			innerMap.addKeyAscii("Channel_1", MapEntry::AddEnum,
+				ElementList()
+				.addEnum("ChannelType", 0)
+				.addAscii("Host", "10.0.0.1")
+				.addAscii("Port", "8001")
+				.complete()).complete();
+
+			elementList.addMap("ChannelList", innerMap);
+
+			elementList.complete();
+			innerMap.clear();
+
+			outermostMap.addKeyAscii("ChannelGroup", MapEntry::AddEnum, elementList);
+
+			elementList.clear();
+
+			innerMap.addKeyAscii("Logger_1", MapEntry::AddEnum,
+				ElementList()
+				.addEnum("LoggerType", 0)
+				.addAscii("FileName", "logFile")
+				.addUInt("NumberOfLogFiles", 42)
+				.addUInt("MaxLogFileSize", 84000)
+				.addEnum("LoggerSeverity", 3).complete()).complete();
+
+			elementList.addMap("LoggerList", innerMap);
+
+			elementList.complete();
+			innerMap.clear();
+
+			outermostMap.addKeyAscii("LoggerGroup", MapEntry::AddEnum, elementList);
+			elementList.clear();
+
+			innerMap.addKeyAscii("Dictionary_1", MapEntry::AddEnum,
+				ElementList()
+				.addEnum("DictionaryType", 1)
+				.addAscii("RdmFieldDictionaryFileName", fieldDictionaryFileNameTest)
+				.addAscii("EnumTypeDefFileName", enumTableFileNameTest).complete()).complete();
+
+			elementList.addMap("DictionaryList", innerMap);
+
+			elementList.complete();
+
+			outermostMap.addKeyAscii("DictionaryGroup", MapEntry::AddEnum, elementList);
+
+			outermostMap.complete();
+
+			EmaString localConfigPath;
+			EmaString workingDir;
+			ASSERT_EQ(getCurrentDir(workingDir), true)
+				<< "Error: failed to load config file from current working dir "
+				<< workingDir.c_str();
+			localConfigPath.append(workingDir).append(emaConfigXMLFileNameTest);
+
+			if (testCase == 1)
+			{
+				// Must load data dictionary files from current working location.
+				OmmConsumerConfig ommConsumerConfig(localConfigPath);
+				OmmConsumerImpl ommConsumerImpl(ommConsumerConfig.config(outermostMap).host("localhost:14002").channelType(EmaConfig::ConnectionTypeEnum::WEBSOCKET));
+
+				const OmmConsumerActiveConfig& activeConfig = static_cast<OmmConsumerActiveConfig&>(ommConsumerImpl.getActiveConfig());
+
+				EXPECT_TRUE(activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_WEBSOCKET) << "connectionType , ChannelType::RSSL_WEBSOCKET";
+				EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0])->hostName == "localhost") << "SocketChannelConfig::hostname , \"localhost\"";
+				EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0])->serviceName == "14002") << "SocketChannelConfig::serviceName , \"14002\"";
+			}
+			else if (testCase == 2)
+			{
+				OmmNiProviderConfig niprovConfig(localConfigPath);
+				OmmNiProviderImpl ommNiProviderImpl(niprovConfig.config(outermostMap).host("localhost:14002").channelType(EmaConfig::ConnectionTypeEnum::WEBSOCKET), appClient);
+
+				OmmNiProviderActiveConfig& activeConfig = static_cast<OmmNiProviderActiveConfig&>(ommNiProviderImpl.getActiveConfig());
+
+				EXPECT_TRUE(activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_WEBSOCKET) << "connectionType , ChannelType::RSSL_WEBSOCKET";
+				EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0])->hostName == "localhost") << "SocketChannelConfig::hostname , \"localhost\"";
+				EXPECT_TRUE(static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0])->serviceName == "14002") << "SocketChannelConfig::serviceName , \"14002\"";
+			}
+		}
 	}
 	catch ( const OmmException& excp )
 	{
@@ -1546,10 +2176,12 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 		innerMap.addKeyAscii("Consumer_2", MapEntry::AddEnum,
 			ElementList()
 			.addAscii("Channel", "Channel_2")
+			.addAscii("ChannelSet", "Channel_1, Channel_2")
 			.addAscii("Logger", "Logger_2")
 			.addAscii("Dictionary", "Dictionary_2")
 			.addAscii("RestLogFileName", "Rest.log")
 			.addUInt("RestEnableLog", 1)
+			.addUInt("RestVerboseMode", 1)
 			.addUInt("SendJsonConvError", 0)
 			.addUInt("ItemCountHint", 9000)
 			.addUInt("ServiceCountHint", 9000)
@@ -1570,15 +2202,24 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 			.addUInt("XmlTraceWrite", 0)
 			.addUInt("XmlTraceRead", 0)
 			.addUInt("XmlTracePing", 0)
+			.addUInt("XmlTracePingOnly", 0)
 			.addUInt("XmlTraceHex", 0)
 			.addUInt("MsgKeyInUpdates", 0)
 			.addInt("ReconnectAttemptLimit", 70)
 			.addInt("ReconnectMinDelay", 7000)
 			.addInt("ReconnectMaxDelay", 7000)
-			.addInt("PipePort", 9696)
 			.addDouble("TokenReissueRatio", 0.90)
 			.addInt("ReissueTokenAttemptLimit",20)
-			.addInt("ReissueTokenAttemptInterval", 15000).complete()).complete();
+			.addInt("ReissueTokenAttemptInterval", 15000)
+			.addAscii("RestProxyHostName", "restProxyNonLocalHost")
+			.addAscii("RestProxyPort", "9083")
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "45 23 * * 6")
+			.addUInt("PHDetectionTimeInterval", 321)
+			.addAscii("PreferredChannelName", "Channel_1")
+			.addAscii("PreferredWSBChannelName", "Channel_2")
+			.addUInt("PHFallBackWithInWSBGroup", 1)
+			.complete()).complete();
 
 		elementList.addMap("ConsumerList", innerMap).complete();
 		innerMap.clear();
@@ -1602,6 +2243,7 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 			.addUInt("TcpNodelay", 1)
 			.addUInt("InitializationTimeout", 77) // Overried the 55 value defined in the config file
 			.addUInt("DirectWrite", 1)
+			.addUInt("EnableSessionManagement", 0) // Override the 1 value defined in the config file as the OAuth credential is required by the session mgnt.
 			.complete()).complete();
 
 		elementList.addMap("ChannelList", innerMap).complete();
@@ -1650,11 +2292,13 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 
 		bool found = ommConsumerImpl.getInstanceName().find( "Consumer_2" ) >= 0 ? true : false;
 		EXPECT_TRUE( found) << "ommConsumerImpl.getConsumerName() , \"Consumer_2_3\"";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->name == "Channel_2" ) << "Connection name , \"Channel_2\"";
+		EXPECT_TRUE( activeConfig.configChannelSet[0]->name == "Channel_1" ) << "Connection name , \"Channel_1\"";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->name == "Channel_2" ) << "Connection name , \"Channel_2\"";
 		EXPECT_TRUE( activeConfig.loggerConfig.loggerName == "Logger_2" ) << "Logger name , \"Logger_2\"";
 		EXPECT_TRUE( activeConfig.dictionaryConfig.dictionaryName == "Dictionary_2" ) << "dictionaryName , \"Dictionary_2\"";
 		EXPECT_TRUE(activeConfig.restLogFileName == "Rest.log") << "restLogFileName , \"Rest.log\"";
 		EXPECT_TRUE(activeConfig.restEnableLog == 1) << "restEnableLog , \"True\"";
+		EXPECT_TRUE(activeConfig.restVerboseMode == 1) << "restVerboseMode , \"True\"";
 		EXPECT_TRUE(activeConfig.sendJsonConvError == 0) << "SendJsonConvError , \"False\"";
 		EXPECT_TRUE( activeConfig.itemCountHint == 9000) << "itemCountHint , 9000";
 		EXPECT_TRUE( activeConfig.serviceCountHint == 9000) << "serviceCountHint , 9000";
@@ -1667,7 +2311,6 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 		EXPECT_TRUE( activeConfig.maxDispatchCountApiThread == 900) << "maxDispatchCountApiThread , 900";
 		EXPECT_TRUE( activeConfig.maxDispatchCountUserThread == 900) << "maxDispatchCountUserThread , 900";
 		EXPECT_TRUE( activeConfig.maxEventsInPool == 900) << "maxEventsInPool , 900";
-		EXPECT_TRUE( activeConfig.pipePort == 9696) << "pipePort , 9696";
 		EXPECT_TRUE( activeConfig.reconnectAttemptLimit == 70) << "reconnectAttemptLimit , 70";
 		EXPECT_TRUE( activeConfig.reconnectMinDelay == 7000) << "reconnectMinDelay , 7000";
 		EXPECT_TRUE( activeConfig.reconnectMaxDelay == 7000) << "reconnectMaxDelay , 7000";
@@ -1679,25 +2322,35 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 		EXPECT_TRUE( activeConfig.xmlTraceWrite == 0) << "xmlTraceWrite , 0";
 		EXPECT_TRUE( activeConfig.xmlTraceRead == 0) << "xmlTraceRead , 0";
 		EXPECT_TRUE( activeConfig.xmlTracePing == 0) << "xmlTracePing , 0";
+		EXPECT_TRUE( activeConfig.xmlTracePingOnly == 0) << "xmlTracePingOnly , 0";
 		EXPECT_TRUE( activeConfig.xmlTraceHex == 0) << "xmlTraceHex , 0";
 		EXPECT_TRUE( activeConfig.msgKeyInUpdates == 0) << "msgKeyInUpdates , 0";
 		EXPECT_TRUE( activeConfig.tokenReissueRatio == 0.90) << "tokenReissueRatio , 0.90";
 		EXPECT_TRUE( activeConfig.reissueTokenAttemptLimit == 20) << "reissueTokenAttemptLimit , 20";
 		EXPECT_TRUE( activeConfig.reissueTokenAttemptInterval == 15000) << "reissueTokenAttemptInterval , 15000";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->interfaceName == "localhost" ) << "interfaceName , \"localhost\"";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->compressionType == 2) << "compressionType , 2";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->guaranteedOutputBuffers == 7000) << "guaranteedOutputBuffers , 7000";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->numInputBuffers == 888888) << "numInputBuffers , 888888";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->sysRecvBufSize == 550000) << "sysRecvBufSize , 550000";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->sysSendBufSize == 700000) << "sysSendBufSize , 700000";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->compressionThreshold == 12758) << "compressionThreshold , compressionThreshold";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->connectionPingTimeout == 70000) << "connectionPingTimeout , 70000";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_SOCKET) << "connectionType , ChannelType::RSSL_SOCKET";
-		EXPECT_TRUE( activeConfig.configChannelSet[0]->directWrite == 1) << "directWrite , 1";
-		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[0] )->hostName == "localhost" ) << "SocketChannelConfig::hostname , \"localhost\"";
-		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[0] )->serviceName == "14002" ) << "SocketChannelConfig::serviceName , \"14002\"";
-		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[0] )->tcpNodelay == 1) << "SocketChannelConfig::tcpNodelay , 1";
-		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[0] )->initializationTimeout == 77) << "SocketChannelConfig::initializationTimeout , 77";
+		EXPECT_TRUE( activeConfig.restProxyHostName == "restProxyNonLocalHost" ) << "restProxyHostName , \"restProxyNonLocalHost\"";
+		EXPECT_TRUE( activeConfig.restProxyPort == "9083" ) << "restProxyPort , \"9083\"";
+		EXPECT_TRUE(activeConfig.enablePreferredHostOptions == 1) << "enablePreferredHostOptions , \"True\"";
+		EXPECT_TRUE(activeConfig.phDetectionTimeSchedule == "45 23 * * 6") << "prefferdDetectionTimeSchedule , 45 23 * * 6";
+		EXPECT_TRUE(activeConfig.phDetectionTimeInterval == 321) << "phDetectionTimeSchedule , 321";
+		EXPECT_TRUE(activeConfig.preferredChannelName == "Channel_1") << "preferredChannelName , Channel_1";
+		EXPECT_TRUE(activeConfig.preferredWSBChannelName == "Channel_2") << "preferredWSBChannelName , Channel_2";
+		EXPECT_TRUE(activeConfig.phFallBackWithInWSBGroup == 1) << "phFallBackWithInWSBGroup , \"True\"";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->interfaceName == "localhost" ) << "interfaceName , \"localhost\"";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->compressionType == 2) << "compressionType , 2";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->guaranteedOutputBuffers == 7000) << "guaranteedOutputBuffers , 7000";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->numInputBuffers == 888888) << "numInputBuffers , 888888";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->sysRecvBufSize == 550000) << "sysRecvBufSize , 550000";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->sysSendBufSize == 700000) << "sysSendBufSize , 700000";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->compressionThreshold == 12758) << "compressionThreshold , compressionThreshold";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->connectionPingTimeout == 70000) << "connectionPingTimeout , 70000";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->connectionType == RSSL_CONN_TYPE_SOCKET) << "connectionType , ChannelType::RSSL_SOCKET";
+		EXPECT_TRUE( activeConfig.configChannelSet[1]->directWrite == 1) << "directWrite , 1";
+		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[1] )->hostName == "localhost" ) << "SocketChannelConfig::hostname , \"localhost\"";
+		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[1] )->serviceName == "14002" ) << "SocketChannelConfig::serviceName , \"14002\"";
+		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[1] )->tcpNodelay == 1) << "SocketChannelConfig::tcpNodelay , 1";
+		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[1] )->initializationTimeout == 77) << "SocketChannelConfig::initializationTimeout , 77";
+		EXPECT_TRUE( static_cast<SocketChannelConfig* >( activeConfig.configChannelSet[1] )->enableSessionMgnt == 0) << "SocketChannelConfig::enableSessionMgnt , 0";
 		EXPECT_TRUE( activeConfig.loggerConfig.loggerType == OmmLoggerClient::FileEnum) << "loggerType = OmmLoggerClient::FileEnum";
 		EXPECT_TRUE( activeConfig.loggerConfig.loggerFileName == "ConfigDB2_logFile" ) << "loggerFileName = \"ConfigDB2_logFile\"";
 		EXPECT_TRUE( activeConfig.loggerConfig.minLoggerSeverity == OmmLoggerClient::NoLogMsgEnum) << "minLoggerSeverity = OmmLoggerClient::NoLogMsgEnum";
@@ -1711,6 +2364,131 @@ TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfig)
 	{
 		std::cout << "Caught unexpected exception!!!" << std::endl << excp << std::endl;
 		EXPECT_TRUE( false) << "Unexpected exception in testMergingConfigBetweenFileAndProgrammaticConfig()";
+	}
+}
+
+TEST_F(EmaConfigTest, testMergingConfigBetweenFileAndProgrammaticConfigRequestRouting)
+{
+	Map configDB1, configDB2, configDB3, configDB4, innerMap;
+	ElementList elementList;
+
+	try
+	{
+		// Default Consumer name Consumer_2 is defined in EmaConfig.xml
+		innerMap.addKeyAscii("Consumer_2", MapEntry::AddEnum,
+			ElementList()
+			.addAscii("SessionChannelSet", "xmlTestSessionChannel_2")
+			.complete()).complete();
+
+		elementList.addMap("ConsumerList", innerMap).complete();
+		innerMap.clear();
+
+		configDB1.addKeyAscii("ConsumerGroup", MapEntry::AddEnum, elementList).complete();
+		elementList.clear();
+
+		innerMap.addKeyAscii("Channel_2", MapEntry::AddEnum,
+			ElementList()
+			.addEnum("ChannelType", 0)
+			.addAscii("InterfaceName", "localhost")
+			.addEnum("CompressionType", 2)
+			.addUInt("GuaranteedOutputBuffers", 7000)
+			.addUInt("NumInputBuffers", 888888)
+			.addUInt("SysRecvBufSize", 550000)
+			.addUInt("SysSendBufSize", 700000)
+			.addUInt("CompressionThreshold", 12758)
+			.addUInt("ConnectionPingTimeout", 70000)
+			.addAscii("Host", "localhost")
+			.addAscii("Port", "14002")
+			.addUInt("TcpNodelay", 1)
+			.addUInt("InitializationTimeout", 77) // Overried the 55 value defined in the config file
+			.addUInt("DirectWrite", 1)
+			.addUInt("EnableSessionManagement", 0) // Override the 1 value defined in the config file as the OAuth credential is required by the session mgnt.
+			.complete()).complete();
+
+		elementList.addMap("ChannelList", innerMap).complete();
+		innerMap.clear();
+
+		configDB2.addKeyAscii("ChannelGroup", MapEntry::AddEnum, elementList);
+		elementList.clear();
+
+		innerMap.addKeyAscii("xmlTestSessionChannel_2", MapEntry::AddEnum,
+			ElementList()
+			.addAscii("ChannelSet", "Channel_2")
+			.addAscii("WarmStandbyChannelSet", "WarmStandbyChannel_1")
+			.addInt("ReconnectAttemptLimit", 4)
+			.addInt("ReconnectMinDelay", 2000)
+			.addInt("ReconnectMaxDelay", 6000)
+			.addAscii("XmlTraceFileName", "OtherXmlTrace")
+			.addInt("XmlTraceMaxFileSize", 1234)
+			.addUInt("XmlTraceToFile", 1)
+			.addUInt("XmlTraceToStdout", 0)
+			.addUInt("XmlTraceToMultipleFiles", 0)
+			.addUInt("XmlTraceWrite", 0)
+			.addUInt("XmlTraceRead", 0)
+			.addUInt("XmlTracePing", 0)
+			.addUInt("XmlTracePingOnly", 0)
+			.addUInt("XmlTraceHex", 0)
+			.addUInt("EnablePreferredHostOptions", 1)
+			.addAscii("PHDetectionTimeSchedule", "* * * * 3")
+			.addUInt("PHDetectionTimeInterval", 123)
+			.addAscii("PreferredChannelName", "Channel_2")
+			.addAscii("PreferredWSBChannelName", "WarmStandbyChannel_1")
+			.addUInt("PHFallBackWithInWSBGroup", 0).complete());
+
+		innerMap.complete();
+
+		elementList.addMap("SessionChannelList", innerMap).complete();
+		configDB2.addKeyAscii("SessionChannelGroup", MapEntry::AddEnum, elementList).complete();
+		elementList.clear();
+
+		EmaString workingDir;
+		ASSERT_EQ(getCurrentDir(workingDir), true)
+			<< "Error: failed to load config file from current working dir "
+			<< workingDir.c_str();
+		EmaString localConfigPath;
+		localConfigPath.append(workingDir).append(emaConfigXMLFileNameTest);
+
+		OmmConsumerImpl ommConsumerImpl(OmmConsumerConfig(localConfigPath).config(configDB1).config(configDB2), true);
+		//OmmConsumerImpl ommConsumerImpl(OmmConsumerConfig(localConfigPath).config(configDB1).config(configDB2).config(configDB3).config(configDB4), true);
+
+		OmmConsumerActiveConfig& activeConfig = static_cast<OmmConsumerActiveConfig&>(ommConsumerImpl.getActiveConfig());
+
+		bool found = ommConsumerImpl.getInstanceName().find("Consumer_2") >= 0 ? true : false;
+		EXPECT_TRUE(found) << "ommConsumerImpl.getConsumerName() , \"Consumer_2_3\"";
+		EXPECT_TRUE(activeConfig.configChannelSet.size() == 0) << "Connection list size , \"0\"";
+		EXPECT_TRUE(activeConfig.configWarmStandbySet.size() == 0) << "Warm standby Channel size, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet.size() == 1);
+		// Config 0 tests overwriting the defaults set by Consumer_8.
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->name == "xmlTestSessionChannel_2") << "activeConfig.consumerRoutingSessionSet[0]->name, SessionChannel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->reconnectAttemptLimit == 4) << "activeConfig.consumerRoutingSessionSet[0]->reconnectAttemptLimit, 4";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->reconnectMaxDelay == 6000) << "activeConfig.consumerRoutingSessionSet[0]->reconnectMaxDelay, 6000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->reconnectMinDelay == 2000) << "activeConfig.consumerRoutingSessionSet[0]->reconnectMinDelay, 2000";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceFileName == "OtherXmlTrace") << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceFileName, OtherXmlTrace";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceMaxFileSize == 1234) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceFileSize, 1234";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceToFile == 1) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceToFile, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceToStdout == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceToStdout, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceToMultipleFiles == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceToMultipleFiles, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceWrite == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceWrite, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceRead == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceRead, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTracePing == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTracePing, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTracePingOnly == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTracePingOnly, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->xmlTraceHex == 0) << "activeConfig.consumerRoutingSessionSet[0]->xmlTraceHex, 0";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->enablePreferredHostOptions == 1) << "activeConfig.consumerRoutingSessionSet[0]->enablePreferredHostOptions, 1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeInterval == 123) << "activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeInterval, 123";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeSchedule == "* * * * 3") << "activeConfig.consumerRoutingSessionSet[0]->phDetectionTimeSchedule, 1 2 3 4 5";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->preferredChannelName == "Channel_2") << "activeConfig.consumerRoutingSessionSet[0]->preferredChannelName, Channel_2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->preferredWSBChannelName == "WarmStandbyChannel_1") << "activeConfig.consumerRoutingSessionSet[0]->preferredWSBChannelName, WarmStandbyChannel_1";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->phFallBackWithInWSBGroup == 0) << "activeConfig.consumerRoutingSessionSet[0]->phFallBackWithInWSBGroup, 0";
+
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet.size() == 1) << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet.size(), 2";
+		EXPECT_TRUE(activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->name == "Channel_2") << "activeConfig.consumerRoutingSessionSet[0]->configChannelSet[0]->name , Channel_1";
+
+
+	}
+	catch (const OmmException& excp)
+	{
+		std::cout << "Caught unexpected exception!!!" << std::endl << excp << std::endl;
+		EXPECT_TRUE(false) << "Unexpected exception in testMergingConfigBetweenFileAndProgrammaticConfig()";
 	}
 }
 
@@ -1863,6 +2641,7 @@ TEST_F(EmaConfigTest, testProgCfgChannelSetAfterChannel)
 			.addAscii("XmlTraceFileName", "Consumer_3Trace")
 			.addUInt("XmlTraceRead", 1)
 			.addUInt("XmlTracePing", 1)
+			.addUInt("XmlTracePingOnly", 1)
 			.addUInt("XmlTraceHex", 1)
 			.addUInt("XmlTraceToFile", 0)
 			.addUInt("XmlTraceToStdout", 0)
@@ -1960,6 +2739,7 @@ TEST_F(EmaConfigTest, testProgCfgChannelSetAfterChannel)
 		EXPECT_TRUE(activeConfig.xmlTraceFileName == "Consumer_3Trace" ) << "xmlTraceFileName , \"Consumer_3Trace\"";
 		EXPECT_TRUE(activeConfig.xmlTraceRead == true) << "xmlTraceRead , \"true\"";
 		EXPECT_TRUE(activeConfig.xmlTracePing == true) << "xmlTracePing , \"true\"";
+		EXPECT_TRUE(activeConfig.xmlTracePingOnly == true) << "xmlTracePingOnly , \"true\"";
 		EXPECT_TRUE(activeConfig.xmlTraceHex == true) << "xmlTraceHex , \"true\"";
 		EXPECT_TRUE(activeConfig.xmlTraceWrite == true) << "xmlTraceWrite , \"true\"";
 		EXPECT_TRUE(activeConfig.xmlTraceToFile == false) << "xmlTraceToFile , \"false\"";
@@ -2048,6 +2828,7 @@ TEST_F(EmaConfigTest, testLoadChannelSetBwteenFileProgrammaticForNiProv)
 					.addAscii("Port", "14008")
 					.addAscii("ProxyHost", "proxyhost2")
 					.addAscii("ProxyPort", "proxyport2")
+					.addUInt("ProxyConnectionTimeout", 32)
 					.addAscii("ObjectName", "objectname2")
 					.addUInt("TcpNodelay", 0).complete())
 				.addKeyAscii("Channel_3", MapEntry::AddEnum,
@@ -2058,6 +2839,7 @@ TEST_F(EmaConfigTest, testLoadChannelSetBwteenFileProgrammaticForNiProv)
 					.addAscii("Port", "14009")
 					.addAscii("ProxyHost", "proxyhost3")
 					.addAscii("ProxyPort", "proxyport3")
+					.addUInt("ProxyConnectionTimeout", 33)
 					.addAscii("ObjectName", "objectname3")
 					.addUInt("TcpNodelay", 0).complete())
 				.complete();
@@ -2120,6 +2902,7 @@ TEST_F(EmaConfigTest, testLoadChannelSetBwteenFileProgrammaticForNiProv)
 				EXPECT_TRUE(activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_HTTP) << "Connection type , \"RSSL_CONN_TYPE_HTTP\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyHostName == "proxyhost2") << "Proxy hostname , \"proxyhost2\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyPort == "proxyport2") << "Proxy port , \"proxyport2\"";
+				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyConnectionTimeout == 32) << "Proxy connection timeout , \"32\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->objectName == "objectname2") << "Object name , \"objectname2\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->hostName == "localhost2") << "hostname , \"localhost2\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->serviceName == "14008") << "serviceName , \"14009\"";
@@ -2129,6 +2912,7 @@ TEST_F(EmaConfigTest, testLoadChannelSetBwteenFileProgrammaticForNiProv)
 				EXPECT_TRUE(activeConfig.configChannelSet[1]->connectionType == RSSL_CONN_TYPE_ENCRYPTED) << "Connection type , \"RSSL_CONN_TYPE_ENCRYPTED\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[1]))->proxyHostName == "proxyhost3") << "Proxy hostname , \"proxyhost3\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[1]))->proxyPort == "proxyport3") << "Proxy port , \"proxyport3\"";
+				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[1]))->proxyConnectionTimeout == 33) << "Proxy connection timeout , \"33\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[1]))->objectName == "objectname3") << "Object name , \"objectname3\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[1]))->hostName == "localhost3") << "hostname , \"localhost3\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[1]))->serviceName == "14009") << "serviceName , \"14009\"";
@@ -2215,6 +2999,8 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 					.addAscii("Channel", "Channel_6")
 					.addAscii("Logger", "Logger_1")
 					.addAscii("Dictionary", "Dictionary_1")
+					.addAscii("RestProxyHostName", "ProgrammaticRestProxyHostName")
+					.addAscii("RestProxyPort", "9898")
 					.complete())
 					.complete();
 			}
@@ -2235,6 +3021,7 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 					.addAscii("Port", "14008")
 					.addAscii("ProxyHost", "proxyhost2")
 					.addAscii("ProxyPort", "proxyport2")
+					.addUInt("ProxyConnectionTimeout", 22)
 					.addAscii("ObjectName", "objectname2")
 					.addUInt("TcpNodelay", 0).complete()).complete();
 			}
@@ -2248,6 +3035,7 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 					.addAscii("Port", "14009")
 					.addAscii("ProxyHost", "proxyhost6")
 					.addAscii("ProxyPort", "proxyport6")
+					.addUInt("ProxyConnectionTimeout", 26)
 					.addAscii("ObjectName", "objectname6")
 					.addUInt("TcpNodelay", 0).complete())
 					.complete();
@@ -2301,10 +3089,16 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 			if (testCase == 0)
 			{
 				consumerConfig.config(outermostMap).host("localhostFC:14022");
+				consumerConfig.restProxyHostName("aaa.proxyrest.srv").restProxyPort("12099");
+				consumerConfig.restProxyUserName("uname.proxyrest").restProxyPasswd("upasswd");
+				consumerConfig.restProxyDomain("rest.proxy.domain");
 			}
 			else if (testCase == 1)
 			{
 				consumerConfig.config(outermostMap).tunnelingProxyHostName("proxyHost").tunnelingProxyPort("14032").tunnelingObjectName("objectName");
+				consumerConfig.restProxyHostName("bbb.proxyrest.srv").restProxyPort("12399");
+				consumerConfig.restProxyUserName("uname1.proxyrest").restProxyPasswd("upasswd1");
+				consumerConfig.restProxyDomain("rest.proxy1.domain");
 			}
 
 			OmmConsumerImpl ommConsumerImpl(consumerConfig, true);
@@ -2321,6 +3115,15 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->hostName == "localhostFC") << "hostname , \"localhostFC\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->serviceName == "14022") << "serviceName , \"14022\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->tcpNodelay == 0) << "tcpNodelay , 0";
+				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyHostName == "proxyhost2") << "Proxy hostname , \"proxyhost2\"";
+				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyPort == "proxyport2") << "Proxy port , \"proxyport2\"";
+				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyConnectionTimeout == 22) << "proxyConnectionTimeout , 22";
+
+				EXPECT_TRUE(activeConfig.restProxyHostName == "aaa.proxyrest.srv") << "restProxyHostName " << activeConfig.restProxyHostName;
+				EXPECT_TRUE(activeConfig.restProxyPort == "12099") << "restProxyPort " << activeConfig.restProxyPort;
+				EXPECT_TRUE(activeConfig.restProxyUserName == "uname.proxyrest") << "restProxyUserName " << activeConfig.restProxyUserName;
+				EXPECT_TRUE(activeConfig.restProxyPasswd == "upasswd") << "restProxyPasswd " << activeConfig.restProxyPasswd;
+				EXPECT_TRUE(activeConfig.restProxyDomain == "rest.proxy.domain") << "restProxyDomain " << activeConfig.restProxyDomain;
 			}
 			else if (testCase == 1)
 			{
@@ -2329,10 +3132,17 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 				EXPECT_TRUE(activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_SOCKET) << "Connection type , \"RSSL_CONN_TYPE_SOCKET\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyHostName == "proxyHost") << "Proxy hostname , \"proxyHost\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyPort == "14032") << "Proxy port , \"14032\"";
+				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyConnectionTimeout == 26) << "proxyConnectionTimeout , 26";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->objectName == "objectName") << "Object name , \"objectName\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->hostName == "localhost") << "hostname , \"localhost\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->serviceName == "14009") << "serviceName , \"14009\"";
 				EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->tcpNodelay == 0) << "tcpNodelay , 0";
+
+				EXPECT_TRUE(activeConfig.restProxyHostName == "ProgrammaticRestProxyHostName") << "restProxyHostName " << activeConfig.restProxyHostName;
+				EXPECT_TRUE(activeConfig.restProxyPort == "9898") << "restProxyPort " << activeConfig.restProxyPort;
+				EXPECT_TRUE(activeConfig.restProxyUserName == "uname1.proxyrest") << "restProxyUserName " << activeConfig.restProxyUserName;
+				EXPECT_TRUE(activeConfig.restProxyPasswd == "upasswd1") << "restProxyPasswd " << activeConfig.restProxyPasswd;
+				EXPECT_TRUE(activeConfig.restProxyDomain == "rest.proxy1.domain") << "restProxyDomain " << activeConfig.restProxyDomain;
 			}
 
 			EXPECT_TRUE(activeConfig.loggerConfig.loggerName == "Logger_1") << "Logger name , \"Logger_1\"";
@@ -2341,7 +3151,7 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammatic)
 		catch (const OmmException& excp)
 		{
 			std::cout << "Caught unexpected exception!!!" << std::endl << excp << std::endl;
-			EXPECT_TRUE(false) << "Unexpected exception in testProgCfgChannelAfterChannelSet()";
+			EXPECT_TRUE(false) << "Unexpected exception in testMergCfgBetweenFunctionCallAndFileAndProgrammatic()";
 		}
 	}
 }
@@ -2376,6 +3186,7 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammaticNiProv
 			.addAscii("Port", "14009")
 			.addAscii("ProxyHost", "proxyhost6")
 			.addAscii("ProxyPort", "proxyport6")
+			.addUInt("ProxyConnectionTimeout", 30)
 			.addAscii("ObjectName", "objectname6")
 			.addUInt("TcpNodelay", 0).complete())
 			.complete();
@@ -2426,6 +3237,7 @@ TEST_F(EmaConfigTest, testMergCfgBetweenFunctionCallAndFileAndProgrammaticNiProv
 		EXPECT_TRUE(activeConfig.configChannelSet[0]->connectionType == RSSL_CONN_TYPE_ENCRYPTED) << "Connection type , \"RSSL_CONN_TYPE_ENCRYPTED\"";
 		EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyHostName == "proxyHost") << "Proxy hostname , \"proxyHost\"";
 		EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyPort == "14032") << "Proxy port , \"14032\"";
+		EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->proxyConnectionTimeout == 30) << "proxyConnectionTimeout , 30";
 		EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->objectName == "objectName") << "Object name , \"objectName\"";
 		EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->hostName == "localhost") << "hostname , \"localhost\"";
 		EXPECT_TRUE((static_cast<SocketChannelConfig*>(activeConfig.configChannelSet[0]))->serviceName == "14009") << "serviceName , \"14009\"";
@@ -2486,8 +3298,8 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForIProv)
 				.addUInt("XmlTraceWrite", 1)
 				.addUInt("XmlTraceRead", 1)
 				.addUInt("XmlTracePing", 1)
-				.addUInt("XmlTraceHex", 1)
-				.addInt("PipePort", 13650).complete())
+				.addUInt("XmlTracePingOnly", 1)
+				.addUInt("XmlTraceHex", 1).complete())
 				.addKeyAscii("Provider_2", MapEntry::AddEnum, ElementList()
 					.addAscii("Server", "Server_2")
 					.addAscii("Directory", "Directory_2")
@@ -2759,8 +3571,8 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForIProv)
 			EXPECT_TRUE(activeConfig.xmlTraceWrite == 1) << "xmlTraceWrite , 1";
 			EXPECT_TRUE(activeConfig.xmlTraceRead == 1) << "xmlTraceRead , 1";
 			EXPECT_TRUE(activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+			EXPECT_TRUE(activeConfig.xmlTracePingOnly == 1) << "xmlTracePingOnly , 1";
 			EXPECT_TRUE(activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
-			EXPECT_TRUE(activeConfig.pipePort == 13650) << "pipePort , 13650";
 			EXPECT_TRUE(activeConfig.pServerConfig->interfaceName == "localhost") << "interfaceName , \"localhost\"";
 			EXPECT_TRUE(activeConfig.pServerConfig->guaranteedOutputBuffers == 8000) << "guaranteedOutputBuffers , 8000";
 			EXPECT_TRUE(activeConfig.pServerConfig->numInputBuffers == 7777) << "numInputBuffers , 7777";
@@ -2873,8 +3685,8 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForIProv)
 
 			EXPECT_TRUE(pTemp->stateFilter.acceptingRequests == 1) << "stateFilter.acceptingRequests , 1";
 			EXPECT_TRUE(pTemp->stateFilter.serviceState == 1) << "stateFilter.serviceState , 1";
-			EXPECT_TRUE(pTemp->stateFilter.flags == RDM_SVC_STF_HAS_STATUS ||
-				RDM_SVC_STF_HAS_ACCEPTING_REQS) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
+			EXPECT_TRUE(pTemp->stateFilter.flags == (RDM_SVC_STF_HAS_STATUS |
+				RDM_SVC_STF_HAS_ACCEPTING_REQS)) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.streamState == 3) << "status.streamState , \"StreamState::ClosedRecover\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.dataState == 2) << "stateFilter.status.dataState , \"DataState::Suspect\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.code == 29) << "stateFilter.status.code , \"StatusCode::DacsDown\"";
@@ -2904,13 +3716,17 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForIProv)
 			EXPECT_TRUE(pTemp->infoFilter.acceptingConsumerStatus == 0) << "infoFilter.acceptingConsumerStatus , 0";
 			EXPECT_TRUE(pTemp->infoFilter.supportsQosRange == 0) << "infoFilter.supportsQosRange , 0";
 			EXPECT_TRUE(pTemp->infoFilter.supportsOutOfBandSnapshots == 0) << "infoFilter.supportsOutOfBandSnapshots , 0";
-			EXPECT_TRUE(pTemp->infoFilter.flags == RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS ||
-				RDM_SVC_IFF_HAS_DICTS_PROVIDED ||
-				RDM_SVC_IFF_HAS_ITEM_LIST ||
-				RDM_SVC_IFF_HAS_QOS ||
-				RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS ||
-				RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE ||
-				RDM_SVC_IFF_HAS_VENDOR) << "infoFilter.flags , \"RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS, RDM_SVC_IFF_HAS_DICTS_PROVIDED,RDM_SVC_IFF_HAS_ITEM_LIST,RDM_SVC_IFF_HAS_QOS,RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS,RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE,RDM_SVC_IFF_HAS_VENDOR\"";
+			EXPECT_EQ(pTemp->infoFilter.flags, (RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS |
+				RDM_SVC_IFF_HAS_DICTS_PROVIDED |
+				RDM_SVC_IFF_HAS_DICTS_USED |
+				RDM_SVC_IFF_HAS_ITEM_LIST |
+				RDM_SVC_IFF_HAS_QOS |
+				RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS |
+				RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE |
+				RDM_SVC_IFF_HAS_VENDOR))
+				<< "infoFilter.flags , \"RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS, RDM_SVC_IFF_HAS_DICTS_PROVIDED,"
+				" RDM_SVC_IFF_HAS_DICTS_USED, RDM_SVC_IFF_HAS_ITEM_LIST, RDM_SVC_IFF_HAS_QOS,"
+				" RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS, RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE,RDM_SVC_IFF_HAS_VENDOR\"";
 
 
 			//retrieve capabilities
@@ -3024,8 +3840,8 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForNiProv)
 				.addUInt("XmlTraceWrite", 1)
 				.addUInt("XmlTraceRead", 1)
 				.addUInt("XmlTracePing", 1)
-				.addUInt("XmlTraceHex", 1)
-				.addInt("PipePort", 13650).complete())
+				.addUInt("XmlTracePingOnly", 1)
+				.addUInt("XmlTraceHex", 1).complete())
 				.addKeyAscii("Provider_2", MapEntry::AddEnum, ElementList()
 					.addAscii("Server", "Server_2")
 					.addAscii("Directory", "Directory_2")
@@ -3235,8 +4051,8 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForNiProv)
 			EXPECT_TRUE(activeConfig.xmlTraceWrite == 1) << "xmlTraceWrite , 1";
 			EXPECT_TRUE(activeConfig.xmlTraceRead == 1) << "xmlTraceRead , 1";
 			EXPECT_TRUE(activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+			EXPECT_TRUE(activeConfig.xmlTracePingOnly == 1) << "xmlTracePingOnly , 1";
 			EXPECT_TRUE(activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
-			EXPECT_TRUE(activeConfig.pipePort == 13650) << "pipePort , 13650";
 			EXPECT_TRUE(activeConfig.configChannelSet[0]->interfaceName == "localhost") << "interfaceName , \"localhost\"";
 			EXPECT_TRUE(activeConfig.configChannelSet[0]->guaranteedOutputBuffers == 8000) << "guaranteedOutputBuffers , 8000";
 			EXPECT_TRUE(activeConfig.configChannelSet[0]->numInputBuffers == 7777) << "numInputBuffers , 7777";
@@ -3313,8 +4129,8 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForNiProv)
 			//retrieve Service state
 			EXPECT_TRUE(pTemp->stateFilter.acceptingRequests == 1) << "stateFilter.acceptingRequests , 1";
 			EXPECT_TRUE(pTemp->stateFilter.serviceState == 1) << "stateFilter.serviceState , 1";
-			EXPECT_TRUE(pTemp->stateFilter.flags == RDM_SVC_STF_HAS_STATUS ||
-				RDM_SVC_STF_HAS_ACCEPTING_REQS) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
+			EXPECT_TRUE(pTemp->stateFilter.flags == (RDM_SVC_STF_HAS_STATUS |
+				RDM_SVC_STF_HAS_ACCEPTING_REQS)) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.streamState == 3) << "status.streamState , \"StreamState::ClosedRecover\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.dataState == 2) << "stateFilter.status.dataState , \"DataState::Suspect\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.code == 29) << "stateFilter.status.code , \"StatusCode::DacsDown\"";
@@ -3334,13 +4150,16 @@ TEST_F(EmaConfigTest, testLoadingCfgFromProgrammaticConfigForNiProv)
 			EXPECT_TRUE(pTemp->infoFilter.acceptingConsumerStatus == 0) << "infoFilter.acceptingConsumerStatus , 0";
 			EXPECT_TRUE(pTemp->infoFilter.supportsQosRange == 0) << "infoFilter.supportsQosRange , 0";
 			EXPECT_TRUE(pTemp->infoFilter.supportsOutOfBandSnapshots == 0) << "infoFilter.supportsOutOfBandSnapshots , 0";
-			EXPECT_TRUE(pTemp->infoFilter.flags == RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS ||
-				RDM_SVC_IFF_HAS_DICTS_PROVIDED ||
-				RDM_SVC_IFF_HAS_ITEM_LIST ||
-				RDM_SVC_IFF_HAS_QOS ||
-				RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS ||
-				RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE ||
-				RDM_SVC_IFF_HAS_VENDOR) << "infoFilter.flags , \"RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS, RDM_SVC_IFF_HAS_DICTS_PROVIDED,RDM_SVC_IFF_HAS_ITEM_LIST,RDM_SVC_IFF_HAS_QOS,RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS,RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE,RDM_SVC_IFF_HAS_VENDOR\"";
+			EXPECT_EQ(pTemp->infoFilter.flags, (RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS |
+				RDM_SVC_IFF_HAS_DICTS_USED |
+				RDM_SVC_IFF_HAS_ITEM_LIST |
+				RDM_SVC_IFF_HAS_QOS |
+				RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS |
+				RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE |
+				RDM_SVC_IFF_HAS_VENDOR))
+				<< "infoFilter.flags , \"RDM_SVC_IFF_HAS_ACCEPTING_CONS_STATUS, RDM_SVC_IFF_HAS_DICTS_USED,"
+				" RDM_SVC_IFF_HAS_ITEM_LIST, RDM_SVC_IFF_HAS_QOS, RDM_SVC_IFF_HAS_SUPPORT_OOB_SNAPSHOTS,"
+				" RDM_SVC_IFF_HAS_SUPPORT_QOS_RANGE,RDM_SVC_IFF_HAS_VENDOR\"";
 
 			//retrieve capabilities
 			idx = 0;
@@ -3409,8 +4228,8 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigForIProv)
 				.addUInt("XmlTraceWrite", 0)
 				.addUInt("XmlTraceRead", 0)
 				.addUInt("XmlTracePing", 1)
+				.addUInt("XmlTracePingOnly", 1)
 				.addUInt("XmlTraceHex", 1)
-				.addInt("PipePort", 9696)
 				.addUInt("RefreshFirstRequired", 0)
 				.addUInt("EnforceAckIDValidation", 0)
 				.addUInt("AcceptDirMessageWithoutMinFilters", 1)
@@ -3577,7 +4396,6 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigForIProv)
 			EXPECT_TRUE(activeConfig.maxDispatchCountApiThread == 900) << "maxDispatchCountApiThread , 900";
 			EXPECT_TRUE(activeConfig.maxDispatchCountUserThread == 900) << "maxDispatchCountUserThread , 900";
 			EXPECT_TRUE(activeConfig.maxEventsInPool == 1000) << "maxEventsInPool , 1000";
-			EXPECT_TRUE(activeConfig.pipePort == 9696) << "pipePort , 9696";
 			EXPECT_TRUE(activeConfig.xmlTraceFileName == "ConfigDbXMLTrace") << "xmlTraceFileName , \"ConfigDbXMLTrace\"";
 			EXPECT_TRUE(activeConfig.xmlTraceMaxFileSize == 70000000) << "xmlTraceMaxFileSize , 70000000";
 			EXPECT_TRUE(activeConfig.xmlTraceToFile == 0) << "xmlTraceToFile , 0";
@@ -3586,6 +4404,7 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigForIProv)
 			EXPECT_TRUE(activeConfig.xmlTraceWrite == 0) << "xmlTraceWrite , 0";
 			EXPECT_TRUE(activeConfig.xmlTraceRead == 0) << "xmlTraceRead , 0";
 			EXPECT_TRUE(activeConfig.xmlTracePing == 1) << "xmlTracePing , 1";
+			EXPECT_TRUE(activeConfig.xmlTracePingOnly == 1) << "xmlTracePingOnly , 1";
 			EXPECT_TRUE(activeConfig.xmlTraceHex == 1) << "xmlTraceHex , 1";
 			EXPECT_TRUE(activeConfig.getRefreshFirstRequired() == false) << "refreshFirstRequired , false";
 			EXPECT_TRUE(activeConfig.getEnforceAckIDValidation() == false) << "enforceAckIDValidation , false";
@@ -3697,8 +4516,8 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigForIProv)
 
 			EXPECT_TRUE(pTemp->stateFilter.acceptingRequests == 0) << "stateFilter.acceptingRequests , 0";
 			EXPECT_TRUE(pTemp->stateFilter.serviceState == 0) << "stateFilter.serviceState , 0";
-			EXPECT_TRUE(pTemp->stateFilter.flags == RDM_SVC_STF_HAS_STATUS ||
-				RDM_SVC_STF_HAS_ACCEPTING_REQS) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
+			EXPECT_TRUE(pTemp->stateFilter.flags == (RDM_SVC_STF_HAS_STATUS |
+				RDM_SVC_STF_HAS_ACCEPTING_REQS)) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.streamState == 3) << "status.streamState , \"StreamState::ClosedRecover\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.dataState == 2) << "stateFilter.status.dataState , \"DataState::Suspect\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.code == 29) << "stateFilter.status.code , \"StatusCode::DacsDown\"";
@@ -3750,11 +4569,11 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigNiProv)
 				.addUInt("XmlTraceWrite", 0)
 				.addUInt("XmlTraceRead", 0)
 				.addUInt("XmlTracePing", 0)
+				.addUInt("XmlTracePingOnly", 0)
 				.addUInt("XmlTraceHex", 0)
 				.addInt("ReconnectAttemptLimit", 70)
 				.addInt("ReconnectMinDelay", 7000)
 				.addInt("ReconnectMaxDelay", 7000)
-				.addInt("PipePort", 9696)
 				.addUInt("MergeSourceDirectoryStreams", 0)
 				.addUInt("RefreshFirstRequired", 0)
 				.addUInt("RecoverUserSubmitSourceDirectory", 0)
@@ -3894,7 +4713,6 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigNiProv)
 			EXPECT_TRUE(activeConfig.maxDispatchCountApiThread == 900) << "maxDispatchCountApiThread , 900";
 			EXPECT_TRUE(activeConfig.maxDispatchCountUserThread == 900) << "maxDispatchCountUserThread , 900";
 			EXPECT_TRUE(activeConfig.maxEventsInPool == 500) << "MaxEventsInPool , 500";
-			EXPECT_TRUE(activeConfig.pipePort == 9696) << "pipePort , 9696";
 			EXPECT_TRUE(activeConfig.reconnectAttemptLimit == 70) << "reconnectAttemptLimit , 70";
 			EXPECT_TRUE(activeConfig.reconnectMinDelay == 7000) << "reconnectMinDelay , 7000";
 			EXPECT_TRUE(activeConfig.reconnectMaxDelay == 7000) << "reconnectMaxDelay , 7000";
@@ -3906,6 +4724,7 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigNiProv)
 			EXPECT_TRUE(activeConfig.xmlTraceWrite == 0) << "xmlTraceWrite , 0";
 			EXPECT_TRUE(activeConfig.xmlTraceRead == 0) << "xmlTraceRead , 0";
 			EXPECT_TRUE(activeConfig.xmlTracePing == 0) << "xmlTracePing , 0";
+			EXPECT_TRUE(activeConfig.xmlTracePingOnly == 0) << "xmlTracePingOnly , 0";
 			EXPECT_TRUE(activeConfig.xmlTraceHex == 0) << "xmlTraceHex , 0";
 			EXPECT_TRUE(activeConfig.getRefreshFirstRequired() == false) << "refreshFirstRequired , false";
 			EXPECT_TRUE(activeConfig.getMergeSourceDirectoryStreams() == false) << "MergeSourceDirectoryStreams , false";
@@ -4006,8 +4825,8 @@ TEST_F(EmaConfigTest, testMergingCfgBetweenFileAndProgrammaticConfigNiProv)
 
 			EXPECT_TRUE(pTemp->stateFilter.acceptingRequests == 0) << "stateFilter.acceptingRequests , 0";
 			EXPECT_TRUE(pTemp->stateFilter.serviceState == 0) << "stateFilter.serviceState , 0";
-			EXPECT_TRUE(pTemp->stateFilter.flags == RDM_SVC_STF_HAS_STATUS ||
-				RDM_SVC_STF_HAS_ACCEPTING_REQS) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
+			EXPECT_TRUE(pTemp->stateFilter.flags == (RDM_SVC_STF_HAS_STATUS |
+				RDM_SVC_STF_HAS_ACCEPTING_REQS)) << "stateFilter.flags , \"RDM_SVC_STF_HAS_STATUS,RDM_SVC_STF_HAS_ACCEPTING_REQS\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.streamState == 3) << "status.streamState , \"StreamState::ClosedRecover\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.dataState == 2) << "stateFilter.status.dataState , \"DataState::Suspect\"";
 			EXPECT_TRUE(pTemp->stateFilter.status.code == 29) << "stateFilter.status.code , \"StatusCode::DacsDown\"";
@@ -4197,6 +5016,7 @@ TEST_F(EmaConfigTest, testLoadDictConfigBetweenProgrammaticAndFileForIProv)
 			innerMap.clear();
 
 			outermostMap.addKeyAscii("DictionaryGroup", MapEntry::AddEnum, elementList);
+			outermostMap.complete();
 			elementList.clear();
 
 			EmaString localConfigPath;
@@ -4271,7 +5091,7 @@ TEST_F(EmaConfigTest, testLoadConfigFromProgrammaticForIProvConsMix)
 			.addAscii("Server", "Server_1")
 			.addAscii("Logger", "Logger_1")
 			.addAscii("Directory", "Directory_1")
-			.addInt("PipePort", 13650).complete())
+			.complete())
 			.complete();
 
 		elementList.addMap("IProviderList", innerMap).complete();
@@ -4299,7 +5119,7 @@ TEST_F(EmaConfigTest, testLoadConfigFromProgrammaticForIProvConsMix)
 			.addAscii("Channel", "Channel_2")
 			.addAscii("Logger", "Logger_2")
 			.addAscii("Dictionary", "Dictionary_2")
-			.addInt("PipePort", 13650).complete())
+			.complete())
 			.complete();
 
 		elementList.addMap("ConsumerList", innerMap).complete();
@@ -4601,8 +5421,8 @@ TEST_F(EmaConfigTest, testServerSharedSocketProgrammaticConfigForIProv)
 			innerMap.clear();
 
 			outermostMap.addKeyAscii("DictionaryGroup", MapEntry::AddEnum, elementList);
+			outermostMap.complete();
 			elementList.clear();
-
 
 			EmaString localConfigPath;
 			OmmIProviderConfig iprovConfig(localConfigPath);
@@ -4866,7 +5686,9 @@ public:
 		// and was set an empty path to EmaConfigTest.xml or a directory
 		EmaConfigBaseImpl::setDefaultConfigFileName(defaultFileNameNotExist);
 		
-		errorMsgText.append("configuration path [").append(userDefinedFileNameNotExist).append("] does not exist;");
+		errorMsgText.append("path [").append(userDefinedFileNameNotExist).append("] does not exist;");
+
+		errorMsgTextSchema.append("error validating XML configuration");
 	}
 
 	void TearDown() {
@@ -4874,11 +5696,16 @@ public:
 
 	static const char* defaultFileNameNotExist;
 	static const char* userDefinedFileNameNotExist;
+	static const char* userDefinedFileExistsInvalidSchema;
+
 	EmaString errorMsgText;
+	EmaString errorMsgTextSchema;
 };
 
 const char* EmaConfigTestNotExist::defaultFileNameNotExist = "EmaConfigFileNotExist.xml";
 const char* EmaConfigTestNotExist::userDefinedFileNameNotExist = "EmaConfigUserFileNotExist.xml";
+const char* EmaConfigTestNotExist::userDefinedFileExistsInvalidSchema = "./EmaInvalidConfig.xml";
+
 
 TEST_F(EmaConfigTestNotExist, OmmConsumerConfigShouldThrowException)
 {
@@ -4894,6 +5721,23 @@ TEST_F(EmaConfigTestNotExist, OmmConsumerConfigShouldThrowException)
 	catch (...)
 	{
 		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not exist. Actual: it throws a different type.";
+	}
+}
+
+TEST_F(EmaConfigTestNotExist, OmmConsumerConfigSchemaException)
+{
+	try {
+		OmmConsumerConfig config( EmaConfigTestNotExist::userDefinedFileExistsInvalidSchema );
+		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not Schema valid.";
+	}
+	catch ( const OmmInvalidConfigurationException& exp )
+	{
+		const EmaString& expErrorText = exp.getText().substr(0, errorMsgTextSchema.length());
+		ASSERT_STREQ( errorMsgTextSchema.c_str(), expErrorText.c_str() );
+	}
+	catch (...)
+	{
+		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not Schema valid. Actual: it throws a different type.";
 	}
 }
 
@@ -4923,6 +5767,23 @@ TEST_F(EmaConfigTestNotExist, OmmIProviderConfigShouldThrowException)
 	}
 }
 
+TEST_F(EmaConfigTestNotExist, OmmIProviderConfigExceptionSchema)
+{
+	try {
+		OmmIProviderConfig config( EmaConfigTestNotExist::userDefinedFileExistsInvalidSchema );
+		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not Schema valid.";
+	}
+	catch ( const OmmInvalidConfigurationException& exp )
+	{
+		const EmaString& expErrorText = exp.getText().substr( 0, errorMsgTextSchema.length() );
+		ASSERT_STREQ( errorMsgTextSchema.c_str(), expErrorText.c_str() );
+	}
+	catch (...)
+	{
+		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not Schema valid. Actual: it throws a different type.";
+	}
+}
+
 TEST_F(EmaConfigTestNotExist, OmmIProviderConfigDefaultShouldNoException)
 {
 	ASSERT_NO_THROW(
@@ -4946,6 +5807,23 @@ TEST_F(EmaConfigTestNotExist, OmmNiProviderConfigShouldThrowException)
 	catch (...)
 	{
 		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not exist. Actual: it throws a different type.";
+	}
+}
+
+TEST_F(EmaConfigTestNotExist, OmmNiProviderConfigExceptionSchema)
+{
+	try {
+		OmmNiProviderConfig config( EmaConfigTestNotExist::userDefinedFileExistsInvalidSchema );
+		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not Schema valid.";
+	}
+	catch (const OmmInvalidConfigurationException& exp)
+	{
+		const EmaString& expErrorText = exp.getText().substr( 0, errorMsgTextSchema.length() );
+		ASSERT_STREQ( errorMsgTextSchema.c_str(), expErrorText.c_str() );
+	}
+	catch (...)
+	{
+		FAIL() << "OmmInvalidConfigurationException was expected because the configuration file is not Schema valid. Actual: it throws a different type.";
 	}
 }
 

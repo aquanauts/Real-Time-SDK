@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -13,14 +13,17 @@ import java.util.LinkedList;
 
 import com.refinitiv.ema.access.DataType.DataTypes;
 import com.refinitiv.ema.access.OmmError.ErrorCode;
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.eta.codec.ArrayEntry;
 import com.refinitiv.eta.codec.Buffer;
+import com.refinitiv.eta.codec.Codec;
 import com.refinitiv.eta.codec.CodecReturnCodes;
 
 class OmmArrayImpl extends CollectionDataImpl implements OmmArray
 {
 	private com.refinitiv.eta.codec.Array	_rsslArray = com.refinitiv.eta.codec.CodecFactory.createArray();
 	private LinkedList<OmmArrayEntry> _ommArrayCollection = new LinkedList<OmmArrayEntry>(); 
+	private OmmArrayIterImpl _ommArrayIterImpl = null;
 
 	OmmArrayImpl() 
 	{
@@ -55,9 +58,34 @@ class OmmArrayImpl extends CollectionDataImpl implements OmmArray
 	{
 		return toString(0);
 	}
-	
+
+	@Override
+	public String toString (DataDictionary dictionary)
+	{
+		if (!dictionary.isFieldDictionaryLoaded() || !dictionary.isEnumTypeDefLoaded())
+			return "\nDictionary is not loaded.\n";
+
+		if (_objManager == null)
+		{
+			_objManager = new EmaObjectManager();
+			_objManager.initialize(((DataImpl)this).dataType());
+		}
+
+		OmmArray ommArray = new OmmArrayImpl(_objManager);
+
+		((CollectionDataImpl) ommArray).decode(((DataImpl)this).encodedData(), Codec.majorVersion(), Codec.minorVersion(), ((DataDictionaryImpl)dictionary).rsslDataDictionary(), null);
+		if (_errorCode != ErrorCode.NO_ERROR)
+		{
+			return "\nFailed to decode OmmArray with error: " + ((CollectionDataImpl) ommArray).errorString() + "\n";
+		}
+
+		return ommArray.toString();
+	}
 	String toString(int indent)
 	{
+		if ( _objManager == null )
+			return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
+
 		_toString.setLength(0);
 		
 		if (code() == DataCode.BLANK)
@@ -94,7 +122,7 @@ class OmmArrayImpl extends CollectionDataImpl implements OmmArray
 			{
 				load = (DataImpl) arrayEntry.load();
 				if ( load == null )
-					return "\nDecoding of just encoded object in the same application is not supported\n";				
+					return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
 			
 				Utilities.addIndent(_toString.append("\n"), indent).append("value=\"");
 	
@@ -168,6 +196,16 @@ class OmmArrayImpl extends CollectionDataImpl implements OmmArray
 			fillCollection();
 		
 		return new EmaIterator<OmmArrayEntry>(_ommArrayCollection.iterator());
+	}
+	
+	@Override
+	public Iterator<OmmArrayEntry> iteratorByRef()
+	{
+		if (_ommArrayIterImpl == null)
+			_ommArrayIterImpl = new OmmArrayIterImpl(this);
+		else
+			_ommArrayIterImpl.clear();
+		return _ommArrayIterImpl;
 	}
 
 	@Override

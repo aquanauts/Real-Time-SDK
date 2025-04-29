@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -830,28 +830,22 @@ namespace LSEG.Eta.ValueAdd.Reactor
             GC.SuppressFinalize(this);
         }
 
-        public static ReactorReturnCode ValidateJWKFile(ReactorOAuthCredential reactorOAuthCredential, out ReactorErrorInfo? errorInfo)
+        public static ReactorReturnCode ValidateJWK(ReactorOAuthCredential reactorOAuthCredential, out ReactorErrorInfo? errorInfo)
         {
             errorInfo = null;
 
             if(reactorOAuthCredential.ClientJwk.Length > 0)
             {
-                var jsonWebKeyFile = reactorOAuthCredential.ClientJwk.ToString();
-
-                if (!File.Exists(jsonWebKeyFile))
-                {
-                    return Reactor.PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE,
-                        "ReactorRestClient.ValidateJWKFile()", $"Can't open JWK file: {jsonWebKeyFile}");
-                }
+                var jsonWebKey = reactorOAuthCredential.ClientJwk.ToString();
 
                 try
                 {
-                    reactorOAuthCredential.JsonWebKey = new JsonWebKey(File.ReadAllText(jsonWebKeyFile));
+                    reactorOAuthCredential.JsonWebKey = new JsonWebKey(jsonWebKey);
                 }
                 catch(Exception ex)
                 {
                     return Reactor.PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE,
-                    "ReactorRestClient.ValidateJWKFile", $"Failed to retrieve Json Web Key information {jsonWebKeyFile}. Text: {ex.Message}");
+                    "ReactorRestClient.ValidateJWKFile", $"Failed to retrieve Json Web Key information {jsonWebKey}. Text: {ex.Message}");
                 }
 
             }

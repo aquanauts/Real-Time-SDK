@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -10,7 +10,8 @@ using LSEG.Eta.Transports;
 using LSEG.Eta.Common;
 using System.Collections.Generic;
 using System.Text;
-
+using System.Security.Authentication;
+using static System.Environment;
 namespace LSEG.Eta.Transports
 {
     /// <summary>
@@ -71,7 +72,7 @@ namespace LSEG.Eta.Transports
         /// Checks whether heartbeat messages are required to flow from the client to the server. 
         /// </summary>
         /// <remarks>
-        /// Refinitiv Real-Time Distribution System and other Refinitiv components typically require this value to be
+        /// LSEG Real-Time Distribution System and other LSEG components typically require this value to be
         /// set to <c>true</c>.
         /// </remarks>
         /// <value><c>true</c> if heartbeat messages are required from the client to the server otherwise <c>false</c></value>
@@ -81,7 +82,7 @@ namespace LSEG.Eta.Transports
         /// Checks whether heartbeat messages are required to flow from the server to the client.
         /// </summary>
         /// <remarks>
-        /// Refinitiv Real-Time Distribution System and other Refinitiv components typically require this value to be
+        /// LSEG Real-Time Distribution System and other LSEG components typically require this value to be
         /// set to <c>true</c>.
         /// </remarks>
         /// <value><c>true</c> if heartbeat messages are required from the server to the client otherwise <c>false</c></value>
@@ -144,6 +145,13 @@ namespace LSEG.Eta.Transports
         public List<ComponentInfo> ComponentInfoList { get; internal set; }
 
         /// <summary>
+        /// Gets the encryption protocol type used to authenticate the the <see cref="ConnectionType.ENCRYPTED"/> connection type.
+        /// </summary>
+        /// <remarks>This property is valid only for the <see cref="ConnectionType.ENCRYPTED"/> connection type.</remarks>
+        /// <value>The negotiated protocol for the Channel; otherwise <see cref="SslProtocols.None"/></value>
+        public SslProtocols EncryptionProtocol { get; internal set; }
+
+        /// <summary>
         /// Clears ETA Channel Info.
         /// </summary>
         public void Clear()
@@ -161,6 +169,7 @@ namespace LSEG.Eta.Transports
             ClientIP = null;
             ClientHostname = null;
             ComponentInfoList = null;
+            EncryptionProtocol = SslProtocols.None;
         }
 
         /// <summary>
@@ -194,21 +203,22 @@ namespace LSEG.Eta.Transports
                 }
             }
 
-            return $"ChannelInfo\n\tmaxFragmentSize: {MaxFragmentSize}\n" +
-                $"\tmaxOutputBuffers: {MaxOutputBuffers}\n" +
-                $"\tguaranteedOutputBuffers: {GuaranteedOutputBuffers}\n" +
-                $"\tnumInputBuffers: {NumInputBuffers}\n" +
-                $"\tpingTimeout: {PingTimeout}\n" +
-                $"\tclientToServerPings: {ClientToServerPings}\n" +
-                $"\tserverToClientPings: {ServerToClientPings}\n" +
-                $"\tsysSendBufSize: {SysSendBufSize}\n" +
-                $"\tsysRecvBufSize: {SysRecvBufSize}\n" +
-                $"\tCompressionType: {(long)CompressionType}\n" +
-                $"\tCompressionThreshold: {CompressionThresHold}\n" +
-                $"\tpriorityFlushStrategy: {PriorityFlushStrategy}\n" +
-                $"\tclientIP: {ClientIP}\n" +
-                $"\tclientHostName: {ClientHostname}\n" +
-                $"\tComponentInfo: {stringBuilder}";
+            return $"ChannelInfo{NewLine}\tmaxFragmentSize: {MaxFragmentSize}{NewLine}" +
+                $"\tmaxOutputBuffers: {MaxOutputBuffers}{NewLine}" +
+                $"\tguaranteedOutputBuffers: {GuaranteedOutputBuffers}{NewLine}" +
+                $"\tnumInputBuffers: {NumInputBuffers}{NewLine}" +
+                $"\tpingTimeout: {PingTimeout}{NewLine}" +
+                $"\tclientToServerPings: {ClientToServerPings}{NewLine}" +
+                $"\tserverToClientPings: {ServerToClientPings}{NewLine}" +
+                $"\tsysSendBufSize: {SysSendBufSize}{NewLine}" +
+                $"\tsysRecvBufSize: {SysRecvBufSize}{NewLine}" +
+                $"\tCompressionType: {(long)CompressionType}{NewLine}" +
+                $"\tCompressionThreshold: {CompressionThresHold}{NewLine}" +
+                $"\tpriorityFlushStrategy: {PriorityFlushStrategy}{NewLine}" +
+                $"\tclientIP: {ClientIP}{NewLine}" +
+                $"\tclientHostName: {ClientHostname}{NewLine}" +
+                $"\tComponentInfo: {stringBuilder}{NewLine}" +
+                $"\tEncryptionProtocol: {EncryptionProtocol}";
         }
 
         private StringBuilder stringBuilder;

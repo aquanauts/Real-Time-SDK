@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -10,6 +10,7 @@ using LSEG.Eta.Codec;
 using LSEG.Eta.Rdm;
 using System.Diagnostics;
 using System.Text;
+using static LSEG.Eta.Rdm.Dictionary;
 using Buffer = LSEG.Eta.Codec.Buffer;
 
 namespace LSEG.Eta.ValueAdd.Rdm
@@ -95,6 +96,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
             m_DictionaryRequest.MsgKey.ApplyHasFilter();
             m_DictionaryRequest.MsgKey.ApplyHasServiceId();
             m_DictionaryRequest.MsgKey.ApplyHasName();
+            m_DictionaryRequest.MsgKey.Filter = VerbosityValues.NORMAL;
             m_DictionaryRequest.ContainerType = DataTypes.NO_DATA;
             m_DictionaryRequest.DomainType = (int)LSEG.Eta.Rdm.DomainType.DICTIONARY;
             Flags = 0;
@@ -173,53 +175,41 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             StringBuilder stringBuf = PrepareStringBuilder();
-            stringBuf.Insert(0, "DictionaryRequest: \n");
+            stringBuf.Insert(0, $"DictionaryRequest: {NewLine}");
 
             stringBuf.Append(tab);
             stringBuf.Append("serviceId: ");
             stringBuf.Append(ServiceId);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append("dictionaryName: ");
             stringBuf.Append(DictionaryName);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append("streaming: ");
             stringBuf.Append(Streaming);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append("verbosity: ");
-            bool addOr = false;
-            if ((Verbosity & Dictionary.VerbosityValues.INFO) != 0)
-            {
-                stringBuf.Append("INFO");
-                addOr = true;
-            }
+            // INFO verbosity is always "present"
+            stringBuf.Append("INFO");
+
             if ((Verbosity & Dictionary.VerbosityValues.MINIMAL) != 0)
             {
-                if (addOr)
-                    stringBuf.Append(" | ");
-                stringBuf.Append("MINIMAL");
-                addOr = true;
+                stringBuf.Append(" | ").Append("MINIMAL");
             }
             if ((Verbosity & Dictionary.VerbosityValues.NORMAL) != 0)
             {
-                if (addOr)
-                    stringBuf.Append(" | ");
-                stringBuf.Append("NORMAL");
-                addOr = true;
+                stringBuf.Append(" | ").Append("NORMAL");
             }
             if ((Verbosity & Dictionary.VerbosityValues.VERBOSE) != 0)
             {
-                if (addOr)
-                    stringBuf.Append(" | ");
-                stringBuf.Append("VERBOSE");
-                addOr = true;
+                stringBuf.Append(" | ").Append("VERBOSE");
             }
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             return stringBuf.ToString();
         }

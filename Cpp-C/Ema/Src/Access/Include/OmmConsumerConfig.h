@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -29,6 +29,9 @@
 
 #include "Access/Include/EmaString.h"
 #include "Access/Include/OmmLoginCredentialConsumerClient.h"
+#include "DataDictionary.h"
+#include "Access/Include/EmaConfig.h"
+#include "Access/Include/ServiceList.h"
 
 namespace refinitiv {
 
@@ -55,10 +58,13 @@ public :
 		ApiDispatchEnum			/*!< specifies callbacks happen on API thread of control */
 	};
 
+	/** @enum EncryptionProtocolTypes
+	*/
 	enum EncryptionProtocolTypes 
 	{
 		ENC_NONE = 0x00,			/*!< @brief (0x00) No encryption. */
-		ENC_TLSV1_2 = 0x04			/*!< @brief (0x08) Encryption using TLSv1.2 protocol */
+		ENC_TLSV1_2 = 0x04,			/*!< @brief (0x04) Encryption using TLSv1.2 protocol */
+		ENC_TLSV1_3 = 0x08			/*!< @brief (0x08) Encryption using TLSv1.3 protocol */
 	};
 
 	///@name Constructor
@@ -71,10 +77,10 @@ public :
 	///@name Constructor
 	//@{
 	/** Create an OmmConsumerConfig that enables customization of default implicit administrative domains and local configuration. 
-		@param[in] path specifies configuration file name or name of directory containing a file named EmaConfig.xml
+		@param[in] configPath configPath configuration file name or name of directory containing a file named EmaConfig.xml
 		\remark path is optional. If not specified, application will use EmaConfig.xml (if any)  found in current working directory
 	*/
-	OmmConsumerConfig(const EmaString & path);
+	OmmConsumerConfig( const EmaString& configPath );
 	//@}
 
 	///@name Destructor
@@ -109,6 +115,12 @@ public :
 		@return reference to this object
 	*/
 	OmmConsumerConfig& position( const EmaString& position );
+
+	/** Specifies the authorization application name set in login request attribute.
+		@param[in] applicationName specifies respective login request attribute
+		@return reference to this object
+	 */
+	OmmConsumerConfig& applicationName(const EmaString& applicationName);
 
 	/** Specifies the authorization application identifier. Must be unique for each application.
 	    Range 257 to 65535 is available for site-specific use. Range 1 to 256 is reserved.
@@ -190,6 +202,23 @@ public :
 	*/
 	OmmConsumerConfig& host( const EmaString& host = "localhost:14002" );
 
+	/**	Specifies connection type. Overrides prior value
+		@param[in] specifies connection type used by application. Connection type defined in EmaConfig::ConnectionTypeEnum
+		@throw OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+		@throw OmmInvalidUsageException if channelType is not valid.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& channelType(EmaConfig::ConnectionTypeEnum channelType);
+
+	/**	Specifies encrypted protocol type.  Overrides prior value
+		@param[in] specifies encrypted protocol type used by application. Encrypted protocol type defined in EmaConfig::EncryptedProtocolTypeEnum
+		@throw OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+		@throw OmmInvalidUsageException if use this API with not encoded channel type.
+		@throw OmmInvalidUsageException if encProtocolType is not valid.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& encryptedProtocolType(EmaConfig::EncryptedProtocolTypeEnum encProtocolType);
+
 	/** Specifies the operation model, overriding the default. The operation model specifies whether
 	    to dispatch messages in the user or application thread of control.
 		@param[in] specifies threading and dispatching model used by application
@@ -222,8 +251,8 @@ public :
 	/** Specifies the cryptographic protocols to be used for an Encrypted connection on a Linux operating system, 
 		of values TLSv1.2. The highest value of TLS will be selected by 
 		the Rssl API first, then it will roll back if the encryption handshake fails. 
-		The protocol defaults to TLSv1.2. 
-		Use OmmConsumerConfig::EncryptedProtocolTypes flags to set allowed protocols.
+		The protocol defaults to TLSv1.2 and TLSv1.3.
+		Use OmmConsumerConfig::EncryptionProtocolTypes flags to set allowed protocols.
 		@param[in] securityProtocol specifies a cryptopgraphic protocol.
 		@return reference to this object
 	*/
@@ -374,6 +403,66 @@ public :
 		@return reference to this object
 	*/
 	OmmConsumerConfig& apiThreadBind(const EmaString& cpuString);
+
+	/** Specifies should ETA initialize CpuID library. It will analyze CPU topology.
+		Application may call multiple times prior to initialization.
+		@param[in] shouldInitCPUIDlib true ETA should initialize CpuID library; otherwise ETA will not initialize CpuID library.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& shouldInitializeCPUIDlib(bool shouldInitCPUIDlib);
+
+    /** Specifies the DataDictionary object.
+        Overrides DataDictionary object that is provided via EmaConfig.xml or
+        Programmatic configure.
+        @param[in] dataDictionary specifies the DataDictionary object.
+        @param[in] shouldCopyIntoAPI specifies whether to copy dataDictionary into API or pass it in as a reference.
+        @throw OmmInvalidUsageException if application passes not fully loaded DataDictionary object
+        @return reference to this object.
+    */
+	OmmConsumerConfig& dataDictionary(const refinitiv::ema::rdm::DataDictionary& dataDictionary, bool shouldCopyIntoAPI = false);
+
+	/** Specifies the address or host name of the proxy server for Rest requests: service discovery and auth token service.
+		@param[in] restProxyHostName specifies the address or host name of the proxy server for Rest requests.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& restProxyHostName(const EmaString& restProxyHostName);
+
+	/** Specifies the port number of the proxy server for Rest requests: service discovery and auth token service.
+		@param[in] restProxyPort specifies the port number of the proxy server for Rest requests.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& restProxyPort(const EmaString& restProxyPort);
+
+	/** Specifies the user name to authenticate to the proxy server for Rest requests. Needed for all authentication protocols.
+		@param[in] restProxyUserName specifies user name for the proxy server authentication for Rest requests.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& restProxyUserName(const EmaString& restProxyUserName);
+
+	/** Specifies the passwd to authenticate to the proxy server for Rest requests. Needed for all authentication protocols.
+		@param[in] restProxyPasswd specifies password for the proxy server authentication for Rest requests.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& restProxyPasswd(const EmaString& restProxyPasswd);
+
+	/** Specifies the domain of the user to authenticate to the proxy server for Rest requests: service discovery and auth token service.
+		Needed for NTLM or for Negotiate/Kerberos or for Kerberos authentication protocols.
+
+		For Negotiate/Kerberos or for Kerberos authentication protocols, restProxyDomain
+		should be the same as the domain in the 'realms' and 'domain_realm' sections of
+		the Kerberos configuration file.
+
+		@param[in] restProxyDomain specifies the domain used for the proxy server authentication for Rest requests.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& restProxyDomain(const EmaString& restProxyDomain);
+
+	/** Specifies a new ServiceList to be added to this configuration. The ServiceList is a list of concrete service names that are can be subscribed to using the name of the service list.
+
+		@param[in] serviceList ServiceList object that contains the concrete service names.
+		@return reference to this object
+	*/
+	OmmConsumerConfig& addServiceList(const ServiceList& serviceList);
 	//@}
 
 private :

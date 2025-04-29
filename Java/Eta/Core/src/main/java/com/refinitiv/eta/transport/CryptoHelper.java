@@ -2,7 +2,6 @@ package com.refinitiv.eta.transport;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.security.KeyManagementException;
@@ -78,7 +77,10 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 class CryptoHelper
 {
 
-    public static final String[] CLIENT_PROTOCOLS = {"TLSv1.2"};
+	public static final String TLSv12 = "TLSv1.2";
+	public static final String TLSv13 = "TLSv1.3";
+	
+    public static String[] client_protocol_versions = {TLSv12, TLSv13};
 
     /**
      * "HTTPS" algorithm performs endpoint verification as described in 
@@ -117,6 +119,11 @@ class CryptoHelper
     		securityProvider = encOpts.SecurityProvider();
     		trustManagerAlgorithm = encOpts.TrustManagerAlgorithm();
     		securityProtocol = encOpts.SecurityProtocol();
+    		client_protocol_versions = new String[encOpts.SecurityProtocolVersions().length];
+    		for (int i = 0; i < encOpts.SecurityProtocolVersions().length; ++i)
+    		{
+    			client_protocol_versions[i] = encOpts.SecurityProtocol() + "v" + encOpts.SecurityProtocolVersions()[i];
+    		}
     		keyManagerAlgorithm = encOpts.KeyManagerAlgorithm();
     	}
     	else
@@ -127,6 +134,11 @@ class CryptoHelper
             securityProvider = options.tunnelingInfo().SecurityProvider();
             trustManagerAlgorithm = options.tunnelingInfo().TrustManagerAlgorithm();
             securityProtocol = options.tunnelingInfo().SecurityProtocol();
+            client_protocol_versions = new String[options.tunnelingInfo().SecurityProtocolVersions().length];
+    		for (int i = 0; i < options.tunnelingInfo().SecurityProtocolVersions().length; ++i)
+    		{
+    			client_protocol_versions[i] = options.tunnelingInfo().SecurityProtocol() + "v" + options.tunnelingInfo().SecurityProtocolVersions()[i];
+    		}
             keyManagerAlgorithm = options.tunnelingInfo().KeyManagerAlgorithm();
         }
 
@@ -236,7 +248,12 @@ class CryptoHelper
         cntx = context;
         
         _connectionKeyManagerAlgorithm = options.encryptionOptions().keyManagerAlgorithm();
-       
+		client_protocol_versions = new String[options.encryptionOptions().securityProtocolVersions().length];
+		for (int i = 0; i < options.encryptionOptions().securityProtocolVersions().length; ++i)
+		{
+			client_protocol_versions[i] = options.encryptionOptions().securityProtocol() + "v" + options.encryptionOptions().securityProtocolVersions()[i];
+		}
+		
         _server = true;
     }
 
@@ -249,9 +266,34 @@ class CryptoHelper
         {
 	        _engine = cntx.createSSLEngine(_hostName, _hostPort);
 	        _engine.setUseClientMode(true);
+	        
+	        // Check SSL engine supported protocols against configured protocols, and remove 
+	        //	any configured protocols that are not supported
+	        
+	        for (int i = 0; i < client_protocol_versions.length; ++i)
+	        {
+	        	boolean foundVersion = false;
+	        	for (int j = 0; j < _engine.getSupportedProtocols().length; ++j)
+	        	{
+	        		if (client_protocol_versions[i].equals(_engine.getSupportedProtocols()[j]))
+	        			foundVersion = true;
+	        	}
+	        	if (!foundVersion)
+	        	{
+	        		// Remove unsupported version from the client protocol version list
+	        		String[] newList = new String[client_protocol_versions.length - 1];
+	                for (int j = 0, k = 0; j < client_protocol_versions.length; j++){
+	                    if (j != i){
+	                        newList[k] = client_protocol_versions[j];
+	                        k++;
+	                    }
+	                }
+	                client_protocol_versions = newList;
+	        	}
+	        }
 	
 	        SSLParameters sslParameters = new SSLParameters();
-	        sslParameters.setProtocols(CLIENT_PROTOCOLS);
+	        sslParameters.setProtocols(client_protocol_versions);
 	        sslParameters.setEndpointIdentificationAlgorithm(ENDPOINT_IDENTIFICATION_ALGORITHM);
 	        sslParameters.setServerNames(Collections.singletonList(new SNIHostName(_hostName)));
 	        sslParameters.setNeedClientAuth(false);
@@ -262,7 +304,7 @@ class CryptoHelper
         	_engine = cntx.createSSLEngine();
         	_engine.setUseClientMode(false);
         	SSLParameters sslParameters = new SSLParameters();
-	        sslParameters.setProtocols(CLIENT_PROTOCOLS);
+	        sslParameters.setProtocols(client_protocol_versions);
 	        sslParameters.setNeedClientAuth(false);
 	        _engine.setSSLParameters(sslParameters);
         }
@@ -329,7 +371,7 @@ class CryptoHelper
             _appRecvBuffer.flip();
             readCount += copyBytes(_appRecvBuffer, dst);
         }
-
+            
         int decryptCount = 0;
         if (dst.hasRemaining()) {
             if (dst.capacity() >= _engine.getSession().getApplicationBufferSize()) {
@@ -400,6 +442,7 @@ class CryptoHelper
             catch (IOException e)
             {
                 _netSendBuffer.clear();
+                canWrite = false;
             }
             _netSendBuffer.compact();
 
@@ -468,13 +511,19 @@ class CryptoHelper
                         throw new IOException("Tunnel Channel disconnected");
 
                     _netRecvBuffer.flip();
-                    SSLEngineResult unwrap_result = _engine.unwrap(_netRecvBuffer, _appRecvBuffer);
 
-                    if (unwrap_result.getStatus() == Status.BUFFER_OVERFLOW) {
-                        ByteBuffer temp = ByteBuffer.allocateDirect(_appRecvBuffer.capacity() * 2);
-                        _appRecvBuffer.flip();
-                        temp.put(_appRecvBuffer);
-                        _appRecvBuffer = temp;
+                    HandshakeStatus handshakeStatus = HandshakeStatus.NEED_UNWRAP;
+                    while (_netRecvBuffer.hasRemaining() &&
+                            handshakeStatus == HandshakeStatus.NEED_UNWRAP) {
+                        SSLEngineResult unwrap_result = _engine.unwrap(_netRecvBuffer, _appRecvBuffer);
+
+                        if (unwrap_result.getStatus() == Status.BUFFER_OVERFLOW) {
+                            ByteBuffer temp = ByteBuffer.allocateDirect(_appRecvBuffer.capacity() * 2);
+                            _appRecvBuffer.flip();
+                            temp.put(_appRecvBuffer);
+                            _appRecvBuffer = temp;
+                        }
+                        handshakeStatus = unwrap_result.getHandshakeStatus();
                     }
 
                     _netRecvBuffer.compact();
@@ -629,6 +678,14 @@ class CryptoHelper
         if(_engine == null){
             throw new IllegalStateException("SSL engine is not initialized");
         }
+    }
+    
+    String getActiveTLSVersion()
+    {
+    	if (_engine == null)
+    		throw new IllegalStateException("SSL engine is not initialized");
+    	
+    	return _engine.getSession().getProtocol();
     }
 
     ByteBuffer getNetRecvBuffer() {

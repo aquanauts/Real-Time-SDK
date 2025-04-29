@@ -1,12 +1,13 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
 using LSEG.Eta.Common;
+using System.Runtime.CompilerServices;
 
 namespace LSEG.Eta.Transports
 {
@@ -56,6 +57,7 @@ namespace LSEG.Eta.Transports
         /// <summary>
         /// Clears ETA Write Arguments.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public void Clear()
         {
             Priority = WritePriorities.HIGH;

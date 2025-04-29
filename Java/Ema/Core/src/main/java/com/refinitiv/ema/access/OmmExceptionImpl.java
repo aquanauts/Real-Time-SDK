@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -173,7 +173,7 @@ class OmmJsonConverterExceptionImpl extends OmmJsonConverterException {
 	private static final long serialVersionUID = -2146394732735338988L;
 	private static final String OMMJSONCONVERTER_EXCEPTION_STRING = "OmmJsonConverterException";
 	private int errorCode;
-	private SessionInfo sessionInfo;
+	private transient SessionInfo sessionInfo;
 
 	@Override
 	public int getErrorCode() {

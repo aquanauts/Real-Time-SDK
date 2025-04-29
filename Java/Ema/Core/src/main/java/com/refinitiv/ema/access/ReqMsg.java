@@ -1,13 +1,14 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
 
 import java.nio.ByteBuffer;
+import com.refinitiv.ema.rdm.DataDictionary;
 
 /**
  * ReqMsg allows consumer application to express its interest in an item.
@@ -131,6 +132,14 @@ public interface ReqMsg extends Msg
 	 * @return true if service name is set; false otherwise
 	 */
 	public boolean hasServiceName();
+	
+	/**
+	 * Indicates presence of the ServiceListName.<br>
+	 * serviceListName is an optional member of ReqMsg.
+	 * 
+	 * @return true if service list name is set; false otherwise
+	 */
+	public boolean hasServiceListName();
 
 	/**
 	 * Returns PriorityClass.<br>
@@ -216,6 +225,16 @@ public interface ReqMsg extends Msg
 	 * @return service name
 	 */
 	public String serviceName();
+	
+	/**
+	 * Returns the ServiceListName within the MsgKey.<br>
+	 * Calling this method must be preceded by a call to {@link #hasServiceListName()}.
+	 * 
+	 * @throws OmmInvalidUsageException if {@link #hasServiceListName()} returns false
+	 * 
+	 * @return service list name
+	 */
+	public String serviceListName();
 
 	/**
 	 * Clears the ReqMsg.<br>
@@ -277,6 +296,17 @@ public interface ReqMsg extends Msg
 	 * @return reference to this object
 	 */
 	public ReqMsg serviceName(String serviceName);
+	
+	/**
+	 * Specifies a service list name defined in a {@link ServiceList}.<br>
+	 * <p>EMA sends item request according of the order of concrete services defined in {@link ServiceList}.</p> 
+	 * 
+	 * @throws OmmInvalidUsageException if service id or service name is already set or if serviceListName does not exist.
+	 * 
+	 * @param serviceListName specifies a service list name
+	 * @return reference to this object
+	 */
+	public ReqMsg serviceListName(String serviceListName);
 
 	/**
 	 * Specifies ServiceId.<br>
@@ -402,4 +432,11 @@ public interface ReqMsg extends Msg
 	 * @return reference to this object
 	 */
 	public ReqMsg privateStream(boolean privateStream);
+
+	/**
+	 *  Returns a string representation of the class instance.
+	 * @param dictionary use for toString() conversion
+	 * @return string representation of the class instance
+	 */
+	public String toString(DataDictionary dictionary);
 }

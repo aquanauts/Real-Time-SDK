@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.unittest;
@@ -12,30 +12,14 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import com.refinitiv.ema.access.*;
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.eta.codec.Buffer;
 import com.refinitiv.eta.codec.Codec;
 import com.refinitiv.eta.codec.CodecFactory;
 import com.refinitiv.eta.codec.CodecReturnCodes;
-import com.refinitiv.ema.access.Data;
 import com.refinitiv.ema.access.DataType.DataTypes;
 import com.refinitiv.ema.unittest.TestUtilities.EncodingTypeFlags;
-import com.refinitiv.ema.access.ElementEntry;
-import com.refinitiv.ema.access.ElementList;
-import com.refinitiv.ema.access.EmaFactory;
-import com.refinitiv.ema.access.FieldEntry;
-import com.refinitiv.ema.access.FieldList;
-import com.refinitiv.ema.access.JUnitTestConnect;
-import com.refinitiv.ema.access.Map;
-import com.refinitiv.ema.access.MapEntry;
-import com.refinitiv.ema.access.OmmArray;
-import com.refinitiv.ema.access.OmmArrayEntry;
-import com.refinitiv.ema.access.OmmError;
-import com.refinitiv.ema.access.OmmException;
-import com.refinitiv.ema.access.OmmOpaque;
-import com.refinitiv.ema.access.OmmQos;
-import com.refinitiv.ema.access.OmmReal;
-import com.refinitiv.ema.access.OmmState;
-import com.refinitiv.ema.access.OmmXml;
 import com.refinitiv.ema.unittest.TestUtilities;
 
 import junit.framework.TestCase;
@@ -300,6 +284,44 @@ public class FieldListTests extends TestCase
 	{
 		TestUtilities.printTestHead("testFieldList_EncodeEMA_DecodeEMA_DecodeAll", "Encode FieldList with EMA and Decode FieldList with EMA");
 
+		String fieldListString = "FieldList FieldListNum=\"65\" DictionaryId=\"0\"\n" +
+				"    FieldEntry fid=\"-100\" name=\"\" dataType=\"Error\"\n" +
+				"        OmmError\n" +
+				"              ErrorCode=\"FieldIdNotFound\"\n" +
+				"        OmmErrorEnd\n" +
+				"    FieldEntryEnd\n" +
+				"    FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n" +
+				"    FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n" +
+				"    FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n" +
+				"    FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n" +
+				"    FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n" +
+				"    FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n" +
+				"    FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"Timeliness: 5656/Rate: 2345\"\n" +
+				"    FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n" +
+				"    FieldEntry fid=\"715\" name=\"STORY_ID\" dataType=\"Ascii\" value=\"ABCDEF\"\n" +
+				"    FieldEntry fid=\"28\" name=\"NEWS\" dataType=\"Rmtes\" value=\"ABCDEF\"\n" +
+				"    FieldEntry fid=\"4\" name=\"RDN_EXCHID\" dataType=\"Enum\" value=\"29\"\n" +
+				"    FieldEntry fid=\"-9\" name=\"MY_FLOAT\" dataType=\"Float\" value=\"11.11\"\n" +
+				"    FieldEntry fid=\"-10\" name=\"MY_DOUBLE\" dataType=\"Double\" value=\"22.219999313354492\"\n" +
+				"    FieldEntry fid=\"7\" name=\"TRDPRC_2\" dataType=\"Real\" value=\"(blank data)\"\n" +
+				"    FieldEntry fid=\"-11\" name=\"MY_BUFFER\" dataType=\"Buffer\"\n" +
+				"4142 4344 4546 4748                            ABCDEFGH\n" +
+				"    FieldEntry fid=\"-12\" name=\"MY_UTF8\" dataType=\"Utf8\" value=\"KLMNOPQR\"\n" +
+				"    FieldEntry fid=\"-16\" name=\"MY_ARRAY\" dataType=\"OmmArray\"\n" +
+				"        OmmArray with entries of dataType=\"Int\"\n" +
+				"            value=\"\"123\"\n" +
+				"            value=\"\"234\"\n" +
+				"            value=\"\"345\"\n" +
+				"        OmmArrayEnd\n" +
+				"    FieldEntryEnd\n" +
+				"    FieldEntry fid=\"-17\" name=\"MY_OPAQUE\" dataType=\"Opaque\" value=\"Opaque\n" +
+				"\n" +
+				"4F50 5152 5354                                  OPQRST\n" +
+				"OpaqueEnd\n" +
+				"\"\n" +
+				"    FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"InexactDelayed/JustInTimeConflated\"\n" +
+				"FieldListEnd\n";
+
 		// load dictionary
 		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory
 				.createDataDictionary();
@@ -307,6 +329,7 @@ public class FieldListTests extends TestCase
 		
 		//EMA Encode FieldList
 		FieldList flEnc = EmaFactory.createFieldList();
+		FieldList flEmpty = EmaFactory.createFieldList();
 		flEnc.info( dictionary.infoDictionaryId(), 65 );
 		
 		try {
@@ -314,74 +337,74 @@ public class FieldListTests extends TestCase
 
 			//first entry (fid not found case)
 			FieldEntry fe = EmaFactory.createFieldEntry().uintValue( -100, 64 );
-			TestUtilities.checkResult("FieldEntry.toString() == toString() not supported", fe.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldEntry.toString() == toString()", fe.toString().equals("\nEntity is not encoded yet. Complete encoding to use this method.\n"));
 			
 			flEnc.add(fe);
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//second entry
 			flEnc.add(EmaFactory.createFieldEntry().uintValue( 1, 64));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//third entry
 			flEnc.add(EmaFactory.createFieldEntry().real( 6, 11, OmmReal.MagnitudeType.EXPONENT_NEG_2));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fourth entry
 			flEnc.add(EmaFactory.createFieldEntry().intValue( -2, 32));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fifth entry
 			flEnc.add(EmaFactory.createFieldEntry().date( 16, 1999, 11, 7));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//sixth entry
 			flEnc.add(EmaFactory.createFieldEntry().time( 18, 02, 03, 04, 005));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//seventh entry
 			flEnc.add(EmaFactory.createFieldEntry().dateTime( -3, 1999, 11, 7, 01, 02, 03, 000));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//eightth entry
 			flEnc.add(EmaFactory.createFieldEntry().qos( TestUtilities.MY_QOS, 5656, 2345 ));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//ninth entry
 			flEnc.add(EmaFactory.createFieldEntry().state(TestUtilities.MY_STATE, OmmState.StreamState.OPEN, OmmState.DataState.OK, OmmState.StatusCode.NONE, "Succeeded"));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//tenth entry
 			flEnc.add(EmaFactory.createFieldEntry().ascii( 715, "ABCDEF" ));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//eleventh entry
 			flEnc.add(EmaFactory.createFieldEntry().rmtes( 28,ByteBuffer.wrap("ABCDEF".getBytes())));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//twelfth entry
 			flEnc.add(EmaFactory.createFieldEntry().enumValue( 4, 29));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//thirteenth entry
 			flEnc.add(EmaFactory.createFieldEntry().floatValue( -9, 11.11f));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fourteenth entry
 			flEnc.add(EmaFactory.createFieldEntry().doubleValue( -10, 22.22f));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//fifteenth entry (blank real)
 			flEnc.add(EmaFactory.createFieldEntry().codeReal( 7));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//sixteenth entry
 			flEnc.add(EmaFactory.createFieldEntry().buffer( -11, ByteBuffer.wrap("ABCDEFGH".getBytes())));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//seventeenth entry
 			flEnc.add(EmaFactory.createFieldEntry().utf8( -12,ByteBuffer.wrap("KLMNOPQR".getBytes())));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 
 			//eighteenth entry
 			OmmArray ar1 = EmaFactory.createOmmArray();
@@ -389,23 +412,38 @@ public class FieldListTests extends TestCase
 			ar1.add(EmaFactory.createOmmArrayEntry().intValue(234));
 			ar1.add(EmaFactory.createOmmArrayEntry().intValue(345));
 			flEnc.add(EmaFactory.createFieldEntry().array( -16, ar1));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 			
 
 			//nineteenth entry
 			OmmOpaque opaque1 = EmaFactory.createOmmOpaque();
 			opaque1.buffer(ByteBuffer.wrap("OPQRST".getBytes()));
 			flEnc.add(EmaFactory.createFieldEntry().opaque( -17 , opaque1));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
 					
 			//twentyth entry
 			flEnc.add(EmaFactory.createFieldEntry().qos( TestUtilities.MY_QOS, 756565, 1232365));
-			TestUtilities.checkResult("FieldList.toString() == toString() not supported", flEnc.toString().equals("\nDecoding of just encoded object in the same application is not supported\n"));
-			
+			TestUtilities.checkResult("FieldList.toString() == toString()", flEnc.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n"));
+
+			DataDictionary emaDataDictionary = EmaFactory.createDataDictionary();
+
+			TestUtilities.checkResult("FieldList.toString(dictionary) == toString(dictionary)", flEnc.toString(emaDataDictionary).equals("\nDictionary is not loaded.\n"));
+
+			emaDataDictionary.loadFieldDictionary(TestUtilities.getFieldDictionaryFileName());
+			emaDataDictionary.loadEnumTypeDictionary(TestUtilities.getEnumTableFileName());
+
+			TestUtilities.checkResult("FieldList.toString(dictionary) == toString(dictionary)", flEnc.toString(emaDataDictionary).equals(fieldListString));
+
+			TestUtilities.checkResult("FieldList.toString(dictionary) == toString(dictionary)", flEmpty.toString(emaDataDictionary).equals("FieldList\nFieldListEnd\n"));
+
+			flEmpty.add(EmaFactory.createFieldEntry().opaque( -17 , opaque1));
+			flEmpty.clear();
+			TestUtilities.checkResult("FieldList.toString(dictionary) == toString(dictionary)", flEmpty.toString(emaDataDictionary).equals("FieldList\nFieldListEnd\n"));
+
 			FieldList flDec = JUnitTestConnect.createFieldList();
 			JUnitTestConnect.setRsslData(flDec, flEnc, Codec.majorVersion(), Codec.minorVersion(), dictionary, null);
 			// check that we can still get the toString on encoded/decoded container.
-			TestUtilities.checkResult("FieldList.toString() != toString() not supported", !(flDec.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));			
+			TestUtilities.checkResult("FieldList.toString() != toString()", !(flDec.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
 
 			System.out.println(flDec);
 
@@ -420,7 +458,7 @@ public class FieldListTests extends TestCase
 			TestUtilities.checkResult("FieldList with all data types- first hasNext()" , iter.hasNext());
 			FieldEntry fe1 = iter.next();
 			// check that we can still get the toString on encoded/decoded entry.
-			TestUtilities.checkResult("FieldEntry.toString() != toString() not supported", !(fe1.toString().equals("\nDecoding of just encoded object in the same application is not supported\n")));
+			TestUtilities.checkResult("FieldEntry.toString() != toString()", !(fe1.toString().equals("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n")));
 			
 			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.ERROR", fe1.loadType() == DataTypes.ERROR );
 			TestUtilities.checkResult("FieldEntry.ErrorCode() == FieldIdNotFound" , fe1.error().errorCode() == OmmError.ErrorCode.FIELD_ID_NOT_FOUND);
@@ -793,6 +831,11 @@ public class FieldListTests extends TestCase
 			xml.string("OPQRST");
 			flEnc.add(EmaFactory.createFieldEntry().xml( -1 , xml));
 
+			//35th entry
+			OmmJson json = EmaFactory.createOmmJson();
+			json.string("{\"Key\" : \"Value\"}");
+			flEnc.add(EmaFactory.createFieldEntry().json( -23 , json));
+
 			//Decoding
 			FieldList flDec = JUnitTestConnect.createFieldList();
 			JUnitTestConnect.setRsslData(flDec, flEnc, Codec.majorVersion(), Codec.minorVersion(), dictionary, null);
@@ -864,8 +907,8 @@ public class FieldListTests extends TestCase
 			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.DATE", fe5.loadType() == DataTypes.DATE );
 			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.DATE", fe5.load().dataType()== DataTypes.DATE );
 			TestUtilities.checkResult("FieldEntry.code() ==Data.DataCode.NO_CODE", fe5.code() ==Data.DataCode.NO_CODE);
-					TestUtilities.checkResult("FieldEntry.date().day()", fe5.date().day() == 7 );
-		TestUtilities.checkResult("FieldEntry.date().month()()", fe5.date().month()== 11 );
+			TestUtilities.checkResult("FieldEntry.date().day()", fe5.date().day() == 7 );
+			TestUtilities.checkResult("FieldEntry.date().month()()", fe5.date().month()== 11 );
 			TestUtilities.checkResult("FieldEntry.date().year()", fe5.date().year() == 1999 );
 
 			TestUtilities.checkResult("FieldList with all data types - 9th entry", iter.hasNext() );
@@ -1108,7 +1151,16 @@ public class FieldListTests extends TestCase
 			TestUtilities.checkResult("FieldEntry.code() ==Data.DataCode.NO_CODE", fe19.code() ==Data.DataCode.NO_CODE);
 			OmmXml xml2 = fe19.xml();
 			TestUtilities.checkResult( xml2.string().equals("OPQRST"), "FieldEntry.xml().string()" );
-				
+
+			TestUtilities.checkResult("FieldList with all data types - 35th entry", iter.hasNext() );
+			FieldEntry fe20 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()", fe20.fieldId() == -23);
+			TestUtilities.checkResult("FieldEntry.name()", fe20.name().equals("JSON"));
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.JSON", fe20.loadType() == DataTypes.JSON);
+			TestUtilities.checkResult("FieldEntry.code() == Data.DataCode.NO_CODE", fe20.code() == Data.DataCode.NO_CODE);
+			OmmJson json2 = fe20.json();
+			TestUtilities.checkResult( json2.string().equals("{\"Key\" : \"Value\"}"), "FieldEntry.json().string()" );
+
 			TestUtilities.checkResult("FieldList after clear() - final hasNext()",  !(iter.hasNext()) );
 
 			TestUtilities.checkResult("FieldList with all data types - exception not expected" , true );
@@ -1302,7 +1354,7 @@ public class FieldListTests extends TestCase
 				.createDataDictionary();
 		TestUtilities.eta_encodeDictionaryMsg(dictionary);
 		
-		FieldList flEnc= EmaFactory.createFieldList();;
+		FieldList flEnc= EmaFactory.createFieldList();
 		flEnc.info( dictionary.infoDictionaryId(), 65 );
 
 		try { 
@@ -1455,6 +1507,138 @@ public class FieldListTests extends TestCase
 
 
 			TestUtilities.checkResult("FieldList with primitives and ElementList - tenth hasNext()", !iter.hasNext());
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - exception not expected", true);
+			
+			dictionary = null;
+
+		} catch ( OmmException excp  ) {
+			TestUtilities.checkResult( "FieldList with primitives and ElementList - exception not expected" , false);
+			System.out.println(excp);
+		}
+
+	}
+	
+	public void testFieldList_EncodeEMA_DecodeEMA_Efficient_EncodeDecodeAll()
+	{
+		
+		TestUtilities.printTestHead("testFieldList_EncodeEMA_DecodeEMA_Efficient_DecodeAll", "Encode FieldList with EMA and Decode FieldList with EMA using Efficient methods");
+
+		// load dictionary
+		com.refinitiv.eta.codec.DataDictionary dictionary = com.refinitiv.eta.codec.CodecFactory
+				.createDataDictionary();
+		TestUtilities.eta_encodeDictionaryMsg(dictionary);
+		
+		FieldList flEnc= EmaFactory.createFieldList();
+		flEnc.info( dictionary.infoDictionaryId(), 65 );
+
+		try { 
+			//EMA Encoding
+			// encoding order:  ERROR, UINT, REAL, INT, DATE, TIME, DATETIME, ElementList, UINT
+
+			//first entry (fid not found case)
+			flEnc.add(EmaFactory.createFieldEntry().uintValue( -100, 64));
+
+			//second entry
+			flEnc.add(EmaFactory.createFieldEntry().uintValue( 1, 64));
+
+			//third entry
+			flEnc.add(EmaFactory.createFieldEntry().real( 6, 11, OmmReal.MagnitudeType.EXPONENT_NEG_2));
+
+			//fourth entry
+			flEnc.add(EmaFactory.createFieldEntry().intValue( -2, 32));
+
+			//fifth entry
+			flEnc.add(EmaFactory.createFieldEntry().date( 16, 1999, 11, 7));
+
+			//sixth entry
+			flEnc.add(EmaFactory.createFieldEntry().time( 18, 02, 03, 04, 005));
+
+			//seventh entry
+			flEnc.add(EmaFactory.createFieldEntry().dateTime( -3, 1999, 11, 7, 01, 02, 03, 000));
+
+			//Now do EMA decoding of FieldList
+			FieldList flDec = JUnitTestConnect.createFieldList();
+			JUnitTestConnect.setRsslData(flDec, flEnc, Codec.majorVersion(), Codec.minorVersion(), dictionary, null);
+
+			System.out.println(flDec);
+
+			TestUtilities.checkResult("FieldList with primitives and FieldList - hasInfo()" , flDec.hasInfo() );
+			TestUtilities.checkResult("FieldList with primitives and FieldList - infoDictionaryId()",  flDec.infoDictionaryId() == dictionary.infoDictionaryId() );
+			TestUtilities.checkResult("FieldList with primitives and FieldList - infoFieldListNum()" ,  flDec.infoFieldListNum() == 65);
+
+			Iterator<FieldEntry> iter = flDec.iteratorByRef();
+			
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe1 = iter.next();
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.ERROR", fe1.loadType() == DataTypes.ERROR );
+			TestUtilities.checkResult("FieldEntry.ErrorCode() == FieldIdNotFound" , fe1.error().errorCode() == OmmError.ErrorCode.FIELD_ID_NOT_FOUND );
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe2 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()",  fe2.fieldId() == 1 );
+			TestUtilities.checkResult("FieldEntry.name()", fe2.name().equals( "PROD_PERM") );
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.UINT", fe2.loadType() == DataTypes.UINT);
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.UINT", fe2.load().dataType()== DataTypes.UINT );
+			TestUtilities.checkResult("FieldEntry.uintValue()", fe2.uintValue() == 64 );
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe3 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()",  fe3.fieldId() == 6 );
+			TestUtilities.checkResult( fe3.name().equals( "TRDPRC_1"));
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.REAL",  fe3.loadType() == DataTypes.REAL );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.REAL", fe3.load().dataType()== DataTypes.REAL );
+			TestUtilities.checkResult("FieldEntry.real().mantissa()", fe3.real().mantissa() == 11 );
+			TestUtilities.checkResult("FieldEntry.real().magnitudeType()", fe3.real().magnitudeType() == 12 );
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe4 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()", fe4.fieldId() == -2 );
+			TestUtilities.checkResult( fe4.name().equals( "INTEGER"));
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.INT", fe4.loadType() == DataTypes.INT );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.INT", fe4.load().dataType()== DataTypes.INT );
+			TestUtilities.checkResult("FieldEntry.code() ==Data.DataCode.NO_CODE", fe4.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("FieldEntry.intValue()" ,  fe4.intValue() == 32);
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe5 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()", fe5.fieldId() == 16 );
+			TestUtilities.checkResult( fe5.name().equals( "TRADE_DATE"));
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.DATE", fe5.loadType() == DataTypes.DATE );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.DATE", fe5.load().dataType()== DataTypes.DATE );
+			TestUtilities.checkResult("FieldEntry.code() ==Data.DataCode.NO_CODE", fe5.code() ==Data.DataCode.NO_CODE);
+					TestUtilities.checkResult("FieldEntry.date().day()", fe5.date().day() == 7 );
+		TestUtilities.checkResult("FieldEntry.date().month()()", fe5.date().month()== 11 );
+			TestUtilities.checkResult("FieldEntry.date().year()", fe5.date().year() == 1999 );
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe6 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()",  fe6.fieldId() == 18 );
+			TestUtilities.checkResult( fe6.name().equals( "TRDTIM_1"));
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.TIME", fe6.loadType() == DataTypes.TIME );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.TIME", fe6.load().dataType()== DataTypes.TIME );
+			TestUtilities.checkResult("FieldEntry.code() ==Data.DataCode.NO_CODE", fe6.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("FieldEntry.time().hour()", fe6.time().hour() == 02 );
+			TestUtilities.checkResult("FieldEntry.time().minute()", fe6.time().minute() == 03 );
+			TestUtilities.checkResult("FieldEntry.time().second()", fe6.time().second() == 04 );
+			TestUtilities.checkResult("FieldEntry.time().millisecond()", fe6.time().millisecond() == 005 );
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - first entry", iter.hasNext());
+			FieldEntry fe7 = iter.next();
+			TestUtilities.checkResult("FieldEntry.fieldId()",  fe7.fieldId() == -3 );
+			TestUtilities.checkResult( fe7.name().equals( "TRADE_DATE"));
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.DATETIME", fe7.loadType() == DataTypes.DATETIME );
+			TestUtilities.checkResult("ElementEntry.load().dataType()== DataTypes.DATETIME", fe7.load().dataType()== DataTypes.DATETIME );
+			TestUtilities.checkResult("FieldEntry.code() ==Data.DataCode.NO_CODE", fe7.code() ==Data.DataCode.NO_CODE);
+			TestUtilities.checkResult("FieldEntry.dateTime().day()", fe7.dateTime().day() == 7 );
+			TestUtilities.checkResult("FieldEntry.dateTime().month()()",  fe7.dateTime().month()== 11 );
+			TestUtilities.checkResult("FieldEntry.dateTime().year()", fe7.dateTime().year() == 1999 );
+			TestUtilities.checkResult("FieldEntry.dateTime().hour()", fe7.dateTime().hour() == 01 );
+			TestUtilities.checkResult("FieldEntry.dateTime().minute()", fe7.dateTime().minute() == 02 );
+			TestUtilities.checkResult("FieldEntry.dateTime().second()", fe7.dateTime().second() == 03 );
+			TestUtilities.checkResult("FieldEntry.dateTime().millisecond()", fe7.dateTime().millisecond() == 000 );
+
+			TestUtilities.checkResult("FieldList with primitives and ElementList - eigth hasNext()", !iter.hasNext());
 
 			TestUtilities.checkResult("FieldList with primitives and ElementList - exception not expected", true);
 			
@@ -1780,15 +1964,39 @@ public void testFieldList_DecodeErrorFieldList()
 		{
 			TestUtilities.checkResult("FieldList.hasNext() sixth", iter.hasNext() );
 
-			FieldEntry fe4 = iter.next();
+			FieldEntry fe6 = iter.next();
 
-			TestUtilities.checkResult("FieldEntry.fieldId() == 6", fe4.fieldId() == 6 );
+			TestUtilities.checkResult("FieldEntry.fieldId() == 6", fe6.fieldId() == 6 );
 
-			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.REAL",  fe4.loadType() == DataTypes.REAL );
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.REAL",  fe6.loadType() == DataTypes.REAL );
 
-			TestUtilities.checkResult("FieldEntry.real()" ,  fe4.real().magnitudeType() ==  12 && fe4.real().mantissa() == 11);
+			TestUtilities.checkResult("FieldEntry.real()" ,  fe6.real().magnitudeType() ==  12 && fe6.real().mantissa() == 11);
 			
 			System.out.println();
+		}
+		// seventh entry blank array
+		{
+			TestUtilities.checkResult("FieldList.hasNext() sixth", iter.hasNext() );
+
+			FieldEntry fe7 = iter.next();
+
+			TestUtilities.checkResult("FieldEntry.fieldId() == 30013", fe7.fieldId() == 30013 );
+
+			TestUtilities.checkResult("FieldEntry.loadType() == DataTypes.ARRAY",  fe7.loadType() == DataTypes.ARRAY );
+
+			TestUtilities.checkResult("FieldEntry.code() == Data.DataCode.BLANK",  fe7.code() == Data.DataCode.BLANK );
+
+			try {
+				fe7.array();
+				TestUtilities.checkResult("Blank array value - Exception expected", false);
+			}
+			catch (OmmException excp)
+			{
+				TestUtilities.checkResult("excp.getMessage() == \"Attempt to array() while entry data is blank.\"", excp.getMessage() == "Attempt to array() while entry data is blank.");
+			}
+
+			System.out.println();
+
 		}
 
 		TestUtilities.checkResult("FieldList.hasNext() seventh", !iter.hasNext() );

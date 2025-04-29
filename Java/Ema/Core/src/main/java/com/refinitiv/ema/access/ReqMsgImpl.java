@@ -1,14 +1,15 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
 
 import com.refinitiv.ema.access.DataType.DataTypes;
 import com.refinitiv.ema.access.OmmError.ErrorCode;
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.eta.codec.*;
 
 import java.nio.ByteBuffer;
@@ -37,6 +38,8 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 	private com.refinitiv.eta.codec.ArrayEntry _rsslArrayEntry;
 	private com.refinitiv.eta.codec.Buffer _rsslItemBuffer;
     private List<String> _batchItemList;
+    private String _serviceListName;
+    
 	
     ReqMsgImpl()
 	{
@@ -70,7 +73,7 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 			if (other.hasFilter())
 				filter(other.filter());
 
-			if(attrib().dataType() != DataTypes.NO_DATA) {
+			if(other.attrib().dataType() != DataTypes.NO_DATA) {
 				_rsslMsg.msgKey().encodedAttrib(CodecFactory.createBuffer());
 				attrib(other.attrib().data());
 				decodeAttribPayload();
@@ -97,6 +100,7 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 	{
 		msgClear();
 		initialEncoding();
+		_serviceListName = null;
 		return this;
 	}
 
@@ -139,11 +143,34 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 	{
 		return toString(0);
 	}
-	
+
+	@Override
+	public String toString (DataDictionary dictionary)
+	{
+		if (!dictionary.isFieldDictionaryLoaded() || !dictionary.isEnumTypeDefLoaded())
+			return "\nDictionary is not loaded.\n";
+
+		if (_objManager == null)
+		{
+			_objManager = new EmaObjectManager();
+			_objManager.initialize(((DataImpl)this).dataType());
+		}
+
+		ReqMsg reqMsg = new ReqMsgImpl(_objManager);
+
+		((MsgImpl) reqMsg).decode(((DataImpl)this).encodedData(), Codec.majorVersion(), Codec.minorVersion(), ((DataDictionaryImpl)dictionary).rsslDataDictionary(), null);
+		if (_errorCode != ErrorCode.NO_ERROR)
+		{
+			return "\nFailed to decode ReqMsg with error: " + ((MsgImpl) reqMsg).errorString() + "\n";
+		}
+
+		return reqMsg.toString();
+	}
+
 	String toString(int indent)
 	{
 		if ( _objManager == null )
-			return "\nDecoding of just encoded object in the same application is not supported\n";
+			return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
 		
 		_toString.setLength(0);
 		Utilities.addIndent(_toString, indent++).append("ReqMsg");
@@ -179,6 +206,11 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 			if (hasServiceName())
 				Utilities.addIndent(_toString, indent, true).append("serviceName=\"")
 															 .append(serviceName())
+															 .append("\"");
+			
+			if (hasServiceListName())
+				Utilities.addIndent(_toString, indent, true).append("hasServiceListName=\"")
+															 .append(serviceListName())
 															 .append("\"");
 
 			if (hasFilter())
@@ -265,6 +297,12 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 	public boolean hasBatch()
 	{
 		return ((com.refinitiv.eta.codec.RequestMsg)_rsslMsg).checkHasBatch();
+	}
+	
+	@Override
+	public boolean hasServiceListName() {
+
+		return _serviceListName != null ? true : false;
 	}
 
 	@Override
@@ -485,6 +523,27 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 	public ReqMsg serviceName(String serviceName)
 	{
 		msgServiceName(serviceName);
+		return this;
+	}
+	
+	@Override
+	public ReqMsg serviceListName(String serviceListName)
+	{
+		if (serviceListName == null)
+			throw ommIUExcept().message("Passed in serviceListName is null.", OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		
+		if(_serviceNameSet)
+		{
+			throw ommIUExcept().message("Service name is already set for this ReqMsg.", OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		}
+		
+		if(_rsslMsg.msgKey().checkHasServiceId())
+		{
+			throw ommIUExcept().message("Service Id is already set for this ReqMsg.", OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		}
+		
+		_serviceListName = serviceListName;
+			
 		return this;
 	}
 
@@ -894,5 +953,11 @@ class ReqMsgImpl extends MsgImpl implements ReqMsg
 	List<String> batchItemList()
 	{
 		return _batchItemList;
+	}
+
+	@Override
+	public String serviceListName() 
+	{
+		return _serviceListName;
 	}
 }

@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2020 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2020, 2025 LSEG. All rights reserved.     
 */
 
 #ifndef _RTR_RSSL_EVENTS_H
@@ -35,7 +35,10 @@ typedef enum
 	RSSL_RC_CET_FD_CHANGE		= 4,	/*!< The file descriptor representing this channel has changed. The new and old Socket ID can be found on the RsslReactorChannel. */
 	RSSL_RC_CET_WARNING			= 5,		/*!< An event has occurred that did not result in channel failure, but may require attention by the application. */
 	RSSL_RC_CET_CHANNEL_DOWN_RECONNECTING = 6,
-	RSSL_RC_CET_CHANNEL_OPENED	= 7		/*!< Channel was opened by the application and can be used (occurs when watchlist is enabled and only appears in the channelOpenCallback). */
+	RSSL_RC_CET_CHANNEL_OPENED	= 7,		/*!< Channel was opened by the application and can be used (occurs when watchlist is enabled and only appears in the channelOpenCallback). */
+	RSSL_RC_CET_PREFERRED_HOST_COMPLETE = 8,	/*!< The preferred host operation is complete and the connections are up. Or Channel is already connected to the preferred host/WSB group. */
+	RSSL_RC_CET_PREFERRED_HOST_STARTING_FALLBACK = 9	/*!< The preferred host operation has been started on this channel. */
+
 } RsslReactorChannelEventType;
 
 /**
@@ -221,7 +224,7 @@ typedef struct
 	RsslBuffer      *locationList;   /*!< A list of locations. The list indicates the location of the service. */
 	RsslUInt32      locationCount;   /*!< The number of locations in locationList. */
 	RsslBuffer      port;            /*!< A port number used to establish connection. */
-	RsslBuffer      provider;        /*!< A public Refinitiv Real-Time - Optimized provider. */
+	RsslBuffer      provider;        /*!< A public Real-Time - Optimized provider. */
 	RsslBuffer      transport;       /*!< A transport type used to access service. */
 } RsslReactorServiceEndpointInfo;
 

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -364,7 +364,7 @@ namespace LSEG.Eta.Codec
 		[MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
 		public bool CheckHasSetId()
 		{
-			return (Flags & FieldListFlags.HAS_SET_ID) > 0 ? true : false;
+			return (Flags & FieldListFlags.HAS_SET_ID) > 0;
 		}
 
 		/// <summary>
@@ -378,7 +378,7 @@ namespace LSEG.Eta.Codec
 		[MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
 		public bool CheckHasSetData()
 		{
-			return (Flags & FieldListFlags.HAS_SET_DATA) > 0 ? true : false;
+			return (Flags & FieldListFlags.HAS_SET_DATA) > 0;
 		}
 		/// <summary>
 		/// Applies the Information presence flag.<br />

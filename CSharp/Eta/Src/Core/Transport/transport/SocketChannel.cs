@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -34,6 +34,7 @@ namespace LSEG.Eta.Transports
     /// 
     internal sealed class SocketChannel : IDisposable, ISocketChannel
     {
+        private Error m_error = new Error();
         /// <summary>
         /// Controls appearence of deep-debugging displays. Manually set during development
         /// by developer.
@@ -446,34 +447,28 @@ namespace LSEG.Eta.Transports
 
                 if (socketError != SocketError.Success)
                 {
-                    error = new Error
-                    {
-                        ErrorId = (socketError == SocketError.WouldBlock||
-                        socketError == SocketError.TryAgain) ?
-                   TransportReturnCode.WRITE_FLUSH_FAILED : TransportReturnCode.FAILURE,
-                        SysError = (int)socketError
-                    };
+                    m_error.ErrorId = (socketError == SocketError.WouldBlock ||
+                        socketError == SocketError.TryAgain) ? TransportReturnCode.WRITE_FLUSH_FAILED : TransportReturnCode.FAILURE;
+                    m_error.SysError = (int)socketError;
+
+                    error = m_error;
                 }
             }
             catch (SocketException sockExp)
             {
-                error = new Error
-                {
-                    ErrorId = (sockExp.SocketErrorCode == SocketError.WouldBlock ||
-                    sockExp.SocketErrorCode == SocketError.TryAgain) ?
-                    TransportReturnCode.WRITE_FLUSH_FAILED : TransportReturnCode.FAILURE,
-                    SysError = sockExp.ErrorCode,
-                    Text = sockExp.Message
-                };
+                m_error.ErrorId = (sockExp.SocketErrorCode == SocketError.WouldBlock ||
+                   sockExp.SocketErrorCode == SocketError.TryAgain) ?
+                   TransportReturnCode.WRITE_FLUSH_FAILED : TransportReturnCode.FAILURE;
+                m_error.Text = sockExp.Message;
+
+                error = m_error;
             }
             catch (Exception exp)
             {
-                error = new Error
-                {
-                    ErrorId = TransportReturnCode.FAILURE,
-                    SysError = 0,
-                    Text = exp.Message
-                };
+                m_error.ErrorId = TransportReturnCode.FAILURE;
+                m_error.Text = exp.Message;
+
+                error = m_error;
             }
 
             return byteWritten;
@@ -501,14 +496,14 @@ namespace LSEG.Eta.Transports
                     resultObject.Buffer.Capacity - resultObject.Buffer.WritePosition);
 
                 if (retResult > 0)
-		{
+        {
                     resultObject.Buffer.WritePosition += retResult;
-		}
-		else
-		{
+        }
+        else
+        {
                     retResult = -1; // End of stream
-		}
- 		    
+        }
+
             }
             catch (SocketException socketException)
             {
@@ -577,13 +572,13 @@ namespace LSEG.Eta.Transports
                     dstBuffer.Capacity - dstBuffer.WritePosition);
 
                 if (retResult > 0)
-		{
+        {
                     dstBuffer.WritePosition += retResult;
-		}
-		else
-		{
+        }
+        else
+        {
                     retResult = -1; // End of stream
-		}
+        }
             }
             catch (SocketException socketException)
             {
@@ -715,20 +710,6 @@ namespace LSEG.Eta.Transports
 
         #endregion
 
-        public static bool ValidateServerCertificate(
-             object sender,
-#nullable enable
-             X509Certificate? certificate,
-             X509Chain? chain,
-#nullable disable
-             SslPolicyErrors sslPolicyErrors)
-        {
-            if (sslPolicyErrors == SslPolicyErrors.None)
-                return true;
-
-            return false;
-        }
-
         public void SetReadWriteHandlers(bool isSslStream)
         {
             if(isSslStream)
@@ -790,9 +771,13 @@ namespace LSEG.Eta.Transports
                             CipherSuitesPolicy cipherSuitesPolicy = null;
 
                             if (m_CipherSuites != null &&
-                                m_CipherSuites.Count() > 0)
+                                m_CipherSuites.Any())
                             {
+                                // Platform incompatibility causes CipherSuitesPolicy to throw an
+                                // exception which is handled in the "catch" block below
+#pragma warning disable CA1416
                                 cipherSuitesPolicy = new CipherSuitesPolicy(m_CipherSuites);
+#pragma warning restore CA1416
                             }
 
                             SslServerAuthenticationOptions sslServerAuthenticationOptions = new SslServerAuthenticationOptions
@@ -810,7 +795,106 @@ namespace LSEG.Eta.Transports
 
                             var authenTask = m_sslStream.AuthenticateAsServerAsync(sslServerAuthenticationOptions);
 
+                            try
+                            {
+                                m_socket.Blocking = blockingMode;
+                                authenTask.Wait(cs.Token);
+
+                                if (m_sslStream.IsAuthenticated && m_sslStream.IsEncrypted)
+                                {
+                                    SetReadWriteHandlers(true);
+                                    m_CompletedHandshake = true;
+                                }
+                                else
+                                {
+                                    AuthenFailureMessage = ExtractMessageFromException(authenTask.Exception);
+                                    IsAuthenFailure = true;
+                                    m_socket.Disconnect(false);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                AuthenFailureMessage = ExtractMessageFromException(ex);
+                                IsAuthenFailure = true;
+
+                                try
+                                {
+                                    m_socket.Disconnect(false);
+                                } catch(Exception) {}
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (m_sslStream != null)
+                        {
+                            m_sslStream.Close();
+                            m_sslStream = null;
+                        }
+
+                        if (m_tcpClient != null)
+                        {
+                            m_tcpClient.Close();
+                            m_tcpClient = null;
+                        }
+
+                        throw new TransportException($"Failed to create a client encrypted channel. Reason:{ExtractMessageFromException(ex)}");
+                    }
+                }
+                else
+                {
+                    RemoteCertificateValidation certificateValidation = null; ;
+
+                    try
+                    {
+
+                        if (m_sslStream is null)
+                        {
+                            certificateValidation = new();
+                            RemoteCertificateValidationCallback validationCallback = certificateValidation.ValidateServerCertificate;
+
+                            bool blockingMode = m_socket.Blocking;
+                            m_socket.Blocking = true;
+                            m_tcpClient = new TcpClient
+                            {
+                                Client = m_socket
+                            };
+
+                            // Create an SSL stream that will close the client's stream.
+                            m_sslStream = new SslStream(
+                                m_tcpClient.GetStream(),
+                                true,
+                                validationCallback,
+                                null);
+
+                            CipherSuitesPolicy cipherSuitesPolicy = null;
+
+                            if (m_CipherSuites != null &&
+                                 m_CipherSuites.Any())
+                            {
+                                // Platform incompatibility causes CipherSuitesPolicy to throw an
+                                // exception which is handled in the "catch" block below
+#pragma warning disable CA1416
+                                cipherSuitesPolicy = new CipherSuitesPolicy(m_CipherSuites);
+#pragma warning restore CA1416
+                            }
+
+                            SslClientAuthenticationOptions options = new SslClientAuthenticationOptions
+                            {
+                                TargetHost = m_EncryptedRemoteAddress,
+                                CertificateRevocationCheckMode = X509RevocationMode.NoCheck, // Server's certificate may not support this option causing authentication failure.
+                                AllowRenegotiation = true,
+                                EncryptionPolicy = EncryptionPolicy.RequireEncryption,
+                                EnabledSslProtocols = ProtocolFlagsToSslProtocols(m_ProtocolFlags),
+                                CipherSuitesPolicy = cipherSuitesPolicy
+                            };
+
+                            CancellationTokenSource cs = new (m_AuthTimeout);
+
+                            var authenTask = m_sslStream.AuthenticateAsClientAsync(options);
+
                             Task.Run(() => {
+
                                 try
                                 {
                                     authenTask.Wait(cs.Token);
@@ -819,24 +903,17 @@ namespace LSEG.Eta.Transports
                                     {
                                         SetReadWriteHandlers(true);
                                         m_CompletedHandshake = true;
-                                        return;
                                     }
                                     else
                                     {
-                                        AuthenFailureMessage = ExtractExceptionMessageFromTask(authenTask);
+                                        AuthenFailureMessage = ExtractMessageFromException(authenTask.Exception);
                                         IsAuthenFailure = true;
-                                        m_socket.Disconnect(false);
                                     }
                                 }
                                 catch (Exception ex)
                                 {
-                                    AuthenFailureMessage = ex.Message;
+                                    AuthenFailureMessage = ExtractMessageFromException(ex);
                                     IsAuthenFailure = true;
-
-                                    try
-                                    {
-                                        m_socket.Disconnect(false);
-                                    } catch(Exception) {}
                                 }
                             });
 
@@ -857,83 +934,15 @@ namespace LSEG.Eta.Transports
                             m_tcpClient = null;
                         }
 
-                        throw new TransportException($"Failed to create a client encrypted channel. Reason:{ex.Message}");
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        if (m_sslStream is null)
+                        if (certificateValidation != null && certificateValidation.SslPolicyErrors != SslPolicyErrors.None)
                         {
-                            bool blockingMode = m_socket.Blocking;
-                            m_socket.Blocking = true;
-                            m_tcpClient = new TcpClient
-                            {
-                                Client = m_socket
-                            };
-
-                            // Create an SSL stream that will close the client's stream.
-                            m_sslStream = new SslStream(
-                           m_tcpClient.GetStream(),
-                           true,
-                           new RemoteCertificateValidationCallback(ValidateServerCertificate),
-                           null
-                           );
-
-                            CipherSuitesPolicy cipherSuitesPolicy = null;
-
-                            if (m_CipherSuites != null &&
-                                 m_CipherSuites.Count() > 0)
-                            {
-                                cipherSuitesPolicy = new CipherSuitesPolicy(m_CipherSuites);
-                            }
-
-                            SslClientAuthenticationOptions options = new SslClientAuthenticationOptions
-                            {
-                                TargetHost = m_EncryptedRemoteAddress,
-                                CertificateRevocationCheckMode = X509RevocationMode.NoCheck, // Server's certificate may not support this option causing authentication failure.
-                                AllowRenegotiation = true,
-                                EncryptionPolicy = EncryptionPolicy.RequireEncryption,
-                                EnabledSslProtocols = ProtocolFlagsToSslProtocols(m_ProtocolFlags),
-                                CipherSuitesPolicy = cipherSuitesPolicy
-                            };
-
-                            CancellationTokenSource cs = new (m_AuthTimeout);
-
-                            var authenTask = m_sslStream.AuthenticateAsClientAsync(options);
-
-                            authenTask.Wait(cs.Token);
-
-                            if (m_sslStream.IsAuthenticated && m_sslStream.IsEncrypted)
-                            {
-                                SetReadWriteHandlers(true);
-                                m_CompletedHandshake = true;
-                            }
-                            else
-                            {
-                                AuthenFailureMessage = ExtractExceptionMessageFromTask(authenTask);
-                                IsAuthenFailure = true;
-                            }
-
-                            m_socket.Blocking = blockingMode;
+                            throw new TransportException($"Failed to create an encrypted connection to the remote endpoint." +
+                                $"Reason:{ExtractMessageFromException(ex)} {certificateValidation.SslPolicyErrors}.");
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        if (m_sslStream != null)
+                        else
                         {
-                            m_sslStream.Close();
-                            m_sslStream = null;
+                            throw new TransportException($"Failed to create an encrypted connection to the remote endpoint. Reason:{ExtractMessageFromException(ex)}");
                         }
-
-                        if (m_tcpClient != null)
-                        {
-                            m_tcpClient.Close();
-                            m_tcpClient = null;
-                        }
-
-                        throw new TransportException($"Failed to create an encrypted connection to the remote endpoint. Reason:{ex.Message}");
                     }
                 }
 
@@ -969,6 +978,11 @@ namespace LSEG.Eta.Transports
                 sslProtocols |= SslProtocols.Tls12;
             }
 
+            if ((protocolFlags & EncryptionProtocolFlags.ENC_TLSV1_3) != 0)
+            {
+                sslProtocols |= SslProtocols.Tls13;
+            }
+
             return sslProtocols;
         }
 
@@ -977,24 +991,53 @@ namespace LSEG.Eta.Transports
             m_CompleteProxy = true;
         }
 
-        static string ExtractExceptionMessageFromTask(Task task)
+        static string ExtractMessageFromException(Exception exception)
         {
             string exceptionMessage = string.Empty;
-            if(task.Exception is not null)
+            if(exception is not null)
             {
-                if(task.Exception.InnerException is not null)
+                if(exception.InnerException is not null)
                 {
-                    exceptionMessage = task.Exception.InnerException.Message;
+                    if (exception.InnerException.InnerException is not null)
+                    {
+                        exceptionMessage = exception.InnerException.InnerException.Message;
+                    }
+                    else
+                    {
+                        exceptionMessage = exception.InnerException.Message;
+                    }
                 }
                 else
                 {
-                    exceptionMessage = task.Exception.Message;
+                    exceptionMessage = exception.Message;
                 }
             }
 
             return exceptionMessage;
         }
     }
+
+    internal class RemoteCertificateValidation
+    {
+        public SslPolicyErrors SslPolicyErrors { get; private set; }
+
+        public bool ValidateServerCertificate(
+             object sender,
+#nullable enable
+             X509Certificate? certificate,
+             X509Chain? chain,
+#nullable disable
+             SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            SslPolicyErrors = sslPolicyErrors;
+
+            return false;
+        }
+    }
+
 }
 
 

@@ -1,16 +1,16 @@
-# Enterprise Transport API (ETA) Java Edition
+# LSEG Enterprise Transport API (ETA) Java Edition
 
-This is the **Enterprise Transport API (ETA)**, the high performance, low latency, foundation of the Refinitiv Real-Time SDK. This product allows applications to achieve the highest throughput, lowest latency, low memory utilization, and low CPU utilization when publishing or consuming content. All OMM content and domain models are available in Enterprise Transport API.  
+This is the **Enterprise Transport API (ETA)**, the high performance, low latency, foundation of the Real-Time SDK. This product allows applications to achieve the highest throughput, lowest latency, low memory utilization, and low CPU utilization when publishing or consuming content. All OMM content and domain models are available in Enterprise Transport API.  
 
-The Transport API is the re-branding of the Ultra Performance API (UPA), which is used by Refinitiv Real-Time Distribution Systems and Refinitiv Real-Time for the optimal distribution of OMM/RWF data. All interfaces in ETA are the same as their corresponding interfaces in UPA (same name, same parameter sets) and the transport and codec are fully wire compatible. Starting with verison RTSDK 2.0, there are changes to namespace and jar file names: please see [REBRAND.md](https://github.com/Refinitiv/Real-Time-SDK/blob/master/REBRAND.md) for details on how to adapt a UPA application or a ETA application written to prior versions of the library to see what must be changed. 
+The Enterprise Transport API is the re-branding of the Ultra Performance API (UPA). All interfaces in ETA are the same as their corresponding interfaces in UPA Java (same name, same parameter sets) and the transport and codec are fully wire compatible. Starting with verison RTSDK 2.0, there are changes to namespace and jar file names: please see [REBRAND.md](https://github.com/Refinitiv/Real-Time-SDK/blob/master/REBRAND.md) for details on how to adapt a UPA application or a ETA application written to prior versions of the library to see what must be changed. 
 
-ETA Java contains open source components. The transport, decoder, encoder, and cache components are open source. 
+ETA Java contains open source components. The transport, decoder, encoder, value add reactor, watchlist and cache components are open source. 
 
-ETA provides the necessary libraries and information to allow for OMM/RWF encoding and decoding along with all of the necessary Refinitiv transport implementations to connect to Refinitiv Real-Time Distribution System, Refinitiv Real-Time, and Refinitiv Data Feed Direct products.
+ETA provides the necessary libraries and information to allow for OMM/RWF encoding and decoding along with all of the necessary LSEG transport implementations to connect to LSEG Real-Time Distribution System, LSEG Real-Time, and Data Feed Direct products.
 
 This repository depends on a binary pack consisting of closed source dependent libraries. The BinaryPack is available in the [release section on GitHub](https://github.com/Refinitiv/Real-Time-SDK/releases) and is auto pulled by RTSDK Gradle build.
 
-Copyright (C) 2019-2023 Refinitiv. All rights reserved.
+Copyright (C) 2019-2025 LSEG. All rights reserved.
 
 # ETA Java Documentation
 
@@ -36,15 +36,15 @@ In addtion, HTML documentation is available in Java/Eta/Docs. For addtional docu
 
 - Can consume and provide:
 
-   - Any and all OMM primitives supported on Refinitiv Real-Time Distribution System, Refinitiv Real-Time, and Refinitiv Data Feed Direct 
+   - Any and all OMM primitives supported on LSEG Real-Time Distribution System, LSEG Real-Time, and Data Feed Direct 
 
-   - All Domain Models, including those defined by Refinitiv as well as other user-defined models.
+   - All Domain Models, including those defined by LSEG as well as other user-defined models.
 
 - Consists of:
 
    - A transport-level API allowing for connectivity using TCP, HTTP, HTTPS, sockets, websockets, reliable and unreliable UDP multicast, and Shared Memory.
 
-   - OMM Encoder and Decoders, allowing full use of all OMM constructs and messages. Websocket transport also supports JSON data format which must adhere to Refinitiv [Websocket protocol specification](https://github.com/Refinitiv/websocket-api/blob/master/WebsocketAPI_ProtocolSpecification.pdf).
+   - OMM Encoder and Decoders, allowing full use of all OMM constructs and messages. Websocket transport also supports JSON data format which must adhere to LSEG [Websocket protocol specification](https://github.com/Refinitiv/websocket-api/blob/master/WebsocketAPI_ProtocolSpecification.pdf).
 
 - RMTES Support: Several classes and methods can be used to process RMTES content and convert to several Unicode formats for interpretation.
 
@@ -54,7 +54,7 @@ In addtion, HTML documentation is available in Java/Eta/Docs. For addtional docu
 
    - Reactor is a connection management and event processing component that can significantly reduce the amount of code an application must write to leverage OMM in their own applications and to connect to other OMM based devices.  The Reactor can be used to create or enhance Consumer, Interactive Provider, and Non-Interactive Provider start-up processing, including user log in, source directory establishment, and dictionary download.  The Reactor also allows for dispatching of events to user implemented callback functions.  In addition, it handles flushing of user written content and manages network pings on the user's behalf.  Value Added domain representations are coupled with the Reactor, allowing domain specific callbacks to be presented with their respective domain representation for easier, more logical access to content. Reactor also provides opportunity in-box support of RTT monitoring for consumer applications.
 
-   - The Administration Domain Model Representations are RDM specific amount of code an application needs to interact with OMM devices (i.e., Refinitiv Real-Time Distribution System), but also ensures that encoding/decoding for these domain models follow OMM specified formatting rules.  Applications can use this Value Added Component directly to help with encoding, decoding and representation of these domain models.  When using the ETA Reactor, this component is embedded to manage and present callbacks with a domain specific representation of content.
+   - The Administration Domain Model Representations are RDM specific amount of code an application needs to interact with OMM devices (i.e., LSEG Real-Time Distribution System), but also ensures that encoding/decoding for these domain models follow OMM specified formatting rules.  Applications can use this Value Added Component directly to help with encoding, decoding and representation of these domain models.  When using the ETA Reactor, this component is embedded to manage and present callbacks with a domain specific representation of content.
 
     - Auto-conversion of JSON to RWF or vice versa by Reactor for Websocket Transport: Reactor does automatic conversion of JSON data from a Websocket connection, to RWF, and presents RWF to application layer. Please view documentation section for further details. 
 
@@ -121,32 +121,34 @@ The distribution contains several JAR files and other non-Java libraries, intend
 
     Library Name                  Package Version   Description
     ------------                  ----------------  -----------
-    eta-3.7.0.0.jar               eta3.7.0.L1       The ETA - Java Edition library.  Includes
+    eta-3.8.3.0.jar               eta3.8.3.L1       The ETA - Java Edition library.  Includes
                                                     the ETA transport package and the RWF codec.
 
-    etaValueAdd-3.7.0.0.jar       eta3.7.0.L1       The Value Add library for ETA Java Edition.
+    etaValueAdd-3.8.3.0.jar       eta3.8.3.L1       The Value Add library for ETA Java Edition.
                                                     Includes the ETA Value Add Reactor and
                                                     Administration Domain Model Representations.
 
-    etaValueAddCache-3.7.0.0.jar  eta3.7.0.L1       The Value Add payload cache library for ETA
+    etaValueAddCache-3.8.3.0.jar  eta3.8.3.L1       The Value Add payload cache library for ETA
                                                     Java Edition.
 
-    etajConverter-3.7.0.0.jar     eta3.7.0.L1       The RWF/JSON Converter library.
+    etajConverter-3.8.3.0.jar     eta3.8.3.L1       The RWF/JSON Converter library.
 
-    jDacsEtalib.jar               dacs7.8           The ETA Java DACS library.
+    jDacsEtalib.jar               dacs7.12          The ETA Java DACS library.
 
-    ansipage-3.7.0.0.jar          eta3.7.0.L1       The ANSI decoders and encoders.
+    ansipage-3.8.3.0.jar          eta3.8.3.L1       The ANSI decoders and encoders.
                   
 
-    ETAC/ETA/RSSL JNI Libs        eta3.7.0.L1       The JNI libraries for Reliable Multicast
-                                                    Transport and Shared Memory Transport. These
-                                                    are native libraries for each supported
+    ETAC/ETA/RSSL JNI Libs        eta3.8.3.L1       The JNI libraries for Reliable Multicast
+                                                    Transport, Shared Memory Transport and 
+                                                    ValueAdd cache.  
+
+                                                    These are native libraries for each supported
                                                     platform. The DLL files must be included
                                                     in the "path" in order to use the Windows
                                                     platform. Shared object files must be present
                                                     in the LD_LIBRARY_PATH for the Linux platform.
 
-    Apache                        4.5.13            The Apache libraries in the ApacheClient
+    Apache                        4.5.14            The Apache libraries in the ApacheClient
                                                     directory. These are used for proxy
                                                     authentication.
 
@@ -160,9 +162,7 @@ The distribution contains several JAR files and other non-Java libraries, intend
 
 - ESDK-312 Watchlist fans out Dictionary state of Open/Suspect state instead of Closed/Recover
 
-- Users of encrypted tunneling connection type may encounter trust issues with DigiCert certificates. JRE8 update 91 and higher support DigiCert certificates. Users can upgrade to a higher JRE version if they encounter problems.
-
-- ETA can not download dictionary from a Refinitiv Real-Time Distribution System over a Websocket connection using the tr\_json2/rssl\_json protocol. This is a limitation of the simplied JSON protocol.
+- ETA can not download dictionary from a LSEG Real-Time Distribution System over a Websocket connection using the tr\_json2/rssl\_json protocol. This is a limitation of the simplied JSON protocol.
 
 - The RWF/JSON Converter library does not support groupID property of RWF message when using Websocket Transport with JSON data format.
 
@@ -179,26 +179,26 @@ The distribution contains several JAR files and other non-Java libraries, intend
 # Reference Information
 
     I-COS Questionnaire: 6212
-    Refinitiv Item Number: N/A
+    LSEG Item Number: N/A
     Product Name: Enterprise Transport API - Java Edition
-    Release Number: 3.7.0
+    Release Number: 3.8.3
     Load Number: 1
-    Load ID: etaj3.7.0.L1.all
-        Supersedes: etaj3.6.8.L1.all.rrg
+    Load ID: etaj3.8.3.L1.all
+        Supersedes: etaj3.8.2.L1.all.rrg
     Release Status: RRG
     Release Type: RRG
     US ECCN: EAR99
     EU ECCN: None
     Export Code: NL
-    Security Compliance: Refinitiv Security Compliant
-    Template Version Supported: v4.20.56_RealTimeDistributionSystem_23.21 for RWF and Marketfeed Record Templates
+    Security Compliance: LSEG Security Compliant
+    Template Version Supported: v4.20.66_RealTimeDistributionSystem_25.21 for RWF and Marketfeed Record Templates
 
 # Security
 
     The components in this package have been scanned using the below software and security scanning products:
 
-    Black Duck by Synopsis, 2022.10.1.1048, https://www.blackducksoftware.com/
-    SemGrep 1.2.1, https://semgrep.dev/
+    Black Duck by Synopsis, 2023.10.2, https://www.blackducksoftware.com/
+    SemGrep 1.99.0, https://semgrep.dev/
 
 # Notes:
 - This package contains APIs that are subject to proprietary and open source licenses. Please make sure to read the README.md files within each package for clarification.

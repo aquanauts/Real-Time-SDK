@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022 Refinitiv. All rights reserved.         	  --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -92,7 +92,7 @@ public class NIProviderThread extends ProviderThread {
     @Override
     protected boolean sendMsg(Msg msg, ItemInfo itemInfo) {
         try {
-            submitMsg(msg, itemInfo.itemHandle());
+            submitMsg(msg, itemInfo);
         } catch (OmmInvalidUsageException e) {
             if (e.errorCode() == OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT) {
                 return false;

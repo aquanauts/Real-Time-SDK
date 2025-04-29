@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -47,9 +47,9 @@ namespace LSEG.Eta.Transports
         /// <returns>The string value</returns>
         public override string ToString()
         {
-            return "Enterprise Transport API (ETA), C# Edition, LibraryVersionInfo" + "\n" +
-               "\tproductVersion: " + m_ProductVersion + "\n" +
-               "\tproductInternalVersion: " + m_ProductInternalVersion + "\n" +
+            return "Enterprise Transport API (ETA), C# Edition, LibraryVersionInfo" + NewLine +
+               "\tproductVersion: " + m_ProductVersion + NewLine +
+               "\tproductInternalVersion: " + m_ProductInternalVersion + NewLine +
                "\tproductDate: " + m_ProductDate;
         }
     }

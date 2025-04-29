@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -25,6 +25,7 @@ using System.Collections.Generic;
 using System.Net.Security;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace LSEG.Eta.Transports.Tests
 {
@@ -34,14 +35,19 @@ namespace LSEG.Eta.Transports.Tests
     /// Independent of each other, sequence isn't an issue.
     /// </summary>
     [Collection("Transport")]
-    public class TransportInitializationTests
+    public class TransportInitializationTests : IDisposable
     {
+        public TransportInitializationTests()
+            => Transport.Clear();
+
+        public void Dispose()
+            => Transport.Clear();
+
         [Fact]
         [Category("Unit")]
         [Category("Transport")]
         public void TransportInitializeNotInitialize()
         {
-            Transport.Clear();
             Assert.True(TransportReturnCode.INIT_NOT_INITIALIZED == Transport.Uninitialize());
         }
         [Fact]
@@ -49,7 +55,6 @@ namespace LSEG.Eta.Transports.Tests
         [Category("Transport")]
         public void TransportInitializedOK()
         {
-            Transport.Clear();
             InitArgs initArgs = new InitArgs { GlobalLocking = true };
             Assert.True(TransportReturnCode.SUCCESS == Transport.Initialize(initArgs, out Error error));
         }
@@ -58,8 +63,6 @@ namespace LSEG.Eta.Transports.Tests
         [Category("Transport")]
         public void TransportInitializeSubsequentInit()
         {
-            // transport still open
-            Transport.Clear();
             InitArgs initArgs = new InitArgs { GlobalLocking = true };
             Transport.Initialize(initArgs, out Error error);
             Transport.Initialize(initArgs, out error);
@@ -72,7 +75,6 @@ namespace LSEG.Eta.Transports.Tests
         [Category("Transport")]
         public void TransportUninitializeOK()
         {
-            Transport.Clear();
             InitArgs initArgs = new InitArgs { GlobalLocking = true };
             Transport.Initialize(initArgs, out Error error);
             Assert.True(TransportReturnCode.SUCCESS == Transport.Uninitialize());
@@ -83,7 +85,6 @@ namespace LSEG.Eta.Transports.Tests
         [Category("Transport")]
         public void TransportUninitializeMoreThanOne()
         {
-            Transport.Clear();
             InitArgs initArgs = new InitArgs { GlobalLocking = true };
             Transport.Initialize(initArgs, out Error error);
             Transport.Uninitialize();
@@ -121,10 +122,10 @@ namespace LSEG.Eta.Transports.Tests
                     productVersion = $"{versionNumbers[0]}.{versionNumbers[1]}.{versionNumbers[2]}";
                 }
 
-                string productInternalVersion = $"etacsharp{productVersion}.L1.all.rrg";
+                string productInternalVersionRegex = $@"^etacsharp{Regex.Escape(productVersion)}\.[A-Z]\d\.all\.rrg$";
 
                 Assert.Equal(fileProductVersion, libraryInfo.ProductVersion());
-                Assert.Equal(productInternalVersion, libraryInfo.ProductInternalVersion());
+                Assert.Matches(productInternalVersionRegex, libraryInfo.ProductInternalVersion());
             }
             else
             {
@@ -195,8 +196,6 @@ namespace LSEG.Eta.Transports.Tests
         {
             try
             {
-                Transport.Clear();
-
                 var channel = Transport.Connect(new ConnectOptions
                 {
                     ConnectionType = ConnectionType.SOCKET,
@@ -247,17 +246,17 @@ namespace LSEG.Eta.Transports.Tests
     /// Created 30 Task random intervals
     /// </summary>
     [Collection("Transport")]
-    public class TransportTestsThreadSafety
+    public class TransportTestsThreadSafety : IDisposable
     {
         [Fact]
         [Category("Unit")]
         [Category("Transport")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1031:Do not use blocking task operations in test method", Justification = "<Pending>")]
         public void TaskBRunsWithinTaskA()
         {
             object result1 = null;
             object result2 = null;
             var threadId = Thread.CurrentThread.ManagedThreadId;
-            Transport.Clear(); // 
             Task taskA = new Task<TransportReturnCode>(
                 () =>
                 {
@@ -292,12 +291,12 @@ namespace LSEG.Eta.Transports.Tests
         [Fact]
         [Category("Unit")]
         [Category("Transport")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1031:Do not use blocking task operations in test method", Justification = "<Pending>")]
         public void TaskARunsWithinTaskB()
         {
             object result1 = null;
             object result2 = null;
             var threadId = Thread.CurrentThread.ManagedThreadId;
-            Transport.Clear(); // 
             Task taskA = new Task<TransportReturnCode>(
                 () =>
                 {
@@ -326,6 +325,12 @@ namespace LSEG.Eta.Transports.Tests
             Task.WaitAll(taskA, taskB);
             Assert.Equal(TransportReturnCode.INIT_NOT_INITIALIZED, Transport.Uninitialize());
         }
+
+        public void Dispose()
+            => Transport.Clear();
+
+        public TransportTestsThreadSafety()
+            => Transport.Clear();
     }
     #endregion
 
@@ -369,15 +374,11 @@ namespace LSEG.Eta.Transports.Tests
     [Collection("Transport")]
     public class TransportGlobalLockingTests : IDisposable
     {
-
-        public TransportGlobalLockingTests(ITestOutputHelper output)
-        {
-
-        }
-
         public void Dispose()
-        {
-        }
+            => Transport.Clear();
+
+        public TransportGlobalLockingTests()
+            => Transport.Clear();
 
         [Fact]
         [Category("Unit")]
@@ -428,7 +429,7 @@ namespace LSEG.Eta.Transports.Tests
     #region Transport Write and Flush
     [Category("Unit")]
     [Category("Transport")]
-    public class TransportWriteFlushTests
+    public class TransportWriteFlushTests : IDisposable
     {
         [Fact]
         public void TransportGetBufferInActiveChannelTest()
@@ -914,7 +915,7 @@ namespace LSEG.Eta.Transports.Tests
             Assert.Equal(expectedBuffer.Data.Limit + expectedBuffer2.Data.Limit + expectedBuffer3.Data.Limit, mockChannel.GetNetworkBuffer().Limit);
 
             TransportBuffer totalExpectedBuffers = new TransportBuffer(new Common.ByteBuffer(100), RipcDataMessage.HeaderSize, false);
-            totalExpectedBuffers.Data.Put(expectedBuffer.Data).Put(expectedBuffer2.Data).Put(expectedBuffer3.Data); 
+            totalExpectedBuffers.Data.Put(expectedBuffer.Data).Put(expectedBuffer2.Data).Put(expectedBuffer3.Data);
 
             Assert.True(totalExpectedBuffers.Data.Equals(mockChannel.GetNetworkBuffer()));
             Assert.Equal(TransportReturnCode.SUCCESS, channel.Close(out error));
@@ -1105,8 +1106,11 @@ namespace LSEG.Eta.Transports.Tests
             Assert.Equal((int)SocketError.ConnectionReset, error.SysError);
             Assert.Equal("The connection was reset by the remote peer", error.Text);
             Assert.Equal(ChannelState.CLOSED, channel.State);
-          
+
         }
+
+        public void Dispose()
+            => Transport.Clear();
     }
 
     #endregion
@@ -1121,8 +1125,17 @@ namespace LSEG.Eta.Transports.Tests
     [Collection("Non-Parallel Collection")]
     [Category("Unit")]
     [Category("Transport")]
-    public class TransportServerTests
+    public class TransportServerTests : IDisposable
     {
+        // certificates used by the Provider, can be found in the esdk-pkg repository
+        private const string CERTIFICATE_CRT = "certificate.test.crt";
+        private const string CERTIFICATE_KEY = "certificate.test.key";
+
+        // how long is the test is expected to successfully complete, in milliseconds
+        private const int DEFAULT_TIMEOUT = 10_000;
+
+        private static int m_ServiceNameCounter = 19999;
+
         [Fact]
         public void ServerBindToAPortAndCloseTest()
         {
@@ -1233,7 +1246,9 @@ namespace LSEG.Eta.Transports.Tests
             Task acceptTask = Task.Factory.StartNew(() => { srvChannel = acceptChannel(server); });
             Task connectTask = Task.Factory.StartNew(() => { channel = connectChannel(); });
 
+#pragma warning disable xUnit1031 // Do not use blocking task operations in test method
             Task.WaitAll(new[] { acceptTask, connectTask });
+#pragma warning restore xUnit1031 // Do not use blocking task operations in test method
 
             Assert.NotNull(srvChannel);
             Assert.NotNull(channel);
@@ -1267,9 +1282,12 @@ namespace LSEG.Eta.Transports.Tests
                 GlobalLocking = blocking ? false : true
             };
 
-            Assert.Equal(TransportReturnCode.SUCCESS, Transport.Initialize(initArgs, out Error error));
+            Assert.True(TransportReturnCode.SUCCESS == Transport.Initialize(initArgs, out Error error),
+                error?.Text ?? string.Empty);
 
-            string serviceName = "19999";
+            // to avoid race for the ports by subsequent tests (when the cleanup for the
+            // previous test is not over yet when the next test is started)
+            string serviceName = (++m_ServiceNameCounter).ToString();
 
             BindOptions bindOptions = new BindOptions
             {
@@ -1571,20 +1589,27 @@ namespace LSEG.Eta.Transports.Tests
 
         public TransportServerTests()
         {
+            Assert.True(System.IO.File.Exists(CERTIFICATE_CRT),
+                $"Certificate file {CERTIFICATE_CRT} should be copied from the esdk-pkg repository to {System.IO.Directory.GetCurrentDirectory()}");
+            Assert.True(System.IO.File.Exists(CERTIFICATE_KEY),
+                $"Certificate key file {CERTIFICATE_KEY} should be copied from the esdk-pkg repository to {System.IO.Directory.GetCurrentDirectory()}");
+
             cipherSuites.Add(TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384);
             cipherSuites.Add(TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256);
             cipherSuites.Add(TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384);
             cipherSuites.Add(TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256);
+            Transport.Clear();
         }
 
-        private void ServerEncryptionBindToAPortWithInvalid(string certificate, string privateKey)
+        private void ServerEncryptionBindToAPortWithInvalid(string certificate, string privateKey, EncryptionProtocolFlags protocol)
         {
             InitArgs initArgs = new InitArgs
             {
                 GlobalLocking = true
             };
 
-            Assert.Equal(TransportReturnCode.SUCCESS, Transport.Initialize(initArgs, out Error error));
+            Assert.True(TransportReturnCode.SUCCESS == Transport.Initialize(initArgs, out Error error),
+                error?.Text ?? string.Empty);
 
             BindOptions bindOptions = new BindOptions
             {
@@ -1596,7 +1621,7 @@ namespace LSEG.Eta.Transports.Tests
                 InterfaceName = "localhost",
                 BindEncryptionOpts =
                 {
-                    EncryptionProtocolFlags = EncryptionProtocolFlags.ENC_TLSV1_2,
+                    EncryptionProtocolFlags = protocol,
                     ServerCertificate = certificate,
                     ServerPrivateKey = privateKey,
                 }
@@ -1611,16 +1636,24 @@ namespace LSEG.Eta.Transports.Tests
             Assert.Equal(TransportReturnCode.SUCCESS, Transport.Uninitialize());
         }
 
-        [Fact]
-        public void ServerEncryptionBindToAPortWithInvalidCertTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerEncryptionBindToAPortWithInvalidCertTest(EncryptionProtocolFlags encryptionProtocol)
         {
-            ServerEncryptionBindToAPortWithInvalid("certificate.invalid.crt", "certificate.invalid.crt");
+            ServerEncryptionBindToAPortWithInvalid("certificate.invalid.crt", "certificate.invalid.crt", encryptionProtocol);
         }
 
-        [Fact]
-        public void ServerEncryptionBindToAPortWithOutSpecifyingCertTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerEncryptionBindToAPortWithOutSpecifyingCertTest(EncryptionProtocolFlags encryptionProtocol)
         {
-            ServerEncryptionBindToAPortWithInvalid(null, null);
+            ServerEncryptionBindToAPortWithInvalid(null, null, encryptionProtocol);
         }
 
 
@@ -1648,8 +1681,8 @@ namespace LSEG.Eta.Transports.Tests
                 BindEncryptionOpts =
                 {
                     EncryptionProtocolFlags = protocolFlags,
-                    ServerCertificate = "certificate.test.crt",
-                    ServerPrivateKey = "certificate.test.key"
+                    ServerCertificate = CERTIFICATE_CRT,
+                    ServerPrivateKey = CERTIFICATE_KEY
                 }
             };
 
@@ -1749,12 +1782,19 @@ namespace LSEG.Eta.Transports.Tests
         }
 
         [Fact]
+        public void ServerEncryptionAcceptChannelAndClose_TLSV1_3Protocol_Test()
+        {
+            ServerEncryptionAcceptChannelAndClose(EncryptionProtocolFlags.ENC_TLSV1_3);
+        }
+
+        [Fact]
         public void ServerEncryptionAcceptChannelAndClose_ConnectionMismatch_Test()
         {
             ServerEncryptionAcceptChannelAndClose(EncryptionProtocolFlags.ENC_NONE, false);
         }
 
-        private void ServerAndClientEncryptionRipcHandShake(ConnectionsVersions connectionsVersion, bool blocking = false, List<TlsCipherSuite> cipherSuites = null)
+        private void ServerAndClientEncryptionRipcHandShake(ConnectionsVersions connectionsVersion, EncryptionProtocolFlags protocol, 
+            bool blocking = false, List<TlsCipherSuite> cipherSuites = null)
         {
             bool expectedError = false;
 
@@ -1786,14 +1826,25 @@ namespace LSEG.Eta.Transports.Tests
 
                 BindEncryptionOpts =
                 {
-                    EncryptionProtocolFlags = EncryptionProtocolFlags.ENC_TLSV1_2,
-                    ServerCertificate = "certificate.test.crt",
-                    ServerPrivateKey = "certificate.test.key",
+                    EncryptionProtocolFlags = protocol,
+                    ServerCertificate = CERTIFICATE_CRT,
+                    ServerPrivateKey = CERTIFICATE_KEY,
                     TlsCipherSuites = cipherSuites
                 }
             };
 
             var server = Transport.Bind(bindOptions, out error);
+
+            if (expectedError)
+            {
+                Assert.Null(server);
+                Assert.NotNull(error);
+                Assert.Equal(TransportReturnCode.FAILURE, error.ErrorId);
+                Assert.StartsWith("Unable to create encrypted server. Reason: BindEncryptionOpts.TlsCipherSuites is not supported on the Windows platform.",
+                    error.Text);
+
+                return;
+            }
 
             Assert.NotNull(server);
             Assert.Equal(ChannelState.ACTIVE, server.State);
@@ -1813,21 +1864,23 @@ namespace LSEG.Eta.Transports.Tests
 
                 if (!expectedError || !blocking)
                 {
-                    if( RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && acceptError != null)
-		    {
-			/* Linux platform can generate this error for openssl version older than 1.1.1 */
-                    	Assert.StartsWith("Failed to create a client encrypted channel. Reason:CipherSuitesPolicy is not supported on this platform.", acceptError.Text);
-			expectedError = true;
-		    }
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && acceptError != null)
+                    {
+                        /* Linux platform can generate this error for openssl version older than 1.1.1 */
+                        Assert.StartsWith("Failed to create an encrypted connection to the remote endpoint. Reason:CipherSuitesPolicy is not supported on this platform.",
+                            acceptError.Text);
+                        expectedError = true;
+                    }
                     else
                     {
-                    	Assert.Null(acceptError);
-		    }
+                        Assert.Null(acceptError);
+                    }
                 }
                 else
                 {
                     Assert.NotNull(acceptError);
-                    Assert.StartsWith("Failed to create a client encrypted channel. Reason:CipherSuitesPolicy is not supported on this platform.", acceptError.Text);
+                    Assert.StartsWith("Unable to create encrypted client connection. Reason: EncryptionOpts.TlsCipherSuites is not supported on the Windows platform.",
+                        acceptError.Text);
                 }
 
                 return serverChannel;
@@ -1847,7 +1900,7 @@ namespace LSEG.Eta.Transports.Tests
 
                     EncryptionOpts =
                     {
-                        EncryptionProtocolFlags = EncryptionProtocolFlags.ENC_TLSV1_2,
+                        EncryptionProtocolFlags = protocol,
                         EncryptedProtocol = ConnectionType.SOCKET,
                         TlsCipherSuites = cipherSuites
                     }
@@ -1860,20 +1913,21 @@ namespace LSEG.Eta.Transports.Tests
                 if (!expectedError || !blocking)
                 {
                     if( RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && error != null)
-		    {
-			/* Linux platform can generate this error for openssl version older than 1.1.1 */
-			Assert.StartsWith("Failed to create an encrypted connection to the remote endpoint. Reason:CipherSuitesPolicy is not supported on this platform.", error.Text);
+                    {
+                        /* Linux platform can generate this error for openssl version older than 1.1.1 */
+                        Assert.StartsWith("Failed to create an encrypted connection to the remote endpoint. Reason:CipherSuitesPolicy is not supported on this platform.", error.Text);
                         expectedError = true;
-		    }	
+                    }
                     else
-		    {
+                    {
                     	Assert.Null(error);
-		    }
+                    }
                 }
                 else
                 {
                     Assert.NotNull(error);
-                    Assert.StartsWith("Failed to create an encrypted connection to the remote endpoint. Reason:CipherSuitesPolicy is not supported on this platform.", error.Text);
+                    Assert.StartsWith("Unable to create encrypted client connection. Reason: EncryptionOpts.TlsCipherSuites is not supported on the Windows platform.",
+                        error.Text);
                 }
 
                 return returnChannel;
@@ -1884,7 +1938,8 @@ namespace LSEG.Eta.Transports.Tests
             Task acceptTask = Task.Factory.StartNew(() => { srvChannel = acceptChannel(server); });
             Task connectTask = Task.Factory.StartNew(() => { channel = connectChannel(); });
 
-            Task.WaitAll(new[] { acceptTask, connectTask });
+            Assert.True(Task.WaitAll(new[] { acceptTask, connectTask }, DEFAULT_TIMEOUT),
+                "This test timed out");
 
             if (blocking == false)
             {
@@ -1985,22 +2040,23 @@ namespace LSEG.Eta.Transports.Tests
                         }
                     }
 
-                    channelArg.Socket.Poll(-1, SelectMode.SelectRead);
+                    if (!isClient)
+                        channelArg.Socket.Poll(-1, SelectMode.SelectRead);
 
                     initRet = channelArg.Init(inProg, out initError);
 
                     if (!expectedError)
                     {
-			 if( RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && initError != null)
-			{
-				/* Linux platform can generate this error for openssl version older than 1.1.1 */
-                         	Assert.StartsWith("Failed to create a client encrypted channel. Reason:CipherSuitesPolicy is not supported on this platform.", initError.Text);
-                         	expectedError = true;
-			}
-			else
-			{	
-                        	Assert.Null(initError);
-			}
+                        if( RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && initError != null)
+                        {
+                            /* Linux platform can generate this error for openssl version older than 1.1.1 */
+                            Assert.StartsWith("Failed to create a client encrypted channel. Reason:CipherSuitesPolicy is not supported on this platform.", initError.Text);
+                            expectedError = true;
+                        }
+                        else
+                        {
+                            Assert.True(initError is null, initError?.Text ?? string.Empty);
+                        }
                     }
                     else
                     {
@@ -2037,7 +2093,8 @@ namespace LSEG.Eta.Transports.Tests
             Task serverHandShake = Task.Factory.StartNew(() => { srvHandShakeRet = initChannel(srvChannel, false); });
             Task clientHandShake = Task.Factory.StartNew(() => { clientHandShakeRet = initChannel(channel, true); });
 
-            Task.WaitAll(new[] { serverHandShake, clientHandShake });
+            Assert.True(Task.WaitAll(new[] { serverHandShake, clientHandShake }, DEFAULT_TIMEOUT),
+                "This test timed out");
 
             if (!expectedError)
             {
@@ -2070,100 +2127,170 @@ namespace LSEG.Eta.Transports.Tests
             Assert.Equal(TransportReturnCode.SUCCESS, Transport.Uninitialize());
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion14AckTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion14AckTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, protocol);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion13AckTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion13AckTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, protocol);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion12AckTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion12AckTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, protocol);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion11AckTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion11AckTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, protocol);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion14Ack_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion14Ack_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, true);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, protocol, true);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion13Ack_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion13Ack_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, true);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, protocol, true);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion12Ack_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion12Ack_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, true);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, protocol, true);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion11Ack_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion11Ack_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, true);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, protocol, true);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion14Ack_withCipherSuitesTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion14Ack_withCipherSuitesTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, false, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, protocol, false, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion13Ack_withCipherSuitesTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion13Ack_withCipherSuitesTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, false, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, protocol, false, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion12Ack_withCipherSuitesTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion12Ack_withCipherSuitesTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, false, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, protocol, false, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion11Ack_withCipherSuitesTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion11Ack_withCipherSuitesTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, false, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, protocol, false, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion14Ack_withCipherSuites_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion14Ack_withCipherSuites_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, true, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION14, protocol, true, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion13Ack_withCipherSuites_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion13Ack_withCipherSuites_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, true, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION13, protocol, true, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion12Ack_withCipherSuites_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+#if TEST_TLSV1_3
+    [InlineData(EncryptionProtocolFlags.ENC_TLSV1_3)]
+#endif
+        public void ServerAndClientEncryptionRipcHandShakeVersion12Ack_withCipherSuites_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, true, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION12, protocol, true, cipherSuites);
         }
 
-        [Fact]
-        public void ServerAndClientEncryptionRipcHandShakeVersion11Ack_withCipherSuites_BlockingTest()
+        [Theory]
+        [InlineData(EncryptionProtocolFlags.ENC_TLSV1_2)]
+        [InlineData(EncryptionProtocolFlags.ENC_NONE)]
+        public void ServerAndClientEncryptionRipcHandShakeVersion11Ack_withCipherSuites_BlockingTest(EncryptionProtocolFlags protocol)
         {
-            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, true, cipherSuites);
+            ServerAndClientEncryptionRipcHandShake(ConnectionsVersions.VERSION11, protocol, true, cipherSuites);
+        }
+
+        public void Dispose()
+        {
+            // enforce cleanup in case a test case ended prematurely
+            while (Transport.Uninitialize() != TransportReturnCode.INIT_NOT_INITIALIZED)
+            { }
+            Transport.Clear();
         }
     }
     #endregion

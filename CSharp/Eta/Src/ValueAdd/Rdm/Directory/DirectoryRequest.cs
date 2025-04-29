@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -22,7 +22,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
     sealed public class DirectoryRequest : MsgBase
     {
         private IRequestMsg m_RequestMsg = new Msg();
-        private int m_ServiceId = 0;
 
         /// <summary>
         /// Checks if this request is streaming or not.
@@ -37,7 +36,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         /// <summary>
         /// The ID of the service to request the directory from.
         /// </summary>
-        public int ServiceId { get => m_ServiceId; set { Debug.Assert(HasServiceId); m_ServiceId = value; } }
+        public int ServiceId { get; set; }
         
         /// <summary>
         /// A filter indicating which filters of information the Consumer is interested in. Populated by <see cref="ServiceFilterFlags"/>
@@ -177,20 +176,20 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             StringBuilder stringBuf = PrepareStringBuilder();
-            stringBuf.Insert(0, "DirectoryRequest: \n");
+            stringBuf.Insert(0, $"DirectoryRequest: {NewLine}");
 
             if (HasServiceId)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("serviceId: ");
                 stringBuf.Append(ServiceId);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             stringBuf.Append(tab);
             stringBuf.Append("streaming: ");
             stringBuf.Append(Streaming);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append("filter: ");
@@ -234,7 +233,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
                     stringBuf.Append(" | ");
                 stringBuf.Append("STATE");
             }
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             return stringBuf.ToString();
         }

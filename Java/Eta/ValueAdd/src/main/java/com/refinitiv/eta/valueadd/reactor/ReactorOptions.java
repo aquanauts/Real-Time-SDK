@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022,2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -48,6 +48,8 @@ public class ReactorOptions
     static final String DEFAULT_SCHEME = "https";
     static final String API_GATEWAY_HOST = "api.refinitiv.com";
     static final String SERVICE_DISCOVERY_PATH = "/streaming/pricing/v1/";
+
+    static final long DEFAULT_XML_TRACE_MAX_FILE_SIZE = 100000000;
 	
     private Buffer _serviceDiscoveryURL = CodecFactory.createBuffer();
     private Buffer _tokenServiceURL_V1 = CodecFactory.createBuffer();
@@ -59,11 +61,19 @@ public class ReactorOptions
     private double _tokenReissueRatio;
     private int _reissueTokenAttemptLimit;
     private int _reissueTokenAttemptInterval;
+    private ReactorRestProxyOptions _restProxyOptions = new ReactorRestProxyOptions();
 
     private ReactorDebuggerOptions _debuggerOptions = new ReactorDebuggerOptionsImpl();
 
     Object _userSpecObj = null;
     boolean _xmlTracing = false;
+    boolean _xmlTraceToFile = false;
+    long 	_xmlTraceMaxFileSize = DEFAULT_XML_TRACE_MAX_FILE_SIZE;
+    String	_xmlTraceFileName;
+    boolean	_xmlTraceToMultipleFiles = false;
+    boolean _xmlTraceWrite = false;
+    boolean _xmlTraceRead = false;
+    boolean _xmlTracePing = false;
     int _statistics = StatisticFlags.NONE;
 
     ReactorOptions()
@@ -107,6 +117,46 @@ public class ReactorOptions
     public void enableXmlTracing()
     {
         _xmlTracing = true;
+    }
+    public void enableXmlTraceToFile()
+    {
+        _xmlTraceToFile = true;
+    }
+    public void setXmlTraceMaxFileSize(long size)
+    {
+        _xmlTraceMaxFileSize = size;
+    }
+    public void setXmlTraceFileName(String fileName)
+    {
+        _xmlTraceFileName = fileName;
+    }
+    public void enableXmlTraceToMultipleFiles()
+    {
+        _xmlTraceToMultipleFiles = true;
+    }
+    public void enableXmlTraceWrite()
+    {
+        _xmlTraceWrite = true;
+    }
+    public void enableXmlTraceRead()
+    {
+        _xmlTraceRead = true;
+    }
+    public void enableXmlTracePing()
+    {
+        _xmlTracePing = true;
+    }
+    public void xmlTraceWrite(boolean xmlTraceWrite)
+    {
+        _xmlTraceWrite = xmlTraceWrite;
+    }
+    public void xmlTraceRead(boolean xmlTraceRead)
+    {
+        _xmlTraceRead = xmlTraceRead;
+    }
+    public void xmlTracePing(boolean xmlTracePing)
+    {
+        _xmlTracePing = xmlTracePing;
     }
 
     /**
@@ -378,6 +428,35 @@ public class ReactorOptions
     {
         return _xmlTracing;
     }
+    boolean xmlTraceToFile()
+    {
+        return _xmlTraceToFile;
+    }
+    long xmlTraceMaxFileSize()
+    {
+        return _xmlTraceMaxFileSize;
+    }
+    String  xmlTraceFileName()
+    {
+        return _xmlTraceFileName;
+    }
+    boolean xmlTraceToMultipleFiles()
+    {
+        return _xmlTraceToMultipleFiles;
+    }
+
+    boolean xmlTraceWrite()
+    {
+        return _xmlTraceWrite;
+    }
+    boolean xmlTraceRead()
+    {
+        return _xmlTraceRead;
+    }
+    boolean xmlTracePing()
+    {
+        return _xmlTracePing;
+    }
     
     public int statistics()
     {
@@ -391,6 +470,13 @@ public class ReactorOptions
     {
         _userSpecObj = null;
         _xmlTracing = false;
+        _xmlTraceToFile = false;
+        _xmlTraceMaxFileSize = DEFAULT_XML_TRACE_MAX_FILE_SIZE;
+        _xmlTraceFileName = null;
+        _xmlTraceToMultipleFiles = false;
+        _xmlTraceRead = true;
+        _xmlTraceWrite = true;
+        _xmlTracePing = true;
         _statistics = StatisticFlags.NONE;
         _serviceDiscoveryURL.data(DEFAULT_SCHEME + "://" + API_GATEWAY_HOST + SERVICE_DISCOVERY_PATH);
         _serviceDiscoveryHost = new HttpHost(API_GATEWAY_HOST, DEFAULT_HTTPS_PORT, DEFAULT_SCHEME);
@@ -408,6 +494,13 @@ public class ReactorOptions
     {
         _userSpecObj = options._userSpecObj;
         _xmlTracing =  options._xmlTracing;
+        _xmlTraceToFile = options._xmlTraceToFile;
+        _xmlTraceMaxFileSize = options._xmlTraceMaxFileSize;
+        _xmlTraceFileName = options._xmlTraceFileName;
+        _xmlTraceToMultipleFiles = options._xmlTraceToMultipleFiles;
+        _xmlTraceWrite =  options._xmlTraceWrite;
+        _xmlTracePing =  options._xmlTracePing;
+        _xmlTraceRead =  options._xmlTraceRead;
         _statistics =  options._statistics;
         _tokenReissueRatio = options._tokenReissueRatio;
         _reissueTokenAttemptLimit = (options._reissueTokenAttemptLimit < -1) ? -1 : options._reissueTokenAttemptLimit;
@@ -435,6 +528,11 @@ public class ReactorOptions
         	ByteBuffer byteBuffer = ByteBuffer.allocate(options._tokenServiceURL_V2.length());
         	options._tokenServiceURL_V2.copy(byteBuffer);
         	_tokenServiceURL_V2.data(byteBuffer);
+        }
+        
+        if(options._restProxyOptions != null)
+        {
+        	options._restProxyOptions.copy(_restProxyOptions);
         }
 
         options._debuggerOptions.copy(_debuggerOptions);
@@ -464,5 +562,14 @@ public class ReactorOptions
         if (debuggerOptions != null) {
             debuggerOptions.copy(this._debuggerOptions);
         }
+    }
+    
+    /**
+     * Getter for the RestProxyOptions
+     * @return ReactorRestProxyOptions
+     */
+    public ReactorRestProxyOptions restProxyOptions()
+    {
+    	return _restProxyOptions;
     }
 }

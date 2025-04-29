@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -19,17 +19,17 @@
 ************************************************************************
 * Summary:
 * A Non-Interactive Provider (NIP) writes a provider application that
-* connects to Refinitiv Real-Time Distribution System and sends a specific
+* connects to LSEG Real-Time Distribution System and sends a specific
 * set (non-interactive) of information (services, domains, and capabilities).
 * NIPs act like clients in a client-server relationship. Multiple NIPs can
-* connect to the same Refinitiv Real-Time Distribution System and publish
+* connect to the same LSEG Real-Time Distribution System and publish
 * the same items and content.
 *
 * In this module, the OMM NIP application initializes the ETA Transport
 * and establish a connection to an ADH server. Once connected, an OMM NIP
 * can publish information into the ADH cache without needing to handle
 * requests for the information. The ADH can cache the information and
-* along with other Refinitiv Real-Time Distribution System components,
+* along with other LSEG Real-Time Distribution System components,
 * provide the information to any NIProvider applications that indicate interest.
 *
 * Detailed Descriptions:
@@ -53,6 +53,9 @@
 *
 */
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 
 using LSEG.Eta.Transports;
@@ -187,9 +190,9 @@ namespace LSEG.Eta.Training.NiProvider
              * Client/NIProv Application Life Cycle Major Step 2: Connect using
              * Connect (OS connection establishment handshake) Connect call
              * Establishes an outbound connection, which can leverage standard
-             * sockets, HTTP, or HTTPS. Returns an Channel that represents the
-             * connection to the user. In the event of an error, NULL is returned
-             * and additional information can be found in the Error structure.
+             * sockets. Returns an Channel that represents the connection to 
+             * the user. In the event of an error, NULL is returned and 
+             * additional information can be found in the Error structure.
              * Connection options are passed in via an ConnectOptions structure.
              *********************************************************/
 

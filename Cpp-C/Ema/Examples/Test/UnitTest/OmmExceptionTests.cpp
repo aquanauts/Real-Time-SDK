@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -20,7 +20,7 @@ TEST(OmmExceptionTests, testOmmExcpWithTextMoreThanInternalMemSize)
 		try {
 			char largeText[LARGE_TEXT_SIZE + 1];
 			for( int i = 0; i < LARGE_TEXT_SIZE; i++)
-				snprintf(largeText + i, 1, "%c", 'l');
+				largeText[i] = 'l';
 			largeText[LARGE_TEXT_SIZE] = '\0';
 	
 			try {			

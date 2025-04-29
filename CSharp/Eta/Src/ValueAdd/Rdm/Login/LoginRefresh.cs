@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -33,7 +33,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         private LoginConnectionConfig connectionConfig = new();
         private Buffer authenticationExtendedResp = new();
         private Buffer authenticationErrorText = new();
-        private string blankStringConst = string.Empty;
+        private string blankStringConst = "\0";
 
         private ElementList elementList = new();
         private ElementEntry element = new();
@@ -78,7 +78,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
         }
 
         /// <summary>
-        /// Whether connection config is present.
+        /// Checks whether connection config is present.
         /// </summary>
         /// <seealso cref="ConnectionConfig"/>
         public bool HasConnectionConfig
@@ -515,7 +515,7 @@ namespace LSEG.Eta.ValueAdd.Rdm
 
             if (HasUserNameType)
             {
-                if (UserNameType == UserIdTypes.TOKEN)
+                if (UserNameType == UserIdTypes.AUTHN_TOKEN)
                 {
                     m_RefreshMsg.MsgKey.ApplyHasName();
                     m_RefreshMsg.MsgKey.Name.Data(blankStringConst);
@@ -725,6 +725,15 @@ namespace LSEG.Eta.ValueAdd.Rdm
                         return ret;
                 }
 
+                if (SupportedFeatures.HasSupportStandbyMode)
+                {
+                    element.DataType = DataTypes.UINT;
+                    element.Name = ElementNames.SUPPORT_STANDBY_MODE;
+                    tmpUInt.Value(SupportedFeatures.SupportStandbyMode);
+                    if ((ret = element.Encode(EncodeIter, tmpUInt)) != CodecReturnCode.SUCCESS)
+                        return ret;
+                }
+
                 if (SupportedFeatures.HasSupportOptimizedPauseResume)
                 {
                     element.DataType = DataTypes.UINT;
@@ -739,6 +748,15 @@ namespace LSEG.Eta.ValueAdd.Rdm
                     element.DataType = DataTypes.UINT;
                     element.Name = ElementNames.SUPPORT_PROVIDER_DICTIONARY_DOWNLOAD;
                     tmpUInt.Value(SupportedFeatures.SupportProviderDictionaryDownload);
+                    if ((ret = element.Encode(EncodeIter, tmpUInt)) != CodecReturnCode.SUCCESS)
+                        return ret;
+                }
+
+                if(SupportedFeatures.HasSupportEnhancedSymbolList)
+                {
+                    element.DataType = DataTypes.UINT;
+                    element.Name = ElementNames.SUPPORT_ENH_SL;
+                    tmpUInt.Value(SupportedFeatures.SupportEnhancedSymbolList);
                     if ((ret = element.Encode(EncodeIter, tmpUInt)) != CodecReturnCode.SUCCESS)
                         return ret;
                 }
@@ -962,6 +980,17 @@ namespace LSEG.Eta.ValueAdd.Rdm
                     SupportedFeatures.HasSupportStandby = true;
                     SupportedFeatures.SupportStandby = tmpUInt.ToLong();
                 }
+                else if (element.Name.Equals(ElementNames.SUPPORT_STANDBY_MODE))
+                {
+                    if (element.DataType != DataTypes.UINT)
+                        return CodecReturnCode.FAILURE;
+                    ret = tmpUInt.Decode(dIter);
+                    if (ret != CodecReturnCode.SUCCESS)
+                        return ret;
+                    HasFeatures = true;
+                    SupportedFeatures.HasSupportStandbyMode = true;
+                    SupportedFeatures.SupportStandbyMode = tmpUInt.ToLong();
+                }
                 else if (element.Name.Equals(ElementNames.SUPPORT_BATCH))
                 {
                     if (element.DataType != DataTypes.UINT)
@@ -1018,6 +1047,17 @@ namespace LSEG.Eta.ValueAdd.Rdm
                     HasFeatures = true;
                     SupportedFeatures.HasSupportProviderDictionaryDownload = true;
                     SupportedFeatures.SupportProviderDictionaryDownload = tmpUInt.ToLong();
+                }
+                else if (element.Name.Equals(ElementNames.SUPPORT_ENH_SL))
+                {
+                    if (element.DataType != DataTypes.UINT)
+                        return CodecReturnCode.FAILURE;
+                    ret = tmpUInt.Decode(dIter);
+                    if (ret != CodecReturnCode.SUCCESS)
+                        return ret;
+                    HasFeatures = true;
+                    SupportedFeatures.HasSupportEnhancedSymbolList = true;
+                    SupportedFeatures.SupportEnhancedSymbolList = tmpUInt.ToLong();
                 }
                 else if (element.Name.Equals(ElementNames.AUTHN_TT_REISSUE))
                 {
@@ -1085,26 +1125,26 @@ namespace LSEG.Eta.ValueAdd.Rdm
         public override string ToString()
         {
             StringBuilder stringBuf = PrepareStringBuilder();
-            stringBuf.Insert(0, "LoginRefresh: \n");
+            stringBuf.Insert(0, $"LoginRefresh: {NewLine}");
             stringBuf.Append(tab);
             stringBuf.Append("name: ");
             stringBuf.Append(UserName);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
             stringBuf.Append(tab);
             stringBuf.Append("nameType: ");
             stringBuf.Append(UserNameType);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             stringBuf.Append(tab);
             stringBuf.Append(State);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             if (Solicited)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("isSolicited: ");
                 stringBuf.Append(true);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             if (HasAuthenicationTTReissue)
@@ -1112,28 +1152,28 @@ namespace LSEG.Eta.ValueAdd.Rdm
                 stringBuf.Append(tab);
                 stringBuf.Append("authenticationTTReissue: ");
                 stringBuf.Append(AuthenticationTTReissue);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasAuthenticationExtendedResp)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("authenticationExtendedResp: ");
                 stringBuf.Append(AuthenticationExtendedResp);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasAuthenticationErrorCode)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("authenticationErrorCode: ");
                 stringBuf.Append(AuthenticationErrorCode);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
             if (HasAuthenticationErrorText)
             {
                 stringBuf.Append(tab);
                 stringBuf.Append("authenticationErrorText: ");
                 stringBuf.Append(HasAuthenticationErrorText);
-                stringBuf.Append(eol);
+                stringBuf.AppendLine();
             }
 
             if (HasAttrib)

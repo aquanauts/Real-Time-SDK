@@ -247,8 +247,6 @@
 
 			<MaxDispatchCountUserThread value="500" />
 
-			<PipePort value="9009" />
-
 			<RefreshFirstRequired value="1" />
 
 		</IProvider>
@@ -276,8 +274,6 @@
 			<MaxDispatchCountApiThread value="500" />
 
 			<MaxDispatchCountUserThread value="500" />
-
-			<PipePort value="9009" />
 
 			<RefreshFirstRequired value="1" />
 
@@ -308,8 +304,6 @@
 			<MaxDispatchCountApiThread value="500" />
 
 			<MaxDispatchCountUserThread value="500" />
-
-			<PipePort value="9009" />
 
 			<RefreshFirstRequired value="1" />
 
@@ -594,7 +588,7 @@
 			<Name value="Logger_1"/>
 
 			<!-- LoggerType is optional:  defaulted to "File"											-->
-			<!-- possible values: Stdout, File															-->
+			<!-- possible values: Stdout, Stderr, File															-->
 			<LoggerType value="LoggerType::Stdout"/>
 
 			<!-- LoggerSeverity is optional: defaulted to "Success"										-->
@@ -861,7 +855,7 @@
 						<DictionariesUsedEntry value="Dictionary_3"/>
 					</DictionariesUsed>
 
-					<Vendor value="RefinitivDevTestLab"/>
+					<Vendor value="LSEGDevTestLab"/>
 					<IsSource value="0"/>
 					<Capabilities>
 						<CapabilitiesEntry value="MMT_DICTIONARY"/>

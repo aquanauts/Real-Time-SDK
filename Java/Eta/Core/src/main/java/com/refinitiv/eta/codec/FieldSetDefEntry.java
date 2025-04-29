@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -25,8 +25,7 @@ public interface FieldSetDefEntry
      * the set-defined {@link FieldList} content. Refers to specific name and
      * type information defined by an external field dictionary, such as the
      * RDMFieldDictionary. Negative fieldId values typically refer to user-defined
-     * values while positive fieldId values typically refer to Refinitiv
-     * -defined values.
+     * values while positive fieldId values typically refer to LSEG-defined values.
      * 
      * @return the fieldId
      */
@@ -37,7 +36,7 @@ public interface FieldSetDefEntry
      * the set-defined {@link FieldList} content. Refers to specific name and
      * type information defined by an external field dictionary, such as the
      * RDMFieldDictionary. Negative fieldId values typically refer to user-defined
-     * values while positive fieldId values typically refer to Refinitiv
+     * values while positive fieldId values typically refer to LSEG
      * -defined values. Must be in the range of -32768 - 32767.
      * 
      * @param fieldId the fieldId to set

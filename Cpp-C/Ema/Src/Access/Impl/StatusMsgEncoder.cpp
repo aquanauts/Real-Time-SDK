@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -41,7 +41,8 @@ StatusMsgEncoder::StatusMsgEncoder() :
  _serviceIdSet( false ),
  _publisherIdSet( false ),
  _clearCache( false ),
- _privateStream( false )
+ _privateStream( false ),
+ _stateSet( false )
 {
 	clearRsslStatusMsg();
 }
@@ -53,6 +54,32 @@ StatusMsgEncoder::~StatusMsgEncoder()
 void StatusMsgEncoder::clear()
 {
 	MsgEncoder::clear();
+
+	clearRsslStatusMsg();
+
+	_domainType = RSSL_DMT_MARKET_PRICE;
+	_streamId = 0;
+	_identifierSet = false;
+	_filterSet = false;
+	_nameTypeSet = false;
+	_serviceIdSet = false;
+#ifdef __EMA_COPY_ON_SET__
+	_permissionDataSet = false;
+	_itemGroupSet = false;
+#else
+	_pPermissionData = 0;
+	_pItemGroup = 0;
+	_pStatusText = 0;
+#endif
+	_publisherIdSet = false;
+	_clearCache = false;
+	_privateStream = false;
+	_stateSet = false;
+}
+
+void StatusMsgEncoder::release()
+{
+	MsgEncoder::release();
 
 	clearRsslStatusMsg();
 

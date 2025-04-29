@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019, 2023, 2025 LSEG. All rights reserved.        --
  *|-----------------------------------------------------------------------------
  */
 
@@ -120,6 +120,9 @@ RSSL_THREAD_DECLARE(runBlockingLibcurlProxyConnection, pArg)
 	char* curlOptProxyUserPwd = NULL;
 
 	CURLcode curlret;
+
+	rsslSocketChannel->curlThreadInfo.curlThreadState = RSSL_CURL_ACTIVE;
+
 	if ((curlFuncs = rsslGetCurlFuncs()) == NULL)
 	{
 		_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
@@ -158,6 +161,7 @@ RSSL_THREAD_DECLARE(runBlockingLibcurlProxyConnection, pArg)
 			"<%s:%d> Error: 1001 Could not initialize memory for Curl Error.\n",
 			__FILE__, __LINE__);
 		_rsslFree(rsslSocketChannel->curlThreadInfo.curlError);
+		rsslSocketChannel->curlThreadInfo.curlError = 0;
 		rsslSocketChannel->curlThreadInfo.curlThreadState = RSSL_CURL_ERROR;
 		/* trigger select for error condition */
 		rssl_pipe_write(&rsslSocketChannel->sessPipe, "1", 1);
@@ -227,6 +231,10 @@ RSSL_THREAD_DECLARE(runBlockingLibcurlProxyConnection, pArg)
 	// Set Curl Proxy Port
 	(*(curlFuncs->curl_easy_setopt))(rsslSocketChannel->curlHandle, CURLOPT_PROXYPORT, (long)proxyPortNum);
 
+	// Set Curl Timeout: maximum time a connection is allowed to be established
+	if (rsslSocketChannel->proxyConnectionTimeout > 0)
+		(*(curlFuncs->curl_easy_setopt))(rsslSocketChannel->curlHandle, CURLOPT_TIMEOUT, (long)rsslSocketChannel->proxyConnectionTimeout);
+
 	// Set interface, if specified in connectopts
 	if (rsslSocketChannel->interfaceName != NULL)
 		(*(curlFuncs->curl_easy_setopt))(rsslSocketChannel->curlHandle, CURLOPT_INTERFACE, rsslSocketChannel->interfaceName);
@@ -270,6 +278,10 @@ RSSL_THREAD_DECLARE(runBlockingLibcurlProxyConnection, pArg)
         RSSL_THREAD_DETACH(&(rsslSocketChannel->curlThreadInfo.curlThreadId));
 		return RSSL_THREAD_RETURN();
 	}
+
+	// Reset Curl Timeout because it applied on establish connection stage only.
+	if (rsslSocketChannel->proxyConnectionTimeout > 0)
+		(*(curlFuncs->curl_easy_setopt))(rsslSocketChannel->curlHandle, CURLOPT_TIMEOUT, 0L);
 
     /* Free the allocated memory */
 	_rsslFree(curlOptProxy);
@@ -1203,11 +1215,11 @@ RsslInt32 ipcSrvrBind(rsslServerImpl *srvr, RsslError *error)
 		return -1;
 	}
 
-	if (rsslGetHostByName(rsslServerSocketChannel->interfaceName, &addr) < 0)
+	if ((rsslGetHostByName(rsslServerSocketChannel->interfaceName, &addr) < 0) && (rsslGetHostByIf(rsslServerSocketChannel->interfaceName, &addr) < 0))
 	{
 		_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
 		snprintf(error->text, MAX_RSSL_ERROR_TEXT,
-			"<%s:%d> Error: 1004 rsslGetHostByName() failed. Interface name is incorrect (%d)\n",
+			"<%s:%d> Error: 1004 rsslGetHostByName() and rsslGetHostByIf() failed. Interface name is incorrect (%d)\n",
 			__FILE__, __LINE__, errno);
 
 		sock_close(sock_fd);
@@ -1480,11 +1492,11 @@ RsslSocket ipcConnectSocket(RsslInt32 *portnum, void *opts, RsslInt32 flags, voi
 		printf("<%s:%d> ipcConnectSocket() hostname() returns localHostName = %s\n", __FILE__, __LINE__, localHostName);
 #endif
 
-	if (rsslGetHostByName(pRsslSocketChannel->interfaceName, &localAddr) < 0)
+	if ((rsslGetHostByName(pRsslSocketChannel->interfaceName, &localAddr) < 0) && (rsslGetHostByIf(pRsslSocketChannel->interfaceName, &localAddr) < 0))
 	{
 		_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
 		snprintf(error->text, MAX_RSSL_ERROR_TEXT,
-			"<%s:%d> Error: 1004 rsslGetHostByName() failed. Interface name (%s) is incorrect. System errno: (%d)\n",
+			"<%s:%d> Error: 1004 rsslGetHostByName() and rsslGetHostByIf() failed. Interface name (%s) is incorrect. System errno: (%d)\n",
 			__FILE__, __LINE__, pRsslSocketChannel->interfaceName, errno);
 
 		return(RIPC_INVALID_SOCKET);

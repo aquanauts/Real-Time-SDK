@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -29,11 +29,19 @@ public class JUnitTestConnect
 	public static final int ConfigGroupTypeWarmStandbyGroup = 7;
 	public static final int ConfigGroupTypeWarmStandbyStartingServerInfo = 8;
 	public static final int ConfigGroupTypeWarmStandbyStandbyServerInfo = 9;
+	public static final int ConfigGroupTypeSessionChannel = 10;
 
 	// Common Parameters:
 	public static final int ChannelSet  = ConfigManager.ChannelSet; 
 	public static final int XmlTraceToStdout  = ConfigManager.XmlTraceToStdout; 
-	public static final int ItemCountHint  = ConfigManager.ItemCountHint ; 
+	public static final int XmlTraceToFile  = ConfigManager.XmlTraceToFile;
+	public static final int XmlTraceMaxFileSize  = ConfigManager.XmlTraceMaxFileSize;
+	public static final int XmlTraceFileName  = ConfigManager.XmlTraceFileName;
+	public static final int XmlTraceToMultipleFiles  = ConfigManager.XmlTraceToMultipleFiles;
+	public static final int XmlTraceWrite  = ConfigManager.XmlTraceWrite;
+	public static final int XmlTraceRead  = ConfigManager.XmlTraceRead;
+	public static final int XmlTracePing  = ConfigManager.XmlTracePing;
+	public static final int ItemCountHint  = ConfigManager.ItemCountHint ;
 	public static final int DispatchTimeoutApiThread  = ConfigManager.DispatchTimeoutApiThread; 
 	public static final int MaxDispatchCountApiThread  = ConfigManager.MaxDispatchCountApiThread; 
 	public static final int MaxDispatchCountUserThread  = ConfigManager.MaxDispatchCountUserThread; 
@@ -68,6 +76,9 @@ public class JUnitTestConnect
 	public static final int Location = ConfigManager.ChannelLocation;
 	public static final int EnableRtt = ConfigManager.EnableRtt;
 	public static final int SendJsonConvError = ConfigManager.SendJsonConvError;
+	
+	public static final int RestProxyHostName = ConfigManager.RestProxyHostName;
+	public static final int RestProxyPort = ConfigManager.RestProxyPort;
 	
 	// Consumer Parameters:
 	public static final int ConsumerDefaultConsumerName  = ConfigManager.DefaultConsumer; 	
@@ -220,6 +231,13 @@ public class JUnitTestConnect
 	public static final int WarmStandbyServerName = ConfigManager.WarmStandbyServerName;
 	public static final int WarmStandbyServerChannel = ConfigManager.WarmStandbyServerChannel;
 	public static final int PerServiceNameSet = ConfigManager.PerServiceNameSet;
+	
+	// SessionChannel
+	public static final int ConsumerSessionChannelSet = ConfigManager.ConsumerSessionChannelSet;
+	public static final int SessionChannelGroup = ConfigManager.SessionChannelGroup;
+	public static final int SessionChannelList = ConfigManager.SessionChannelList;
+	public static final int SessionChannelInfo = ConfigManager.SessionChannelInfo;
+	public static final int SessionChannelInfoName = ConfigManager.SessionChannelInfoName;
 	
 	public static String _lastErrorText = "";
 	public static EmaObjectManager _objManager = new EmaObjectManager();
@@ -747,6 +765,90 @@ public class JUnitTestConnect
 		return result;
 	}
 	
+	public static int configVerifyConsSessionChannelAttribs(OmmConsumer consumer, OmmConsumerConfig consConfig, String consumerName, List<SessionChannelConfig> sessionConfigSet)
+	{
+		int result = 0;
+		_lastErrorText = "";
+		OmmConsumerImpl consImpl = ( OmmConsumerImpl )consumer;
+		
+		String sessionChannelSet = configGetSessionChannel(consConfig, consumerName);
+		if(sessionChannelSet == null)
+		{
+			_lastErrorText = "SessionChannelSet is null for ";
+			_lastErrorText += consImpl.consumerName();
+			result = 1;
+			return 1;
+		}
+		
+		String [] connections  = sessionChannelSet.split(",");
+		if(connections.length != consImpl.activeConfig().configSessionChannelSet.size())
+		{
+			_lastErrorText = "SessionChannelSet size is != number of session channels in the file config SessionChannel for ";
+			_lastErrorText += consImpl.consumerName();
+			return 2;
+		}
+		
+		String connectionName = null;
+		String position = null;
+
+		for (int i = 0; i < connections.length; i++)
+		{
+			SessionChannelConfig sessionCfg = consImpl.activeConfig().configSessionChannelSet.get(i);
+			connectionName = connections[i].trim();
+			position = Integer.toString(i);
+			if( connectionName.equals(sessionCfg.name) == false )
+			{
+				_lastErrorText = "ConnectionName mismatch: FileConfig name='";
+				_lastErrorText += connectionName;
+				_lastErrorText += "' Internal Active SessionChannelSet[";
+				_lastErrorText += position;
+				_lastErrorText += "] name='";
+				_lastErrorText += sessionCfg.name;
+				_lastErrorText += "' for ";
+				_lastErrorText += consImpl.consumerName();
+				return 3;
+			}
+		}
+		
+		List<SessionChannelConfig> activeSessionConfigSet = consImpl.activeConfig().configSessionChannelSet;
+		
+		SessionChannelConfig expectedCfg, activeCfg;
+		for(int i = 0; i < activeSessionConfigSet.size(); i++)
+		{
+			expectedCfg = sessionConfigSet.get(i);
+			activeCfg = activeSessionConfigSet.get(i);
+			
+			if(expectedCfg.name.equals(activeCfg.name) == false)
+				return 4;
+			
+			if(expectedCfg.reconnectAttemptLimit != activeCfg.reconnectAttemptLimit)
+				return 4;
+			
+			if(expectedCfg.reconnectMaxDelay != activeCfg.reconnectMaxDelay)
+				return 4;
+			
+			if(expectedCfg.reconnectMinDelay != activeCfg.reconnectMinDelay)
+				return 4;
+			
+			if(expectedCfg.configChannelSet.size() != activeCfg.configChannelSet.size())
+				return 4;
+			
+			for(int j = 0; j < expectedCfg.configChannelSet.size(); j++)
+			{
+				ChannelConfig expectedChannelConfig = expectedCfg.configChannelSet.get(j);
+				ChannelConfig activeChannelConfig = activeCfg.configChannelSet.get(j);
+				
+				if (expectedChannelConfig.name.equals(activeChannelConfig.name) == false)
+					return 5;
+				
+				if (expectedChannelConfig.rsslConnectionType != activeChannelConfig.rsslConnectionType)
+					return 5;
+			}
+		}
+		
+		return result;
+	}
+	
 	// used only for JUNIT tests
 	public static String configGetChannelName(OmmConsumerConfig consConfig, String consumerName)
 	{
@@ -757,6 +859,12 @@ public class JUnitTestConnect
 	public static String configGetWarmStandbyChannelSet(OmmConsumerConfig consConfig, String warmStandbyChannelSet)
 	{
 		return ((OmmConsumerConfigImpl) consConfig).warmStandbyChannelSet(warmStandbyChannelSet);
+	}
+	
+	// used only for JUNIT tests
+	public static String configGetSessionChannel(OmmConsumerConfig consConfig, String consumerName)
+	{
+		return ((OmmConsumerConfigImpl) consConfig).sessionChannel(consumerName);
 	}
 	
 	// used only for JUNIT tests
@@ -785,7 +893,16 @@ public class JUnitTestConnect
 			}
 		}
 		return connectionType;
-	}	
+	}
+	
+	public static SessionChannelConfig configGetSessionChannelInfo(OmmConsumerConfig consConfig, String connectionName)
+	{
+		OmmConsumerConfigImpl configImpl = ( (OmmConsumerConfigImpl ) consConfig);
+		ConfigAttributes attributes = configImpl.xmlConfig().getSessionChannelGroupAttributes(connectionName);
+		ConfigElement ce = null;
+		
+		return null;
+	}
 	
 	// used only for JUNIT tests
 	public static String configGetChanHost(OmmConsumerConfig consConfig, String channelName)
@@ -871,6 +988,8 @@ public class JUnitTestConnect
 			attributes = consConfig.xmlConfig().getWSBServerInfoAttributes(name);
 		else if (type == ConfigGroupTypeWarmStandbyStandbyServerInfo)
 			attributes = consConfig.xmlConfig().getWSBServerInfoAttributes(name);
+		else if (type == ConfigGroupTypeSessionChannel)
+			attributes = consConfig.xmlConfig().getSessionChannelGroupAttributes(name);
 		if (attributes != null) {
 			return attributes.getPrimitiveValue(configParam);
 		}
@@ -909,6 +1028,16 @@ public class JUnitTestConnect
 		{
 			if (configParam == XmlTraceToStdout)
 				return activeConfig.xmlTraceEnable;
+			else if (configParam == XmlTraceToFile)
+				return activeConfig.xmlTraceToFileEnable;
+			else if (configParam == XmlTraceToMultipleFiles)
+				return activeConfig.xmlTraceToMultipleFilesEnable;
+			else if (configParam == XmlTraceWrite)
+				return activeConfig.xmlTraceWriteEnable;
+			else if (configParam == XmlTraceRead)
+				return activeConfig.xmlTraceReadEnable;
+			else if (configParam == XmlTracePing)
+				return activeConfig.xmlTracePingEnable;
 			else if (configParam == ConsumerMsgKeyInUpdates)
 				return activeConfig.msgKeyInUpdates;
 			else if (configParam == SendJsonConvError)
@@ -985,6 +1114,8 @@ public class JUnitTestConnect
 				return activeConfig.reissueTokenAttemptLimit;
 			else if (configParam == ReissueTokenAttemptInterval)
 				return activeConfig.reissueTokenAttemptInterval;
+			else if (configParam == XmlTraceMaxFileSize)
+				return (int) activeConfig.xmlTraceMaxFileSize;
 		}
 		else if (type == ConfigGroupTypeChannel)
 		{
@@ -1016,6 +1147,8 @@ public class JUnitTestConnect
 				return chanConfig.wsMaxMsgSize;
 			else if (configParam == ServiceDiscoveryRetryCount)
 				return chanConfig.serviceDiscoveryRetryCount;
+			else if (configParam == XmlTraceMaxFileSize)
+				return (int) activeConfig.xmlTraceMaxFileSize;
 		}
 		else if (type == ConfigGroupTypeDictionary)
 		{
@@ -1080,6 +1213,19 @@ public class JUnitTestConnect
 		
 		ActiveConfig activeConfig = consImpl.activeConfig();
 		
+		if (type == ConfigGroupTypeConsumer)
+		{
+			switch (configParam)
+			{
+				case RestProxyHostName:
+					return activeConfig.restProxyHostName;
+				case RestProxyPort:
+					return activeConfig.restProxyPort;
+				default:
+					break;
+			}
+		}
+
 		if (type == ConfigGroupTypeWarmStandbyGroup)
 		{
 			WarmStandbyChannelConfig wsbConfig = null;
@@ -1169,11 +1315,22 @@ public class JUnitTestConnect
 		
 		if (type == ConfigGroupTypeConsumer)
 		{
-			if (configParam == ConsumerDefaultConsumerName)
-				return activeConfig.configuredName;
-			if (configParam == EnableRtt) {
-				return String.valueOf(activeConfig.rsslRDMLoginRequest.attrib().checkHasSupportRoundTripLatencyMonitoring());
+			switch (configParam)
+			{
+				case ConsumerDefaultConsumerName:
+					return activeConfig.configuredName;
+				case EnableRtt:
+					return String.valueOf(activeConfig.rsslRDMLoginRequest.attrib().checkHasSupportRoundTripLatencyMonitoring());
+				case RestProxyHostName:
+					return activeConfig.restProxyHostName;
+				case RestProxyPort:
+					return activeConfig.restProxyPort;
+				case XmlTraceFileName:
+					return activeConfig.xmlTraceFileName;
+				default:
+					break;			
 			}
+
 		}
 		else if (type == ConfigGroupTypeChannel)
 		{
@@ -1220,6 +1377,9 @@ public class JUnitTestConnect
 				if (chanConfig.rsslConnectionType == ConnectionTypes.WEBSOCKET) {
 					return chanConfig.wsProtocols;
 				}
+			}
+			else if (configParam == XmlTraceFileName){
+				return activeConfig.xmlTraceFileName;
 			}
 		}
 		else if (type == ConfigGroupTypeDictionary)
@@ -1304,6 +1464,16 @@ public class JUnitTestConnect
 		{
 			if (configParam == XmlTraceToStdout)
 				return activeConfig.xmlTraceEnable;
+			else if (configParam == XmlTraceToFile)
+				return activeConfig.xmlTraceToFileEnable;
+			else if (configParam == XmlTraceToMultipleFiles)
+				return activeConfig.xmlTraceToMultipleFilesEnable;
+			else if (configParam == XmlTraceWrite)
+				return activeConfig.xmlTraceWriteEnable;
+			else if (configParam == XmlTraceRead)
+				return activeConfig.xmlTraceReadEnable;
+			else if (configParam == XmlTracePing)
+				return activeConfig.xmlTracePingEnable;
 			else if (configParam == NiProviderMergeSourceDirectoryStreams)
 				return ((OmmNiProviderActiveConfig)activeConfig).mergeSourceDirectoryStreams;
 			else if (configParam == NiProviderRefreshFirstRequired)
@@ -1367,6 +1537,8 @@ public class JUnitTestConnect
 				return activeConfig.reconnectMaxDelay;
 			else if (configParam == LoginRequestTimeOut)
 				return activeConfig.loginRequestTimeOut;
+			else if (configParam == XmlTraceMaxFileSize)
+				return (int) activeConfig.xmlTraceMaxFileSize;
 		}
 		else if (type == ConfigGroupTypeChannel)
 		{
@@ -1422,6 +1594,8 @@ public class JUnitTestConnect
 				return activeConfig.configuredName;
 			else if (configParam == DirectoryName)
 				return ((OmmNiProviderDirectoryStore)niprovImpl.directoryServiceStore()).getApiControlDirectory().directoryName;
+			else if (configParam == XmlTraceFileName)
+				return activeConfig.xmlTraceFileName;
 		}
 		else if (type == ConfigGroupTypeChannel)
 		{
@@ -1460,6 +1634,8 @@ public class JUnitTestConnect
 				if (chanConfig.rsslConnectionType == ConnectionTypes.HTTP || chanConfig.rsslConnectionType == ConnectionTypes.ENCRYPTED)
 					return ((HttpChannelConfig)chanConfig).httpProxyPort;
 			}
+			else if (configParam == XmlTraceFileName)
+				return activeConfig.xmlTraceFileName;
 		}
 		
 		throw new IllegalArgumentException("Invalid Input");  
@@ -1480,6 +1656,16 @@ public class JUnitTestConnect
 		{
 			if (configParam == XmlTraceToStdout)
 				return activeConfig.xmlTraceEnable;
+			else if (configParam == XmlTraceToFile)
+				return activeConfig.xmlTraceToFileEnable;
+			else if (configParam == XmlTraceToMultipleFiles)
+				return activeConfig.xmlTraceToMultipleFilesEnable;
+			else if (configParam == XmlTraceWrite)
+				return activeConfig.xmlTraceWriteEnable;
+			else if (configParam == XmlTraceRead)
+				return activeConfig.xmlTraceReadEnable;
+			else if (configParam == XmlTracePing)
+				return activeConfig.xmlTracePingEnable;
 			else if (configParam == IProviderRefreshFirstRequired)
 				return ((OmmIProviderActiveConfig)activeConfig).refreshFirstRequired;
 			else if (configParam == IProviderAcceptDirMessageWithoutMinFilters)
@@ -1542,6 +1728,8 @@ public class JUnitTestConnect
 				return ((OmmIProviderActiveConfig)activeConfig).maxEnumTypeFragmentSize;
 			else if (configParam == DictionaryFieldDictFragmentSize)
 				return ((OmmIProviderActiveConfig)activeConfig).maxFieldDictFragmentSize;
+			else if (configParam == XmlTraceMaxFileSize)
+				return (int) activeConfig.xmlTraceMaxFileSize;
 		}
 		else if (type == ConfigGroupTypeServer)
 		{
@@ -1569,7 +1757,8 @@ public class JUnitTestConnect
 				return activeConfig.serverConfig.initializationTimeout;
 			else if (configParam == ServerMaxFragmentSize) {
 				return activeConfig.serverConfig.maxFragmentSize;
-			}
+			} else if (configParam == XmlTraceMaxFileSize)
+				return (int) activeConfig.xmlTraceMaxFileSize;
 		}
 		
 		throw new IllegalArgumentException("Invalid Input");   
@@ -1593,6 +1782,8 @@ public class JUnitTestConnect
 				return activeConfig.serverConfig.name;
 			else if (configParam == DirectoryName)
 				return iprovImpl.directoryServiceStore().getDirectoryCache().directoryName;
+			else if (configParam == XmlTraceFileName)
+				return activeConfig.xmlTraceFileName;
 		}
 		else if (type == ConfigGroupTypeServer)
 		{
@@ -1741,4 +1932,9 @@ public class JUnitTestConnect
 		}
 		return serverConfig;
 	}
+
+    public static void setDefaultXmlSchemaName(String fileName)
+    {
+        ConfigReader.defaultXsdFileName = fileName;
+    } 
 }

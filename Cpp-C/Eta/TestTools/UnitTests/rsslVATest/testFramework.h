@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 #ifndef RSSL_TEST_FRAMEWORK_H
@@ -17,6 +17,11 @@
 
 extern RsslBuffer g_userName;
 extern RsslBuffer g_password;
+extern RsslBuffer g_clientId;
+extern RsslBuffer g_clientSecret;
+
+extern RsslBuffer g_proxyHost;
+extern RsslBuffer g_proxyPort;
 
 #ifdef __cplusplus
 extern "C" {

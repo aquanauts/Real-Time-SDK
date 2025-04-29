@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -116,10 +116,16 @@ namespace LSEG.Eta.Rdm
         /// </param>
         /// <returns> the string representation of a domain type name
         /// </returns>
-        public static string ToString(int domainType)
-        {
-            return $"{(DomainType)domainType}";
-        }
+        public static string ToString(int domainType) => ToString((DomainType)domainType);
+
+        /// <summary>
+        /// String representation of a domain type name.
+        /// </summary>
+        /// <param name="domainType"> domain type
+        /// </param>
+        /// <returns> the string representation of a domain type name
+        /// </returns>
+        public static string ToString(DomainType domainType) => $"{domainType}";
 
         /// <summary>
         /// Returns domainType value from domain type string.

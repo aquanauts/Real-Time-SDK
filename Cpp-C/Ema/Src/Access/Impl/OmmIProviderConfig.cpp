@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2022 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -121,6 +121,12 @@ OmmIProviderConfig& OmmIProviderConfig::libCurlName (const EmaString& libCurlNam
 	return *this;
 }
 
+OmmIProviderConfig& OmmIProviderConfig::securityProtocol(int securityProtocol)
+{
+	_pImpl->securityProtocol(securityProtocol);
+	return *this;
+}
+
 OmmIProviderConfig& OmmIProviderConfig::serverCert(const EmaString& serverCert)
 {
 	_pImpl->serverCert(serverCert);
@@ -154,5 +160,11 @@ OmmIProviderConfig& OmmIProviderConfig::workerThreadBind(const EmaString& cpuStr
 OmmIProviderConfig& OmmIProviderConfig::apiThreadBind(const EmaString& cpuString)
 {
 	_pImpl->setCpuApiThreadBind(cpuString);
+	return *this;
+}
+
+OmmIProviderConfig& OmmIProviderConfig::shouldInitializeCPUIDlib(bool shouldInitCPUIDlib)
+{
+	_pImpl->setShouldInitializeCPUIDlib(shouldInitCPUIDlib);
 	return *this;
 }

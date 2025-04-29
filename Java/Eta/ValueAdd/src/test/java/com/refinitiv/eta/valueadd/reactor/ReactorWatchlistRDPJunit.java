@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-//*|            This source code is provided under the Apache 2.0 license      --
-//*|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-//*|                See the project's LICENSE.md for details.                  --
-//*|           Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+//*|            This source code is provided under the Apache 2.0 license
+//*|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+//*|                See the project's LICENSE.md for details.
+//*|           Copyright (C) 2019-2020 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.eta.valueadd.reactor;
@@ -415,6 +415,7 @@ public class ReactorWatchlistRDPJunit
 
 			connectInfo.connectOptions().encryptionOptions().KeystoreType("JKS");
 			connectInfo.connectOptions().encryptionOptions().SecurityProtocol("TLS");
+			connectInfo.connectOptions().encryptionOptions().SecurityProtocolVersions(new String[] {"1.3", "1.2"});
 			connectInfo.connectOptions().encryptionOptions().SecurityProvider("SunJSSE");
 			connectInfo.connectOptions().encryptionOptions().KeyManagerAlgorithm("SunX509");
 			connectInfo.connectOptions().encryptionOptions().TrustManagerAlgorithm("PKIX");
@@ -1278,7 +1279,7 @@ public class ReactorWatchlistRDPJunit
 		assumeTrue(checkCredentials());
 
 		// request service discovery with valid user name / password to prevent being locked out 
-		// from Refinitiv Data Platform because of too many invalid requests.
+		// from Delivery Platform because of too many invalid requests.
 		unlockAccount();
 		
 		TestReactor consumerReactor = null;
@@ -1419,7 +1420,7 @@ public class ReactorWatchlistRDPJunit
 		assumeTrue(checkCredentials());
 
 		// request service discovery with valid user name / password to prevent being locked out 
-		// from Refinitiv Data Platform because of too many invalid requests.
+		// from Delivery Platform because of too many invalid requests.
 		unlockAccount();
 		
 		TestReactor consumerReactor = null;
@@ -2439,7 +2440,7 @@ public class ReactorWatchlistRDPJunit
 		assumeTrue(checkCredentials());
 
 		// request service discovery with valid user name / password to prevent being locked out 
-		// from Refinitiv Data Platform because of too many invalid requests.
+		// from Delivery Platform because of too many invalid requests.
 		unlockAccount();
 		
 		TestReactor consumerReactor = null;
@@ -3316,7 +3317,7 @@ public class ReactorWatchlistRDPJunit
 				public int reactorServiceEndpointEventCallback(ReactorServiceEndpointEvent event) {
 					assertTrue(event.errorInfo().code() == ReactorReturnCodes.FAILURE );
 					// since password is incorrect we should see 400 code
-					String tmp = "{\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid Application Credential.\" }";
+					String tmp = "{\"error\":\"invalid_client\"";
 					assertTrue("Message received: " + event.errorInfo().toString() + " Expected: " + tmp, event.errorInfo().toString().contains(tmp));
 					//assertTrue("Message received: " + event.errorInfo().toString() ,event.errorInfo().toString().contains("{\"error\":\"access_denied\"  ,\"error_description\":\"Authentication Failed.\" }"));
 					System.out.println(event.serviceEndpointInfo());
@@ -4770,10 +4771,10 @@ public class ReactorWatchlistRDPJunit
 			consumerReactor = new TestReactor(reactorOptions);
 
 			Consumer consumer = new Consumer(consumerReactor);
-			setupConsumer(consumer, false);
+			setupConsumer(consumer, true);
 			
 			Consumer consumer2 = new Consumer(consumerReactor);
-			setupConsumer(consumer2, false);
+			setupConsumer(consumer2, true);
 			
 			ReactorOAuthCredential reactorOAutchCredential = ReactorFactory.createReactorOAuthCredential();
 			Buffer username = CodecFactory.createBuffer();
@@ -4893,7 +4894,7 @@ public class ReactorWatchlistRDPJunit
 			int ret = consumerReactor._reactor.submitOAuthCredentialRenewal(renewalOptions, oAuthCredentialRenewal, errorInfo);
 			
 			assertTrue("Faield to send the token request", ret == ReactorReturnCodes.FAILURE);
-			assertEquals("Checking error text", "Failed to request authentication token information. Text: {\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid Application Credential.\" } ", errorInfo.error().text());
+			assertEquals("Checking error text", "Failed to request authentication token information with HTTP error 401. Text: {\"error\":\"invalid_client\"  ,\"error_description\":\"Invalid Application Credential.\" } ", errorInfo.error().text());
 		}
 		finally
 		{
@@ -4938,7 +4939,7 @@ public class ReactorWatchlistRDPJunit
 			int ret = consumerReactor._reactor.submitOAuthCredentialRenewal(renewalOptions, oAuthCredentialRenewal, errorInfo);
 			
 			assertTrue("Faield to send the token request", ret == ReactorReturnCodes.FAILURE);
-			assertEquals("Checking error text", "Failed to request authentication token information. Text: {\"error\":\"access_denied\"  ,\"error_description\":\"Session quota is reached.\" } ", errorInfo.error().text());
+			assertEquals("Checking error text", "Failed to request authentication token information with HTTP error 400. Text: {\"error\":\"access_denied\"  ,\"error_description\":\"Session quota is reached.\" } ", errorInfo.error().text());
 		}
 		finally
 		{

@@ -1,10 +1,12 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
+
+using System;
 
 using LSEG.Eta.Codec;
 using LSEG.Eta.Common;
@@ -12,6 +14,7 @@ using LSEG.Eta.Example.Common;
 using LSEG.Eta.PerfTools.Common;
 using LSEG.Eta.Rdm;
 using LSEG.Eta.Transports;
+
 using ItemInfo = LSEG.Eta.PerfTools.Common.ItemInfo;
 using ProviderSession = LSEG.Eta.PerfTools.Common.ProviderSession;
 
@@ -120,6 +123,7 @@ namespace LSEG.Eta.PerfTools.ProvPerf
                             // deep copy item name buffer
                             ByteBuffer nameBytes = new ByteBuffer(msgKey.Name.Length);
                             msgKey.Name.Copy(nameBytes);
+                            nameBytes.Flip();
                             itemAttributes.MsgKey.Name.Data(nameBytes);
                         }
 
@@ -128,6 +132,7 @@ namespace LSEG.Eta.PerfTools.ProvPerf
                             // deep copy attrib buffer
                             ByteBuffer attribBytes = new ByteBuffer(msgKey.EncodedAttrib.Length);
                             msgKey.EncodedAttrib.Copy(attribBytes);
+                            attribBytes.Flip();
                             itemAttributes.MsgKey.EncodedAttrib.Data(attribBytes);
                         }
 

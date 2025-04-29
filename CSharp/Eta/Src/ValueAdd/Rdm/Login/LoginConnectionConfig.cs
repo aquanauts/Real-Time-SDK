@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -24,7 +24,6 @@ namespace LSEG.Eta.ValueAdd.Rdm
     {
         private List<ServerInfo> _serverList;
 
-        private const string eol = "\n";
         private const string tab = "\t";
         private StringBuilder stringBuf = new();
 
@@ -429,13 +428,13 @@ namespace LSEG.Eta.ValueAdd.Rdm
             stringBuf.Append(tab);
             stringBuf.Append("numStandbyServers: ");
             stringBuf.Append(NumStandByServers);
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             foreach (ServerInfo serverInfo in ServerList)
             {
                 stringBuf.Append(serverInfo.ToString());
             }
-            stringBuf.Append(eol);
+            stringBuf.AppendLine();
 
             return stringBuf.ToString();
         }

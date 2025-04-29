@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019, 2024 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -16,8 +16,42 @@ TEST(AckMsgTests, testAckMsgwithElementList)
 {
 
 	RsslDataDictionary dictionary;
+	DataDictionary emaDataDictionary, emaDataDictionaryEmpty;
 
-	ASSERT_TRUE(loadDictionaryFromFile( &dictionary )) << "Failed to load dictionary";
+	const EmaString ackMsgString =
+		"AckMsg\n"
+		"    streamId=\"0\"\n"
+		"    domain=\"MarketPrice Domain\"\n"
+		"    ackId=\"0\"\n"
+		"    Attrib dataType=\"ElementList\"\n"
+		"        ElementList\n"
+		"            ElementEntry name=\"Int\" dataType=\"Int\" value=\"1234\"\n"
+		"            ElementEntry name=\"Ascii\" dataType=\"Ascii\" value=\"Ascii\"\n"
+		"        ElementListEnd\n"
+		"    AttribEnd\n"
+		"    Payload dataType=\"ElementList\"\n"
+		"        ElementList\n"
+		"            ElementEntry name=\"Int\" dataType=\"Int\" value=\"1234\"\n"
+		"            ElementEntry name=\"Ascii\" dataType=\"Ascii\" value=\"Ascii\"\n"
+		"        ElementListEnd\n"
+		"    PayloadEnd\n"
+		"AckMsgEnd\n";
+
+	const EmaString ackMsgEmptyString =
+		"AckMsg\n"
+		"    streamId=\"0\"\n"
+		"    domain=\"MarketPrice Domain\"\n"
+		"    ackId=\"0\"\n"
+		"AckMsgEnd\n";
+
+	ASSERT_TRUE(loadDictionaryFromFile( &dictionary) ) << "Failed to load dictionary";
+	try {
+		emaDataDictionary.loadFieldDictionary( "RDMFieldDictionaryTest" );
+		emaDataDictionary.loadEnumTypeDictionary( "enumtypeTest.def" );
+	}
+	catch ( const OmmException& ) {
+		ASSERT_TRUE( false ) << "DataDictionary::loadFieldDictionary() failed to load dictionary information";
+	}
 
 	try
 	{
@@ -27,22 +61,32 @@ TEST(AckMsgTests, testAckMsgwithElementList)
 		.addAscii( EmaString( "Ascii" ), "Ascii" )
 		.complete();
 
-		AckMsg ackMsg;
+		AckMsg ackMsg, ackMsgEmpty;
 		ackMsg.attrib( eList );
 		ackMsg.payload( eList );
-		EXPECT_EQ( ackMsg.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "AckMsg.toString() == Decoding of just encoded object in the same application is not supported";
 
-		StaticDecoder::setData( &ackMsg, &dictionary );
-		EXPECT_NE( ackMsg.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "AckMsg.toString() != Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( ackMsg.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "AckMsg.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
+		EXPECT_EQ( ackMsg.toString( emaDataDictionaryEmpty ), "\nDictionary is not loaded.\n" ) << "AckMsg.toString() == Dictionary is not loaded.";
 
-		EXPECT_TRUE( true ) << "ElementList as Payload of AckMsg - exception NOT expected" ;
+		EXPECT_EQ( ackMsgEmpty.toString(emaDataDictionary), ackMsgEmptyString ) << "AckMsg.toString() == ackMsgEmptyString";
+
+		EXPECT_EQ( ackMsg.toString( emaDataDictionary ), ackMsgString ) << "AckMsg.toString() == AckMsgString";
+
+		StaticDecoder::setData(&ackMsg, &dictionary);
+
+		AckMsg ackClone( ackMsg );
+		ackClone.clear();
+		EXPECT_EQ( ackClone.toString( emaDataDictionary ), ackMsgEmptyString ) << "AckMsg.toString() == ackMsgEmptyString";
+
+		EXPECT_EQ( ackMsg.toString(), ackMsgString ) << "AckMsg.toString() == AckMsgString";
 	}
 	catch ( const OmmException& )
 	{
-
 		EXPECT_FALSE( true ) << "ElementList as Payload of AckMsg - exception NOT expected" ;
 	}
+
+	rsslDeleteDataDictionary(&dictionary);
 }
 
 TEST(AckMsgTests, testAckMsgwithRefreshMsg)
@@ -81,6 +125,8 @@ TEST(AckMsgTests, testAckMsgwithRefreshMsg)
 
 		EXPECT_FALSE( true ) << "RefreshMsg as Payload of AckMsg - exception NOT expected" ;
 	}
+
+	rsslDeleteDataDictionary(&dictionary);
 }
 
 TEST(AckMsgTests, testAckMsgWithOpaque)
@@ -182,6 +228,55 @@ TEST(AckMsgTests, testAckMsgWithXml)
 	}
 }
 
+TEST(AckMsgTests, testAckMsgWithJson)
+{
+
+	try
+	{
+		RsslAckMsg rsslAckMsg;
+		rsslClearAckMsg( &rsslAckMsg );
+
+		RsslMsgKey msgKey;
+		rsslClearMsgKey( &msgKey );
+
+		RsslBuffer nameBuffer;
+		nameBuffer.data = const_cast<char*>("ABCDEF");
+		nameBuffer.length = 6;
+
+		msgKey.name = nameBuffer;
+
+		rsslAckMsg.ackId = 1;
+		rsslAckMsgApplyHasMsgKey( &rsslAckMsg );
+
+		char buffer[200];
+		RsslBuffer rsslBuf;
+		rsslBuf.data = buffer;
+		rsslBuf.length = 200;
+
+		RsslBuffer jsonValue;
+		jsonValue.data = ( char* )"{\"consumerList\":{\"consumer\":{\"name\":\"\",\"dataType\":\"Ascii\",\"value\":\"Consumer_1\"}}}";
+		jsonValue.length = static_cast<rtrUInt32>(strlen( jsonValue.data ));
+
+		encodeNonRWFData( &rsslBuf, &jsonValue );
+
+		rsslAckMsg.msgBase.encDataBody = rsslBuf;
+		rsslAckMsg.msgBase.containerType = RSSL_DT_JSON;
+
+		AckMsg ackMsg;
+
+		StaticDecoder::setRsslData( &ackMsg, ( RsslMsg* )&rsslAckMsg, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, 0 );
+
+		EXPECT_EQ( ackMsg.getPayload().getDataType(), DataType::JsonEnum ) << "ackMsg.getPayload().getDataType() == DataType::JsonEnum" ;
+
+		EmaBuffer compareTo( jsonValue.data, jsonValue.length );
+		EXPECT_STREQ( ackMsg.getPayload().getJson().getBuffer(), compareTo ) << "ackMsg.getPayload().getJson().getBuffer()" ;
+	}
+	catch ( const OmmException& )
+	{
+		EXPECT_FALSE( true ) << "ackMsg Decode with Json payload - exception not expected" ;
+	}
+}
+
 TEST(AckMsgTests, testAckMsgWithAnsiPage)
 {
 
@@ -227,7 +322,7 @@ TEST(AckMsgTests, testAckMsgWithAnsiPage)
 	}
 	catch ( const OmmException& )
 	{
-		EXPECT_FALSE( true ) << "ackMsg Decode with Xml payload - exception not expected" ;
+		EXPECT_FALSE( true ) << "ackMsg Decode with AnsiPage payload - exception not expected" ;
 	}
 }
 
@@ -670,6 +765,8 @@ TEST(AckMsgTests, testAckMsgtoString)
 	{
 		EXPECT_FALSE(true) << "AckMsg toString Decode - exception not expected";
 	}
+
+	rsslDeleteDataDictionary(&dictionary);
 }
 
 TEST(AckMsgTests, testAckMsgClone)

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|         Copyright (C) 2020-2023 Refinitiv. All rights reserved.           --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|         Copyright (C) 2020-2023, 2025 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -1132,20 +1132,46 @@ RsslInt32 rwsIntTotalUsedOutputBuffers(RsslSocketChannel *rsslSocketChannel, Rss
 	return(num);
 }
 
+/* Reallocates the memory object. */
+/**/
+/* The reallocation is done: */
+/* allocating a new memory block of size at least newLength bytes, */
+/* copying memory area with size equal the lesser of the new and the old sizes, */
+/* and freeing the old block. */
+/**/
+/* If there is not enough memory, the old memory block is not freed and null pointer is returned. */
+/* When the new required memory size newLength is greater than the maximum allowed size maxLength, */
+/* the old memory block is not freed and null pointer is returned. */
+/* When a null pointer is returned, the error parameter will populate detailed error information. */
 rtr_msgb_t *checkSizeAndRealloc(rtr_msgb_t* bufferObj, size_t newLength, size_t maxLength, RsslError *error)
 {
+	/* bufferObj is the pointer to the memory area to be reallocated */
+	/* bufferObj->maxLength is currently allocated memory size */
+	/* newLength is the new required memory size */
+	/* maxLength is the threshould maximum available memory size */
+
 	rtr_msgb_t* tempBufferObj;
+	/* When earlier allocated memory is enough then we return only */
 	if (bufferObj->maxLength < newLength)
 	{
+		/* When maximum limit is not set */
 		if (maxLength == 0)
 		{
 			size_t allocatedSize = (bufferObj->maxLength * 2) > newLength ? (bufferObj->maxLength * 2) : newLength;
 			tempBufferObj = ipcAllocGblMsg(allocatedSize);
 		}
-		else if (bufferObj->maxLength * 2 <= maxLength)
-			tempBufferObj = ipcAllocGblMsg(bufferObj->maxLength * 2);
-		else if (bufferObj->maxLength < maxLength)
-			tempBufferObj = ipcAllocGblMsg(maxLength);
+		/* Checks the limit on the maximum memory size */
+		else if (newLength <= maxLength)
+		{
+			/* Try to increase memory twice */
+			size_t allocatedSize = (bufferObj->maxLength * 2) > newLength ? (bufferObj->maxLength * 2) : newLength;
+			
+			/* And checks the limit on the maximum memory size */
+			if (maxLength < allocatedSize)
+				allocatedSize = maxLength;
+
+			tempBufferObj = ipcAllocGblMsg(allocatedSize);
+		}
 		else
 		{
 			_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
@@ -1164,7 +1190,8 @@ rtr_msgb_t *checkSizeAndRealloc(rtr_msgb_t* bufferObj, size_t newLength, size_t 
 			return(0);
 		}
 	
-			
+		/* Copy the memory to the new allocated area */
+		/* bufferObj->length is the size of using memory space */
 		memcpy(tempBufferObj->buffer, bufferObj->buffer, bufferObj->length);
 		tempBufferObj->length = bufferObj->length;
 		rtr_smplcFreeMsg(bufferObj);
@@ -2097,8 +2124,7 @@ RsslInt32 rwsReadResponseHandshake(RsslSocketChannel * rsslSocketChannel, char *
 			RsslHttpHdrData *httpHdr = NULL;
 			RsslQueueLink  *pLink = 0;
 
-
-			/*Claen up the error struct*/
+			/*Clean up the error struct*/
 			_rsslErrorClean(error);
 
 			rsslInitQueue(&(httpMsg.headers));
@@ -2130,6 +2156,8 @@ RsslInt32 rwsReadResponseHandshake(RsslSocketChannel * rsslSocketChannel, char *
 			httpMsg.statusCode = wsSess->statusCode;
 			httpMsg.protocolVersion = rwsHdr_HTTP.data;
 			httpMsg.httpMethod = RSSL_HTTP_UNKNOWN;
+
+			httpMsg.userSpecPtr = rsslSocketChannel->userSpecPtr;
 			
 			rsslSocketChannel->httpCallback(&httpMsg, error);
 
@@ -2280,6 +2308,7 @@ ripcSessInit rwsSendOpeningHandshake(RsslSocketChannel *rsslSocketChannel, ripcS
 		}
 		wsSess->keyAccept.length = (RsslUInt32)strlen(wsSess->keyAccept.data);
 
+		
 		sprintfRet = snprintf(hsBuffer + hsLen, remaining, "Sec-WebSocket-Key: %s\r\n", wsSess->keyNonce.data);
 
 		if (sprintfRet < 0) break;
@@ -2513,6 +2542,27 @@ ripcSessInit rwsWaitResponseHandshake(RsslSocketChannel * rsslSocketChannel, rip
 		return (RIPC_CONN_IN_PROGRESS);
 	}
 
+	if (!wsSess->upgrade)
+	{
+		_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+		snprintf(error->text, MAX_RSSL_ERROR_TEXT,
+			"<%s:%d> No Upgrade: key received. ",
+			__FUNCTION__, __LINE__);
+
+		return(RIPC_CONN_ERROR);
+	}
+
+	if (!wsSess->connUpgrade)
+	{
+		_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+		snprintf(error->text, MAX_RSSL_ERROR_TEXT,
+			"<%s:%d> No Connection: key received. ",
+			__FUNCTION__, __LINE__);
+
+		return(RIPC_CONN_ERROR);
+	}
+
+	/* RFC6455 Exception: Sec-WebSocket-Protocol is an obligatory field our WS implementation.
 	/* If subProtocol is RSSL_RWF then move to regular
 	 * client connecting state */
 	if (wsSess->protocol == RWS_SP_NONE)
@@ -2823,7 +2873,7 @@ RsslInt32 rwsSendResponseHandshake(RsslSocketChannel *rsslSocketChannel, rwsSess
 			return(-1);
 		}
 
-		wsSess->keyAccept.length = (RsslInt32)strlen(wsSess->keyRecv.data);
+		wsSess->keyAccept.length = (RsslInt32)strlen(wsSess->keyAccept.data);
 		sprintfRet = snprintf(resp + respLen, remaining, "Sec-WebSocket-Accept: %s\r\n", wsSess->keyAccept.data);
 
 		if (sprintfRet < 0) break;
@@ -2888,63 +2938,6 @@ RsslInt32 rwsSendResponseHandshake(RsslSocketChannel *rsslSocketChannel, rwsSess
 			__FILE__, __LINE__, errno);
 
 		return (RIPC_CONN_ERROR);
-	}
-
-	/*Callback to provide HTTP header*/
-	if (rsslSocketChannel->httpCallback != NULL)
-	{
-		RsslHttpMessage httpMsg = { 0 };
-		RsslHttpHdrData *httpHdr = NULL;
-		RsslInt32 lnNum = 1;
-		RsslBuffer *pField = NULL;
-		rwsHttpHdr_t *respHdrs = 0;
-		headerLine_t *hdrLine = 0;
-
-		/*Claen up the error struct*/
-		_rsslErrorClean(error);
-
-		rsslInitQueue(&(httpMsg.headers));
-		rsslInitQueue(&(httpMsg.cookies));
-
-		respHdrs = &(wsSess->hsReceived);
-		hdrLine = respHdrs->lines;
-
-		httpHdr = (RsslHttpHdrData*)_rsslMalloc(sizeof(RsslHttpHdrData) * (respHdrs->total - 1)); // need to skeep headline "HTTP/1.1 101 Switching Protocols\r\n"
-		if (httpHdr == 0)
-		{
-			_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Failed to allocate memory for HTTP a headers\n", __FILE__, __LINE__);
-			rsslSocketChannel->httpCallback(NULL, error);
-			return(-1);
-		}
-
-		for (lnNum = 1; lnNum < respHdrs->total; lnNum++)
-		{
-			httpHdr[lnNum-1].name.data = hdrLine[lnNum].field.data;
-			httpHdr[lnNum-1].name.length = hdrLine[lnNum].field.length;
-			httpHdr[lnNum-1].value.data = hdrLine[lnNum].value.data;
-			httpHdr[lnNum-1].value.length = hdrLine[lnNum].value.length;
-			
-			pField = &(hdrLine[lnNum].field);
-			if (!_rwsMatchField(pField, &rwsField_COOKIE))
-				rsslQueueAddLinkToBack(&(httpMsg.headers), &(httpHdr[lnNum - 1].link));
-			else 
-				rsslQueueAddLinkToBack(&(httpMsg.cookies), &(httpHdr[lnNum - 1].link));
-		}
-
-		httpMsg.statusCode = wsSess->statusCode;
-		httpMsg.protocolVersion = rwsHdr_HTTP.data;
-		httpMsg.httpMethod = RSSL_HTTP_GET;
-
-		rsslSocketChannel->httpCallback(&httpMsg, error);
-
-		/*Realease allocated memory for headers*/
-		if (httpHdr)
-			_rsslFree(httpHdr);
-	}
-	else
-	{
-		_DEBUG_TRACE_WS_WRITE("HTTP header callback was not set <%s:%d>", __FUNCTION__, __LINE__);
 	}
 
 	_DEBUG_TRACE_WS_WRITE("Response sent, fd "SOCKET_PRINT_TYPE" cc %d err %d\n", 
@@ -3128,6 +3121,68 @@ ripcSessInit rwsValidateWebSocketRequest(RsslSocketChannel *rsslSocketChannel, c
 	{
 		wsSess = (rwsSession_t*)rsslSocketChannel->rwsSession;
 
+		/* Callback to provide HTTP header */
+		if (rsslSocketChannel->httpCallback != NULL)
+		{
+			RsslHttpMessage httpMsg = { 0 };
+			RsslHttpHdrData *httpHdr = NULL;
+			RsslInt32 lnNum = 1;
+			RsslBuffer *pField = NULL;
+			rwsHttpHdr_t *respHdrs = 0;
+			headerLine_t *hdrLine = 0;
+
+			_rsslErrorClean(error);
+
+			rsslInitQueue(&(httpMsg.headers));
+			rsslInitQueue(&(httpMsg.cookies));
+
+			respHdrs = &(wsSess->hsReceived);
+			hdrLine = respHdrs->lines;
+
+			httpHdr = (RsslHttpHdrData*)_rsslMalloc(sizeof(RsslHttpHdrData) * (respHdrs->total - 1)); // need to skeep headline "HTTP/1.1 101 Switching Protocols\r\n"
+			if (httpHdr == 0)
+			{
+				_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
+				snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> Failed to allocate memory for HTTP a headers\n", __FILE__, __LINE__);
+				rsslSocketChannel->httpCallback(NULL, error);
+				return(-1);
+			}
+
+			for (lnNum = 1; lnNum < respHdrs->total; lnNum++)
+			{
+				httpHdr[lnNum - 1].name.data = hdrLine[lnNum].field.data;
+				httpHdr[lnNum - 1].name.length = hdrLine[lnNum].field.length;
+				httpHdr[lnNum - 1].value.data = hdrLine[lnNum].value.data;
+				httpHdr[lnNum - 1].value.length = hdrLine[lnNum].value.length;
+
+				pField = &(hdrLine[lnNum].field);
+				if (!_rwsMatchField(pField, &rwsField_COOKIE))
+					rsslQueueAddLinkToBack(&(httpMsg.headers), &(httpHdr[lnNum - 1].link));
+				else
+					rsslQueueAddLinkToBack(&(httpMsg.cookies), &(httpHdr[lnNum - 1].link));
+			}
+
+			httpMsg.statusCode = wsSess->statusCode;
+			httpMsg.protocolVersion = rwsHdr_HTTP.data;
+			httpMsg.httpMethod = RSSL_HTTP_GET;
+
+			/* the headline of "GET /Websocket HTTP/1.1" */
+			httpMsg.url.data = hdrLine[0].value.data;
+			httpMsg.url.length = hdrLine[0].value.length - rwsHdr_HTTP.length - 1;
+
+			httpMsg.userSpecPtr = rsslSocketChannel->userSpecPtr;
+
+			rsslSocketChannel->httpCallback(&httpMsg, error);
+
+			/* Release allocated memory for headers */
+			if (httpHdr)
+				_rsslFree(httpHdr);
+		}
+		else
+		{
+			_DEBUG_TRACE_WS_CONN("HTTP header callback was not set <%s:%d>", __FUNCTION__, __LINE__);
+		}
+
 		_DEBUG_TRACE_WS_CONN("HTTP WS Header fd "SOCKET_PRINT_TYPE" inBC %d inBL %d hdrL %d\n",
 									rsslSocketChannel->stream,
 									rsslSocketChannel->inputBufCursor,
@@ -3143,15 +3198,52 @@ ripcSessInit rwsValidateWebSocketRequest(RsslSocketChannel *rsslSocketChannel, c
 			rsslSocketChannel->inputBufCursor = 0;
 		}
 		
-		// Validate upgrade request
-		if (!wsSess->upgrade && !wsSess->connUpgrade)
+		// Validate Host request
+		if (wsSess->host == NULL)
+		{
+			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+			snprintf(error->text, MAX_RSSL_ERROR_TEXT,
+				"<%s:%d> Invalid Websocket request. Missing Host field.",
+				__FILE__, __LINE__);
 			return(rwsRejectSession(rsslSocketChannel, RSSL_WS_REJECT_NO_RESRC, error));
+		}
+
+		// Validate upgrade request
+		if (!wsSess->upgrade)
+		{
+			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+			snprintf(error->text, MAX_RSSL_ERROR_TEXT,
+				"<%s:%d> Invalid Websocket request. Missing Upgrade field.",
+				__FILE__, __LINE__);
+			return(rwsRejectSession(rsslSocketChannel, RSSL_WS_REJECT_NO_RESRC, error));
+		}
+
+		// Validate connection request
+		if (!wsSess->connUpgrade)
+		{
+			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+			snprintf(error->text, MAX_RSSL_ERROR_TEXT,
+				"<%s:%d> Invalid Websocket request. Missing Connection field.",
+				__FILE__, __LINE__);
+			return(rwsRejectSession(rsslSocketChannel, RSSL_WS_REJECT_NO_RESRC, error));
+		}
+
+		// Validate Sec-WebSocket-Key request
+		if (wsSess->keyRecv.data == NULL || wsSess->keyRecv.length == 0)
+		{
+			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
+			snprintf(error->text, MAX_RSSL_ERROR_TEXT,
+				"<%s:%d> Invalid Websocket request. Missing Sec-WebSocket-Key field.",
+				__FILE__, __LINE__);
+			return(rwsRejectSession(rsslSocketChannel, RSSL_WS_REJECT_NO_RESRC, error));
+		}
 
 		if(rsslSocketChannel->mountNak == 1)
 			return(rwsRejectSession(rsslSocketChannel, RSSL_WS_REJECT_NO_RESRC, error));
 
+		//Sec-WebSocker-Version == 13 per RFC6455
 		wsSess->version = wsSess->server->version;
-		if (wsSess->versionRecv < wsSess->version)
+		if (wsSess->versionRecv != wsSess->version)
 		{
 			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
 			snprintf(error->text,MAX_RSSL_ERROR_TEXT,
@@ -3162,6 +3254,7 @@ ripcSessInit rwsValidateWebSocketRequest(RsslSocketChannel *rsslSocketChannel, c
 		}
 
 		/* Check for unknown protocol. */
+		/* RFC6455 exception: Sec-WebSocket-Protocol is an obligatory field our WS implementation.*/
 		if (wsSess->protocol == RWS_SP_NONE)
 		{
 			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
@@ -3203,6 +3296,8 @@ RsslInt32 rwsRejectSession(RsslSocketChannel *rsslSocketChannel, RsslRejectCodeT
 			cc += snprintf(resp +cc , RWS_MAX_HTTP_HEADER_SIZE, "Content-Type: text/html; charset=UTF-8\r\n");
 			cc += snprintf(resp +cc , RWS_MAX_HTTP_HEADER_SIZE, "Cache-Control: no-cache, private, no-store\r\n");
 			cc += snprintf(resp +cc , RWS_MAX_HTTP_HEADER_SIZE, "Transfer-Encoding: chunked\r\n");
+			if (code == RSSL_WS_REJECT_UNSUPPORTED_VERSION)
+				cc += snprintf(resp + cc, RWS_MAX_HTTP_HEADER_SIZE, "Sec-WebSocket-Version: %d\r\n", RWS_PROTOCOL_VERSION);
 			cc += snprintf(resp +cc , RWS_MAX_HTTP_HEADER_SIZE, "Connection: close\r\n");
 			break;
 		case RSSL_WS_REJECT_AUTH_FAIL:
@@ -3778,7 +3873,7 @@ void handleWebSocketMessages(RsslSocketChannel* rsslSocketChannel, RsslRet* read
 				}
 				else
 				{
-					*uncompBytesRead = (RsslInt32)(frame->payloadLen + rsslSocketChannel->inputBufCursor);
+					*uncompBytesRead = (RsslInt32)(frame->payloadLen + rsslSocketChannel->inBufProtOffset);
 
 					// Just point to the message in the input buffer
 					rsslSocketChannel->curInputBuf->buffer = rsslSocketChannel->inputBuffer->buffer + rsslSocketChannel->inputBufCursor;
@@ -3852,6 +3947,49 @@ void handleWebSocketMessages(RsslSocketChannel* rsslSocketChannel, RsslRet* read
 	} while (1);
 }
 
+// When the part of the internal buffer contains already processed data,
+// we will move the raw data to the beginning of the buffer.
+static RsslBool _movePartialFrameToBeginningOfInputBuffer(RsslSocketChannel* rsslSocketChannel, rwsSession_t* wsSess)
+{
+	_DEBUG_TRACE_WS_READ("inputBufCursor:%u inputBuffer->length:%llu\n",
+		rsslSocketChannel->inputBufCursor, rsslSocketChannel->inputBuffer->length);
+
+	// The data before inputBufCursor has already been processed.
+	if (rsslSocketChannel->inputBufCursor > 0 && rsslSocketChannel->inputBufCursor < rsslSocketChannel->inputBuffer->length)
+	{
+		rwsFrameHdr_t* frame = &(wsSess->frameHdr);
+		size_t actualInBuffLen = rsslSocketChannel->inputBuffer->length - rsslSocketChannel->inputBufCursor;
+
+		// Check that buffer has only 1 byte of unhandled data.
+		// The byte is a start of a new frame
+		if (rsslSocketChannel->inputBufCursor + 1 == rsslSocketChannel->inputBuffer->length)
+		{
+			// Copy 1 byte only to the beginning of the buffer.
+			*rsslSocketChannel->inputBuffer->buffer = *(rsslSocketChannel->inputBuffer->buffer + rsslSocketChannel->inputBufCursor);
+		}
+		else
+		{
+			// Copy the partial fragment to the beginning of the buffer.
+			memmove(rsslSocketChannel->inputBuffer->buffer,
+				rsslSocketChannel->inputBuffer->buffer + rsslSocketChannel->inputBufCursor,
+				actualInBuffLen);
+		}
+
+		// Reset pointers
+		rsslSocketChannel->inputBufCursor = 0;
+		rsslSocketChannel->inputBuffer->length = actualInBuffLen;
+
+		wsSess->inputReadCursor = 0;
+		wsSess->actualInBuffLen = actualInBuffLen;
+
+		// Sync frame (wsSess->frameHdr)
+		_resetWSFrame(frame, rsslSocketChannel->inputBuffer->buffer);
+		_decodeWSFrame(frame, rsslSocketChannel->inputBuffer->buffer, actualInBuffLen);
+		return RSSL_TRUE;
+	}
+	return RSSL_FALSE;
+}
+
 rtr_msgb_t *rwsReadWebSocket(RsslSocketChannel *rsslSocketChannel, RsslRet *readret, int *moreData, RsslInt32* bytesRead, RsslInt32* uncompBytesRead, RsslInt32 *packing, RsslError *error)
 {
 	RsslInt32		cc = 0, hdrLen = 0;
@@ -3875,8 +4013,24 @@ rtr_msgb_t *rwsReadWebSocket(RsslSocketChannel *rsslSocketChannel, RsslRet *read
 		RsslInt32 readSize;
 		// Make sure we either have 2 bytes already read or room to read at least 2 bytes
 		// to determine the header length and opcode.
+		readSize = checkInputBufferSpace(rsslSocketChannel, 2);
+		if (readSize == 0)
+		{
+			// This is a case when the internal buffer is (almost) full.
+			// The several messages has already processed.
+			// There is a partial frame at the end of the buffer.
+			// And we don't have enough space inside the internal buffer to read the whole frame.
+			// 
+			// Move unhandled data to the beginning of the inputBuffer.
+			if (_movePartialFrameToBeginningOfInputBuffer(rsslSocketChannel, wsSess) > 0)
+			{
+				readSize = checkInputBufferSpace(rsslSocketChannel, 2);
 
-		if ( (readSize = checkInputBufferSpace(rsslSocketChannel, 2)) == 0)
+				inputBufferLength = rsslSocketChannel->inputBuffer->length;
+			}
+		}
+
+		if (readSize == 0)
 		{
 			_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);
 			snprintf((error->text), MAX_RSSL_ERROR_TEXT,
@@ -3922,6 +4076,7 @@ rtr_msgb_t *rwsReadWebSocket(RsslSocketChannel *rsslSocketChannel, RsslRet *read
 			if ((wsSess->actualInBuffLen - wsSess->inputReadCursor) >= frame->hdrLen && (frame->advancedInputCursor == RSSL_FALSE))
 			{
 				rsslSocketChannel->inputBufCursor += frame->hdrLen;
+				rsslSocketChannel->inBufProtOffset += frame->hdrLen;
 				frame->advancedInputCursor = RSSL_TRUE;
 			}
 
@@ -4365,13 +4520,13 @@ RsslInt32 rwsReadTransportMsg(void *transport, char * buffer, int bufferLen, rip
 
 					if (maxRead <= 0)
 					{
-						break;
+						canRead = 0;
 					}
 				}
 			}
 			else
 			{
-				/* This is a non-blocking read and we should break loop */
+				/* This is a blocking and non-blocking read and we should break loop */
 				if (cc == 0)
 				{
 					return(RSSL_RET_READ_WOULD_BLOCK);
@@ -4585,9 +4740,17 @@ RsslInt32 rwsReadPrependTransportHdr(void* transport, char* buffer, int bufferLe
 	rwsFrameHdr_t           *frame = &wsSess->frameHdr;
 	int readSize;
 
-	rwflags |= RIPC_RW_WAITALL;
+	/* The flag RIPC_RW_WAITALL is effective for a blocking type connection only, see ipcRead.                              */
+	/* Set the RIPC_RW_WAITALL flag to read the only whole websocket fragment in the rwsReadTransportMsg method.            */
+	/* When we have several bytes (>1) inside the internal buffer (i.e. the header of the current fragment is available),   */
+	/*  rwsReadTransportMsg will only require reading that fragment.                                                        */
+	/* Do not set the RIPC_RW_WAITALL flag when requesting to read more data than a fragment, it will increase the latency. */
+	/* And even the low-level read method ipcRead can freeze because it will wait for new data                              */
+	/*  but the writer will not send it at all. */
+	if ((rwflags & RIPC_RW_BLOCKING) && frame->partial && (wsSess->actualInBuffLen - wsSess->inputReadCursor) > 1)
+		rwflags |= RIPC_RW_WAITALL;
 
-	/* Get the maximum read size to ensure that addtional websocket frames can be read into the remaining input buffer. */
+	/* Get the maximum read size to ensure that additional websocket frames can be read into the remaining input buffer. */
 	if ((readSize = calculateNextReadSize(rsslSocketChannel, 2)) == 0)
 	{
 		_rsslSetError(error, NULL, RSSL_RET_FAILURE, 0);

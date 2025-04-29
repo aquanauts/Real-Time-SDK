@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -11,6 +11,7 @@
 #include "FilterListDecoder.h"
 #include "OmmOpaque.h"
 #include "OmmXml.h"
+#include "OmmJson.h"
 #include "OmmAnsiPage.h"
 #include "FieldList.h"
 #include "FilterList.h"
@@ -199,6 +200,18 @@ const OmmXml& FilterEntry::getXml() const
 	}
 
 	return static_cast<const OmmXml&>( *_pLoad );
+}
+
+const OmmJson& FilterEntry::getJson() const
+{
+	if ( _pLoad->getDataType() != DataType::JsonEnum )
+	{
+		EmaString temp( "Attempt to getJson() while actual entry data type is " );
+		temp += getDTypeAsString( _pLoad->getDataType() );
+		throwIueException( temp, OmmInvalidUsageException::InvalidOperationEnum );
+	}
+
+	return static_cast<const OmmJson&>( *_pLoad );
 }
 
 const OmmAnsiPage& FilterEntry::getAnsiPage() const

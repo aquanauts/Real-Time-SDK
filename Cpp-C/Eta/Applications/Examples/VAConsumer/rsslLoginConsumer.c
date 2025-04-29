@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 /*
@@ -135,14 +135,16 @@ RsslReactorCallbackRet loginMsgCallback(RsslReactor *pReactor, RsslReactorChanne
 		
 		if(pLoginMsg->status.flags & RDM_LG_STF_HAS_AUTHN_ERROR_TEXT)
 			printf("	Authn Error Text: %.*s\n", pLoginMsg->status.authenticationErrorText.length, pLoginMsg->status.authenticationErrorText.data);
-		break;
 
-		if (pState->streamState != RSSL_STREAM_OPEN)
+		/* Login Status with a Close/Suspect is a final state */
+		if (pLoginMsg->status.state.streamState != RSSL_STREAM_OPEN)
 		{
 			printf("\nLogin attempt failed\n");
 			closeConnection(pReactor, pChannel, pCommand);
 			return RSSL_RC_CRET_SUCCESS;
 		}
+
+		break;
 
 	case RDM_LG_MT_RTT:
 		printf("Received login RTT message from Provider "SOCKET_PRINT_TYPE".\n", pChannel->socketId);

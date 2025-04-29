@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -18,7 +18,7 @@ using namespace refinitiv::ema::access;
 VectorEncoder::VectorEncoder() :
  _rsslVector(),
  _rsslVectorEntry(),
- _emaDataType( DataType::NoDataEnum ),
+ _emaLoadType( DataType::NoDataEnum ),
  _containerInitialized( false )
 {
 }
@@ -29,12 +29,24 @@ VectorEncoder::~VectorEncoder()
 
 void VectorEncoder::clear()
 {
-	Encoder::releaseEncIterator();
+	Encoder::clearEncIterator();
 
 	rsslClearVector( &_rsslVector );
 	rsslClearVectorEntry( &_rsslVectorEntry );
 
-	_emaDataType = DataType::NoDataEnum;
+	_emaLoadType = DataType::NoDataEnum;
+
+	_containerInitialized = false;
+}
+
+void VectorEncoder::release()
+{
+	Encoder::releaseEncIterator();
+
+	rsslClearVector(&_rsslVector);
+	rsslClearVectorEntry(&_rsslVectorEntry);
+
+	_emaLoadType = DataType::NoDataEnum;
 
 	_containerInitialized = false;
 }
@@ -44,14 +56,14 @@ void VectorEncoder::initEncode( UInt8 rsslDataType, DataType::DataTypeEnum emaDa
 	if ( !_rsslVector.containerType )
 	{
 		_rsslVector.containerType = rsslDataType;
-		_emaDataType = emaDataType;
+		_emaLoadType = emaDataType;
 	}
 	else if ( _rsslVector.containerType != rsslDataType )
 	{
 		EmaString temp( "Attempt to add an entry with a DataType different than summaryData's DataType. Passed in ComplexType has DataType of " );
 		temp += DataType( emaDataType ).toString();
 		temp += EmaString( " while the expected DataType is " );
-		temp += DataType( _emaDataType );
+		temp += DataType (_emaLoadType );
 		throwIueException( temp, OmmInvalidUsageException::InvalidArgumentEnum );
 		return;
 	}
@@ -79,6 +91,17 @@ void VectorEncoder::initEncode( UInt8 rsslDataType, DataType::DataTypeEnum emaDa
 
 void VectorEncoder::addEncodedEntry( UInt32 position, UInt8 action, const EmaBuffer& permission, const char* methodName, const RsslBuffer& rsslBuffer )
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_VECTOR ||
+		_levelInfo->_encodingState != RSSL_EIS_ENTRIES)
+	{
+		EmaString temp("Attemp to add VectorEntry while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	_rsslVectorEntry.flags = RSSL_VTEF_NONE;
 
 	_rsslVectorEntry.encData = rsslBuffer;
@@ -111,6 +134,17 @@ void VectorEncoder::addEncodedEntry( UInt32 position, UInt8 action, const EmaBuf
 
 void VectorEncoder::startEncodingEntry( UInt32 position, UInt8 action, const EmaBuffer& permission, const char* methodName )
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_VECTOR ||
+		_levelInfo->_encodingState != RSSL_EIS_ENTRIES)
+	{
+		EmaString temp("Attemp to add VectorEntry while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	_rsslVectorEntry.encData.data = 0;
 	_rsslVectorEntry.encData.length = 0;
 	_rsslVectorEntry.flags = RSSL_VTEF_NONE;
@@ -144,6 +178,19 @@ void VectorEncoder::startEncodingEntry( UInt32 position, UInt8 action, const Ema
 
 void VectorEncoder::endEncodingEntry() const
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_VECTOR ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRY_INIT &&
+		 _levelInfo->_encodingState != RSSL_EIS_WAIT_COMPLETE))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to complete Vector while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	RsslRet retCode = rsslEncodeVectorEntryComplete( &_pEncodeIter->_rsslEncIter, RSSL_TRUE );
 	/* Reallocate does not need here. The data is placed in already allocated memory */
 
@@ -179,7 +226,7 @@ void VectorEncoder::add( UInt32 position, VectorEntry::VectorAction action, cons
 		EmaString temp( "Attempt to add an entry with a different DataType. Passed in ComplexType has DataType of " );
 		temp += DataType( complexType.getDataType() ).toString();
 		temp += EmaString( " while the expected DataType is " );
-		temp += DataType( _emaDataType );
+		temp += DataType( _emaLoadType );
 		throwIueException( temp, OmmInvalidUsageException::InvalidArgumentEnum );
 		return;
 	}
@@ -241,7 +288,7 @@ void VectorEncoder::add(UInt32 position, VectorEntry::VectorAction action, const
 		EmaString temp("Attempt to add an entry with a different DataType. Encode DataType as ");
 		temp += DataType(DataType::NoDataEnum).toString();
 		temp += EmaString(" while the expected DataType is ");
-		temp += DataType(_emaDataType);
+		temp += DataType(_emaLoadType);
 		throwIueException( temp, OmmInvalidUsageException::InvalidArgumentEnum );
 		return;
 	}
@@ -259,7 +306,21 @@ void VectorEncoder::complete()
 	{
 		acquireEncIterator();
 
-		initEncode( convertDataType(_emaDataType), _emaDataType );
+		initEncode( convertDataType(_emaLoadType), _emaLoadType);
+	}
+
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_VECTOR||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRIES &&
+		 _levelInfo->_encodingState != RSSL_EIS_SET_DEFINITIONS &&
+		 _levelInfo->_encodingState != RSSL_EIS_WAIT_COMPLETE))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to complete Vector while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
 	}
 
 	RsslRet retCode = rsslEncodeVectorComplete( &(_pEncodeIter->_rsslEncIter), RSSL_TRUE );
@@ -326,8 +387,8 @@ void VectorEncoder::summaryData( const ComplexType& data )
 			return;
 		}
 
-		_emaDataType = data.getDataType();
-		_rsslVector.containerType = enc.convertDataType( _emaDataType );
+		_emaLoadType = data.getDataType();
+		_rsslVector.containerType = enc.convertDataType( _emaLoadType );
 	}
 	else
 	{

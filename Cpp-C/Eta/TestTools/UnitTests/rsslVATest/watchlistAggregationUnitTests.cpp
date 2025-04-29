@@ -1,13 +1,17 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
 #include "watchlistTestFramework.h"
 #include "gtest/gtest.h"
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
+#endif
 
 void watchlistAggregationTest_TwoItems(RsslConnectionTypes connectionType);
 void watchlistAggregationTest_TwoItems_CloseBothInCallback(RsslConnectionTypes connectionType);
@@ -212,7 +216,7 @@ TEST_P(WatchlistAggregationTest, ThreeItems_OnePrivate)
 	watchlistAggregationTest_ThreeItems_OnePrivate(GetParam());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
 	TestingWatchlistAggregationTests,
 	WatchlistAggregationTest,
 	::testing::Values(

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -22,7 +22,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
     sealed public class NIProviderRole : ReactorRole
     {
         const int OPEN_LIMIT = 5;
-        const string VENDOR = "Refinitiv";
+        const string VENDOR = "LSEG";
         const string LINK_NAME = "NI_PUB";
         const string FIELD_DICTIONARY_NAME = "RWFFld";
         const string ENUM_TYPE_DICTIONARY_NAME = "RWFEnum";

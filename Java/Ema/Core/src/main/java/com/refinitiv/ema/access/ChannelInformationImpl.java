@@ -1,9 +1,9 @@
-///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
-///*|-----------------------------------------------------------------------------
+///*|-------------------------------------------------------------------------------
+// *|            This source code is provided under the Apache 2.0 license        --
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.    --
+// *|                See the project's LICENSE.md for details.                    --
+// *|          Copyright (C) 2019-2021, 2023-2024 LSEG. All rights reserved.      --
+///*|-------------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
 
@@ -26,7 +26,7 @@ class ChannelInformationImpl implements ChannelInformation
 	public ChannelInformationImpl(String componentInfo, String hostname, String ipAddress, int state,
 			int connectionType, int protocolType, int encryptedConnectionType, int majorVersion, int minorVersion, int pingTimeout,
 			int maxFragmentSize, int maxOutputBuffers, int guaranteedOutputBuffers, int numInputBuffers,
-			int sysSendBufSize, int sysRecvBufSize, int compressionType, int compressionThreshold) {
+			int sysSendBufSize, int sysRecvBufSize, int compressionType, int compressionThreshold, String securityProtocol) {
 		this._componentInfo = componentInfo;
 		this._hostname = hostname;
 		this._ipAddress = ipAddress;
@@ -45,6 +45,7 @@ class ChannelInformationImpl implements ChannelInformation
 		this._sysRecvBufSize = sysRecvBufSize;
 		this._compressionType = compressionType;
 		this._compressionThreshold = compressionThreshold;
+		this._securityProtocol = securityProtocol;
 	}
 
 	public ChannelInformationImpl(ReactorChannel channel) {
@@ -68,6 +69,9 @@ class ChannelInformationImpl implements ChannelInformation
 		_compressionType = 0;
 		_compressionThreshold = 0;
 		_encryptedConnectionType = -1;
+		_securityProtocol = null;
+		_confChannelName = "";
+		_confSessionChannelName = "";
 	}
 
 	public void set(ReactorChannel reactorChannel) {
@@ -102,6 +106,7 @@ class ChannelInformationImpl implements ChannelInformation
 				_sysRecvBufSize = rci.channelInfo().sysRecvBufSize();
 				_compressionType = rci.channelInfo().compressionType();
 				_compressionThreshold = rci.channelInfo().compressionThreshold();
+				_securityProtocol = rci.channelInfo().securityProtocol();
 			}
 		}
 
@@ -132,6 +137,13 @@ class ChannelInformationImpl implements ChannelInformation
 	@Override
 	public String toString() {
 		_stringBuilder.setLength(0);
+		
+		if(!_confChannelName.isEmpty())
+			_stringBuilder.append("channelName: " + _confChannelName + "\n");
+		
+		if(!_confSessionChannelName.isEmpty())
+			_stringBuilder.append("sessionChannelName: " + _confSessionChannelName + "\n");
+		
 		_stringBuilder.append("hostname: " + _hostname + "\n\tIP address: " + _ipAddress + "\n\tport: " + _port
 				+ "\n\tconnected component info: " + _componentInfo + "\n\tchannel state: ");
 		
@@ -161,7 +173,7 @@ class ChannelInformationImpl implements ChannelInformation
 				+ "\n\tprotocol type: ");
 			
 		if (_protocolType == ProtocolType.RWF)
-			_stringBuilder.append("Refinitiv wire format");
+			_stringBuilder.append("Rssl wire format");
 		else if (_protocolType == ProtocolType.JSON)
 			_stringBuilder.append("Rssl JSON format");
 		else
@@ -197,6 +209,8 @@ class ChannelInformationImpl implements ChannelInformation
 		}
 		
 		_stringBuilder.append("\n\tcompression threshold: " + _compressionThreshold);
+		
+		_stringBuilder.append("\n\tsecurity protocol: " + _securityProtocol);
 		
 		return _stringBuilder.toString();
 	}
@@ -332,6 +346,9 @@ class ChannelInformationImpl implements ChannelInformation
 	private int _compressionType;
 	private int _compressionThreshold;
 	private int _encryptedConnectionType;
+	private String _securityProtocol;
+	private String _confChannelName;
+	private String _confSessionChannelName;
 	
 	private StringBuilder _stringBuilder = new StringBuilder();
 	
@@ -423,5 +440,37 @@ class ChannelInformationImpl implements ChannelInformation
 	@Override
 	public void encryptedConnectionType(int encryptedConnectionType) {
 		_encryptedConnectionType = encryptedConnectionType;
+	}
+	
+	@Override
+	public String securityProtocol()
+	{
+		return _securityProtocol;
+	}
+	
+	@Override
+	public void securityProtocol(String securityProtocol)
+	{
+		_securityProtocol = securityProtocol;
+	}
+	
+	void channelName(String channelName)
+	{
+		_confChannelName = channelName;
+	}
+
+	@Override
+	public String channelName() {
+		return _confChannelName;
+	}
+	
+	void sessionChannelName(String sessionChannelName)
+	{
+		_confSessionChannelName = sessionChannelName;
+	}
+
+	@Override
+	public String sessionChannelName() {
+		return _confSessionChannelName;
 	}
 }

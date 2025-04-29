@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,7 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "OmmInvalidUsageException.h"
+#include "StaticDecoder.h"
 
 using namespace refinitiv::ema::access;
 
@@ -28,14 +29,11 @@ FilterList::FilterList() :
 
 FilterList::~FilterList()
 {
-	if ( GlobalPool::isFinalState() )
-		return;
-
 	if ( _pEncoder )
-		g_pool._filterListEncoderPool.returnItem( _pEncoder );
+		g_pool.returnItem( _pEncoder );
 
 	if ( _pDecoder )
-		g_pool._filterListDecoderPool.returnItem( _pDecoder );
+		g_pool.returnItem( _pDecoder );
 }
 
 FilterList& FilterList::clear()
@@ -76,10 +74,35 @@ const EmaString& FilterList::toString() const
 	return toString( 0 );
 }
 
+const EmaString& FilterList::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	FilterList filterList;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+		_pEncoder = g_pool.getFilterListEncoderItem();
+
+	if (_pEncoder->isComplete())
+	{
+		RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+		StaticDecoder::setRsslData(&filterList, &rsslBuffer, RSSL_DT_FILTER_LIST, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+		_toString.clear().append(filterList.toString());
+
+		return _toString;
+	}
+
+	return _toString.clear().append("\nUnable to decode not completed FilterList data.\n");
+}
+
 const EmaString& FilterList::toString( UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );
+	FilterList filterList;
+
+	if (!_pDecoder)
+		return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
 
 	FilterListDecoder tempDecoder;
 	tempDecoder.clone( *_pDecoder );
@@ -129,7 +152,7 @@ Decoder& FilterList::getDecoder()
 {
 	if ( !_pDecoder )
 	{
-		_pDecoder = g_pool._filterListDecoderPool.getItem();
+		_pDecoder = g_pool.getFilterListDecoderItem();
 		_entry._pDecoder = _pDecoder;
 		_entry._pLoad = &_pDecoder->getLoad();
 	}
@@ -167,7 +190,7 @@ const FilterEntry& FilterList::getEntry() const
 const Encoder& FilterList::getEncoder() const
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._filterListEncoderPool.getItem();
+		_pEncoder = g_pool.getFilterListEncoderItem();
 
 	return *_pEncoder;
 }
@@ -176,7 +199,7 @@ FilterList& FilterList::add( UInt8 filterId, FilterEntry::FilterAction action,
 							const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._filterListEncoderPool.getItem();
+		_pEncoder = g_pool.getFilterListEncoderItem();
 
 	_pEncoder->add( filterId, action, value, permissionData );
 
@@ -187,7 +210,7 @@ FilterList& FilterList::add( UInt8 filterId, FilterEntry::FilterAction action,
 	const EmaBuffer& permissionData )
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._filterListEncoderPool.getItem();
+		_pEncoder = g_pool.getFilterListEncoderItem();
 
 	_pEncoder->add( filterId, action, permissionData );
 
@@ -197,7 +220,7 @@ FilterList& FilterList::add( UInt8 filterId, FilterEntry::FilterAction action,
 const FilterList& FilterList::complete()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._filterListEncoderPool.getItem();
+		_pEncoder = g_pool.getFilterListEncoderItem();
 
 	_pEncoder->complete();
 
@@ -207,7 +230,7 @@ const FilterList& FilterList::complete()
 FilterList& FilterList::totalCountHint( UInt32 totalCountHint )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._filterListEncoderPool.getItem();
+		_pEncoder = g_pool.getFilterListEncoderItem();
 
 	_pEncoder->totalCountHint( totalCountHint );
 

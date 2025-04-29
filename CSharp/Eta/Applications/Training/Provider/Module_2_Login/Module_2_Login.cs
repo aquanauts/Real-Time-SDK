@@ -1,9 +1,9 @@
-﻿/*
+/*
  *|-------------------------------------------------------------------------------
- *| This source code is provided under the Apache 2.0 license and is provided   --
- *| AS IS with no warranty or guarantee of fit for purpose.  See the project's  --
- *| LICENSE.md for details.                                                     --
- *| Copyright (C) 2022-2023 Refinitiv. All rights reserved.                          --
+ *| This source code is provided under the Apache 2.0 license
+ *| AS IS with no warranty or guarantee of fit for purpose.
+ *| See LICENSE.md for details.
+ *| Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-------------------------------------------------------------------------------
  */
 
@@ -60,7 +60,7 @@
  * In this module, after establishing a connection, ping messages might
  * need to be exchanged. The negotiated ping timeout is available via
  * the Channel. If ping heartbeats are not sent or received within
- * the expected time frame, the connection can be terminated. Refinitiv
+ * the expected time frame, the connection can be terminated. LSEG
  * recommends sending ping messages at intervals one-third the
  * size of the ping timeout.
  *
@@ -70,7 +70,7 @@
  * might need to exchange ping messages. A negotiated ping timeout is available
  * via Channel corresponding to each connection (this value might differ on
  * a per-connection basis). A connection can be terminated if ping heartbeats
- * are not sent or received within the expected time frame. Refinitiv
+ * are not sent or received within the expected time frame. LSEG
  * recommends sending ping messages at intervals one-third the size of the ping timeout.
  * Ping or heartbeat messages are used to indicate the continued presence of
  * an application. These are typically only required when no other information is
@@ -191,6 +191,10 @@
  * Pressing the CTRL+C buttons terminates the program.
  *****************************************************************************************/
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 
@@ -489,9 +493,9 @@ namespace LSEG.Eta.Training.Provider
                          ***************************************************************************/
 
                         /* Internally, the ETA initialization process includes several actions. The
-                         * initialization includes any necessary ETA connection handshake exchanges, including
-                         * any HTTP or HTTPS negotiation.  Compression, ping timeout, and versioning related
-                         * negotiations also take place during the initialization process.
+                         * initialization includes any necessary ETA connection handshake exchanges.
+                         * Compression, ping timeout, and versioning related negotiations  also take
+                         * place during the initialization process.
                          *
                          * This process involves exchanging several messages across the connection,
                          * and once all message exchanges have completed the Channel.State will transition.
@@ -1180,6 +1184,7 @@ namespace LSEG.Eta.Training.Provider
                 }
                 else /* lost contact with server */
                 {
+                    error ??= new Error();
                     /* Lost contact with remote (connection) */
                     error.Text = "Lost contact with client...";
                     Console.WriteLine("Error ({0}) (errno: {1}) {2}",
@@ -1560,7 +1565,7 @@ namespace LSEG.Eta.Training.Provider
              *
              * These functions are tuned to be efficient and avoid initializing unnecessary
              * structure members, and allow for optimal structure use and reuse. In general,
-             * Refinitiv recommends that you use the clear functions over static initializers,
+             * LSEG recommends that you use the clear functions over static initializers,
              * because the clear functions are more efficient.
              */
             /* Iterator used for encoding throughout the application - we can clear it and reuse it instead of recreating it */
@@ -1944,7 +1949,7 @@ namespace LSEG.Eta.Training.Provider
              * initializing unnecessary structure members, and allow for optimal structure
              * use and reuse.
              *
-             * In general, Refinitiv recommends that you use the Clear() functions over
+             * In general, LSEG recommends that you use the Clear() functions over
              * constructing new instances, because the clear functions are more efficient.
              */
             /* Iterator used for encoding throughout the application - we can clear it and

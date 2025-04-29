@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's
  * LICENSE.md for details.
- * Copyright (C) 2020-2023 Refinitiv. All rights reserved.
+ * Copyright (C) 2020-2023 LSEG. All rights reserved.     
 */
 
 /* TransportUnitTest.h
@@ -39,6 +39,7 @@ void constructTUServerConfig(
 	int configIndex,
 	TUServerConfig& serverConfig,
 	RsslBool blocking,
+	RsslUInt32 maxFragmentSize,
 	RsslConnectionTypes connType,
 	RsslCompTypes compressType,
 	RsslUInt32 compressLevel
@@ -53,9 +54,91 @@ const char* getPathServerKey();   // describes the path to Server key for creati
 const char* getPathServerCert();  // describes the path to Server certificate for creating a server on an encrypted connection
 const char* getOpenSSLCAStore();  // describes the path to the CAStore: certificate for creating a client on an encrypted connection
 
+class GLobalLockPackedTestParams {
+public:
+	RsslConnectionTypes		connType;		// the connection type
+	RsslUInt32				msgLength;		// the specific value for length of each separated message
+	RsslUInt32				bufferLength;	// the required length of the buffer for packing separated messaged. Pay attention that bufferLength cannot exceed the maxFragmentSize.
+	RsslUInt32				maxFragmentSize;// the max fragment size before fragmentation, 0 - default. Pay attention that bufferLength cannot exceed the maxFragmentSize.
+	RsslUInt32				msgWriteCount;	// the count of writing messages in this test, 0 - default, MAX_MSG_WRITE_COUNT
+	RsslConnectionTypes		encryptedProtocol;
+	RsslUInt8				wsProtocolType;
+
+	GLobalLockPackedTestParams(
+		RsslConnectionTypes cnType, RsslUInt32 msgLen, RsslUInt32 bufLen, RsslUInt32 maxFragSize, RsslUInt32 msgCount,
+		RsslConnectionTypes encrProt, RsslUInt8 wsProt)
+		:
+		connType(cnType),
+		msgLength(msgLen),
+		bufferLength(bufLen),
+		maxFragmentSize(maxFragSize),
+		msgWriteCount(msgCount),
+		encryptedProtocol(encrProt),
+		wsProtocolType(wsProt)
+	{}
+
+	/* Overload the << operator -- when tests fail, this will cause the parameters to printed in a readable fashion. */
+	friend std::ostream& operator<<(std::ostream& out, const GLobalLockPackedTestParams& params)
+	{
+		out << "["
+			"connType:" << params.connType << ","
+			"msgLength:" << params.msgLength << ","
+			"bufferLength:" << params.bufferLength << ","
+			"maxFragmentSize:" << params.maxFragmentSize << ","
+			"msgWriteCount:" << params.msgWriteCount << ","
+			"encryptedProtocol:" << params.encryptedProtocol << ","
+			"wsProtocolType:" << (unsigned)params.wsProtocolType
+			<< "]";
+		return out;
+	}
+};
+
+class GLobalLockFragmentedTestParams {
+public:
+	RsslConnectionTypes		connType;		// the connection type
+	RsslUInt32				msgLength;		// the specific value for length of each separated message
+	RsslUInt32				maxFragmentSize;// the max fragment size before fragmentation, 0 - default
+	RsslUInt32				msgWriteCount;	// the count of writing messages in this test, 0 - default, MAX_MSG_WRITE_COUNT
+	RsslConnectionTypes		encryptedProtocol;
+	RsslUInt8				wsProtocolType;
+	RsslCompTypes			compressionType;	// the compression type for the connection.
+	RsslUInt32				compressionLevel;	// the compression level. Currently only zlib supports.
+
+	GLobalLockFragmentedTestParams(
+		RsslConnectionTypes cnType, RsslUInt32 msgLen, RsslUInt32 maxFragSz, RsslUInt32 msgCount,
+		RsslConnectionTypes encrProt, RsslUInt8 wsProt,
+		RsslCompTypes compressType = RSSL_COMP_NONE, RsslUInt32 compressLevel = 0U)
+		:
+		connType(cnType),
+		msgLength(msgLen),
+		maxFragmentSize(maxFragSz),
+		msgWriteCount(msgCount),
+		encryptedProtocol(encrProt),
+		wsProtocolType(wsProt),
+		compressionType(compressType),
+		compressionLevel(compressLevel)
+	{}
+
+	/* Overload the << operator -- when tests fail, this will cause the parameters to printed in a readable fashion. */
+	friend std::ostream& operator<<(std::ostream& out, const GLobalLockFragmentedTestParams& params)
+	{
+		out << "["
+			"connType:" << params.connType << ","
+			"msgLength:" << params.msgLength << ","
+			"maxFragmentSize:" << params.maxFragmentSize << ","
+			"msgWriteCount:" << params.msgWriteCount << ","
+			"encryptedProtocol:" << params.encryptedProtocol << ","
+			"wsProtocolType:" << (unsigned)params.wsProtocolType << ","
+			"compressionType:" << params.compressionType << ","
+			"compressionLevel:" << params.compressionLevel
+			<< "]";
+		return out;
+	}
+};
+
 class GLobalLockSystemTestParams {
 public:
-	int						configIndex;		// test buffer configuartion index
+	int						configIndex;		// test buffer configuration index
 
 	RsslConnectionTypes		connType;			// the connection type
 	RsslUInt32				msgLength;			// the specific value for length of each separated message
@@ -82,7 +165,7 @@ public:
 		wsProtocolType(wsProt),
 		compressionType(compressType),
 		compressionLevel(compressLevel)
-	{};
+	{}
 
 	/* Overload the << operator -- when tests fail, this will cause the parameters to printed in a readable fashion. */
 	friend std::ostream& operator<<(std::ostream& out, const GLobalLockSystemTestParams& params)
@@ -130,7 +213,7 @@ void constructTUClientConfig(
 /* Provides data structure for connection between Server and Client */
 class TUConnection {
 public:
-	TUConnection() : pServerChannel(NULL), pClientChannel(NULL), pServer(NULL) {};
+	TUConnection() : pServerChannel(NULL), pClientChannel(NULL), pServer(NULL) {}
 
 	RsslChannel*	pServerChannel;
 	RsslChannel*	pClientChannel;
@@ -213,6 +296,18 @@ public:
 private:
 	RsslEventSignal	rsslEventSignal;
 	RsslMutex		lockEventSignal;
+};
+
+/* Handles received data and another events for running tests */
+class TestHandler {
+public:
+	/* Handles the data buffer */
+	/* pReadBuffer - pointer to the tested data buffer */
+	/* Return: true - the data was processed successfully */
+	/* false - when the test discovered the fail condition, the invoker should set Fail status */
+	/* pErrorText  - the char array for the error text when detected Fail */
+	/* szErrorText - the size of char array for the error text */
+	virtual bool handleDataBuffer(RsslBuffer* pReadBuffer, char* pErrorText, size_t szErrorText) = 0;
 };
 
 #endif  // _TRANSPORT_UNIT_TEST_H_

@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|        Copyright (C) 2021-2022 Refinitiv.    All rights reserved.         --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|        Copyright (C) 2021-2022 LSEG. All rights reserved.                   
 ///*|-----------------------------------------------------------------------------
 
 #include "NIProviderThread.h"
@@ -38,6 +38,8 @@ NIProviderThread::NIProviderThread(NIProvPerfConfig& config, PerfMessageData* pe
 		niProvPerfConfig(config), perfMessageData(perfData),
 		niProviderClient(NULL),
 		provider(NULL),
+		packedMsg(NULL),
+		packCountCurrent(0),
 #if defined(WIN32)
 		_handle(NULL), _threadId(0),
 #else
@@ -61,6 +63,10 @@ void NIProviderThread::clean()
 	if (provider != NULL)
 		delete provider;
 	provider = NULL;
+
+	if (packedMsg != NULL)
+		delete packedMsg;
+	packedMsg = NULL;
 
 	if (niProviderClient != NULL)
 		delete niProviderClient;
@@ -109,7 +115,7 @@ void NIProviderThread::providerThreadInit()
 		EmaString text("Error: Failed to open file '");
 		text += tmpFilename;
 		text += "'.\n";
-		printf(text.c_str());
+		printf("%s", text.c_str());
 		AppUtil::logError(text);
 		exit(-1);
 	}
@@ -127,7 +133,7 @@ void NIProviderThread::providerThreadInit()
 			EmaString text("Failed to open latency log file: ");
 			text += tmpFilename;
 			text += "\n";
-			printf(text.c_str());
+			printf("%s", text.c_str());
 			AppUtil::logError(text);
 			exit(-1);
 		}
@@ -575,7 +581,10 @@ void NIProviderThread::sendUpdateMessages()
 			stats.messageEncodeTimeRecords.updateLatencyStats(measureEncodeStartTime, measureEncodeEndTime, 1000);
 		}
 
-		provider->submit(*pUpdateMsg, itemInfo->getHandle());
+		if (niProvPerfConfig.numberMsgInPackedMsg > 1)
+			sendPackedMsg(pUpdateMsg, itemInfo);
+		else
+			provider->submit(*pUpdateMsg, itemInfo->getHandle());
 
 		stats.updateMsgCount.countStatIncr();
 
@@ -585,6 +594,36 @@ void NIProviderThread::sendUpdateMessages()
 	provThreadState.setCurrentUpdatesItem(itemInfo);
 
 	return;
+}
+
+void NIProviderThread::sendPackedMsg(const Msg* msg, ProvItemInfo* itemInfo)
+{
+	if (!itemInfo)
+		return;
+
+	if (packCountCurrent == 0)
+	{
+		if (packedMsg == NULL)
+			packedMsg = new PackedMsg(*provider);
+
+		if (!niProvPerfConfig.packedMsgBufferSize)
+			packedMsg->initBuffer();
+		else
+			packedMsg->initBuffer((UInt32)niProvPerfConfig.packedMsgBufferSize);
+	}
+
+	(void)packedMsg->addMsg(*msg, itemInfo->getHandle());
+	packCountCurrent++;
+
+	if (niProvPerfConfig.numberMsgInPackedMsg == packCountCurrent)
+	{
+		UInt64 clientHandle = itemInfo->getClientHandle();
+		
+		provider->submit(*packedMsg);
+		stats.packedMsgCount.countStatIncr();
+		packedMsg->clear();
+		packCountCurrent = 0;
+	}
 }
 
 void NIProviderThread::sendBurstMessages()
@@ -612,7 +651,8 @@ ProviderStats::ProviderStats(const ProviderStats& stats) :
 	closeMsgCount(stats.closeMsgCount),
 	statusCount(stats.statusCount),
 	intervalMsgEncodingStats(stats.intervalMsgEncodingStats),
-	inactiveTime(stats.inactiveTime)
+	inactiveTime(stats.inactiveTime),
+	packedMsgCount(stats.packedMsgCount)
 {}
 
 ProviderStats& ProviderStats::operator=(const ProviderStats& stats)
@@ -624,6 +664,7 @@ ProviderStats& ProviderStats::operator=(const ProviderStats& stats)
 	statusCount = stats.statusCount;
 	intervalMsgEncodingStats = stats.intervalMsgEncodingStats;
 	inactiveTime = stats.inactiveTime;
+	packedMsgCount = stats.packedMsgCount;
 
 	return *this;
 }

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -38,8 +38,8 @@ public class ReactorBasicItemsDomainTest : IDisposable
     /// Capture output from tests
     private readonly ITestOutputHelper output;
 
-    private const string DICTIONARY_FILE_NAME = "../../../../Src/Tests/RDMFieldDictionary";
-    private const string ENUM_TYPE_FILE_NAME = "../../../../Src/Tests/enumtype.def";
+    private const string DICTIONARY_FILE_NAME = "../../../../Src/Tests/test_FieldDictionary";
+    private const string ENUM_TYPE_FILE_NAME = "../../../../Src/Tests/test_enumtype.def";
 
     private const string USER_NAME = "User's Name";
     private const string USER_PASSWORD = "Their password";
@@ -47,7 +47,7 @@ public class ReactorBasicItemsDomainTest : IDisposable
     private const string APPLICATION_ID = "256";
     private const string APPLICATION_NAME = "ETA Test Provider";
 
-    private const string VENDOR = "Refinitiv";
+    private const string VENDOR = "LSEG";
     private const string FIELD_DICTIONARY_NAME = "RWFFld";
     private const string ENUM_TYPE_DICTIONARY_NAME = "RWFEnum";
     private const string LINK_NAME = "ETA Provider Link";
@@ -1027,7 +1027,7 @@ public class ReactorBasicItemsDomainTest : IDisposable
         Assert.True(receivedRefreshMsg.CheckRefreshComplete());
         Assert.Equal(Provider.DefaultService.ServiceId, receivedRefreshMsg.MsgKey.ServiceId);
         Assert.True(receivedRefreshMsg.MsgKey.CheckHasName());
-        Assert.True(receivedRefreshMsg.MsgKey.Name.ToString().Equals("TRI.N"));
+        Assert.Equal("TRI.N", receivedRefreshMsg.MsgKey.Name.ToString());
         Assert.Equal((int)DomainType.MARKET_PRICE, receivedRefreshMsg.DomainType);
         Assert.Equal(Codec.DataTypes.NO_DATA, receivedRefreshMsg.ContainerType);
         Assert.Equal(StreamStates.OPEN, receivedRefreshMsg.State.StreamState());

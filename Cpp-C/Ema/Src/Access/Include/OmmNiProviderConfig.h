@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2024 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -30,6 +30,7 @@
 
 #include "Access/Include/EmaString.h"
 #include "Access/Include/OmmProviderConfig.h"
+#include "Access/Include/EmaConfig.h"
 
 namespace refinitiv {
 
@@ -59,7 +60,8 @@ public :
 	enum EncryptionProtocolTypes
 	{
 		ENC_NONE = 0x00,			/*!< (0x00) No encryption. */
-		ENC_TLSV1_2 = 0x04			/*!< (0x08) Encryption using TLSv1.2 protocol */
+		ENC_TLSV1_2 = 0x04,			/*!< (0x04) Encryption using TLSv1.2 protocol */
+		ENC_TLSV1_3 = 0x08			/*!< (0x08) Encryption using TLSv1.3 protocol */
 	};
 
 	/** @enum AdminControl
@@ -154,6 +156,23 @@ public :
 	*/
 	OmmNiProviderConfig& host( const EmaString& host = "localhost:14003" );
 
+	/**	Specifies connection type. Overrides prior value
+		@param[in] specifies connection type used by application. Connection type defined in EmaConfig::ConnectionTypeEnum
+		@throw OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+		@throw OmmInvalidUsageException if channelType is not valid.
+		@return reference to this object
+	*/
+	OmmNiProviderConfig& channelType(EmaConfig::ConnectionTypeEnum channelType);
+
+	/**	Specifies encrypted protocol type.  Overrides prior value
+		@param[in] specifies encrypted protocol type used by application. Encrypted protocol type defined in EmaConfig::EncryptedProtocolTypeEnum
+		@throw OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+		@throw OmmInvalidUsageException if use this API with not encoded channel type.
+		@throw OmmInvalidUsageException if encProtocolType is not valid.
+		@return reference to this object
+	*/
+	OmmNiProviderConfig& encryptedProtocolType(EmaConfig::EncryptedProtocolTypeEnum encProtocolType);
+
 	/** Specifies the operation model, overriding the default. The operation model specifies whether
 	    to dispatch messages in the user or application thread of control.
 		@param[in] specifies threading and dispatching model used by application
@@ -191,8 +210,8 @@ public :
 	/** Specifies the cryptographic protocols to be used for an Encrypted connection on a Linux operating system,
 		of values TLSv1.2. The highest value of TLS will be selected by
 		the Rssl API first, then it will roll back if the encryption handshake fails.
-		The protocol defaults to TLSv1.2.
-		Use OmmNiProviderConfig::EncryptedProtocolTypes flags to set allowed protocols.
+		The protocol defaults to TLSv1.2 and TLSv1.3.
+		Use OmmNiProviderConfig::EncryptionProtocolTypes flags to set allowed protocols.
 		@param[in] securityProtocol specifies a cryptopgraphic protocol.
 		@return reference to this object
 	*/
@@ -291,6 +310,13 @@ public :
 		@return reference to this object
 	*/
 	OmmNiProviderConfig& apiThreadBind( const EmaString& cpuString );
+
+	/** Specifies should ETA initialize CpuID library. It will analyze CPU topology.
+		Application may call multiple times prior to initialization.
+		@param[in] shouldInitCPUIDlib true ETA should initialize CpuID library; otherwise ETA will not initialize CpuID library.
+		@return reference to this object
+	*/
+	OmmNiProviderConfig& shouldInitializeCPUIDlib(bool shouldInitCPUIDlib);
 	//@}
 
 private:

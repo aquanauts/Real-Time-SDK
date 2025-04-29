@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2023 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
  */
 
@@ -49,6 +49,8 @@ public :
 
 	virtual void setServiceName( const char* , UInt32 , bool nullTerm = true ) {}
 
+	virtual void setServiceId(UInt16) {}
+
 	virtual const Data* getSummaryData() const { return 0; }
 
 	virtual const RsslBuffer& getRsslBuffer() const = 0;
@@ -81,6 +83,8 @@ protected :
 	void destroyLoadPool( Data**& );
 
 	Data* setRsslData( Data** , RsslDataType rsslType, RsslDecodeIterator* , RsslBuffer* , const RsslDataDictionary* , void* localDb ) const;
+
+	virtual ~Decoder() {}
 };
 
 }

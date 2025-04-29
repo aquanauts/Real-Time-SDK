@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -850,6 +850,10 @@ public class ChannelSession
             copts.encryptionOptions().KeystorePasswd(connectOptions.encryptionOptions().KeystorePasswd());
         }
         copts.encryptionOptions().SecurityProtocol(connectOptions.encryptionOptions().SecurityProtocol());
+        if (connectOptions.encryptionOptions().SecurityProtocolVersions() != null)
+        {
+        	copts.encryptionOptions().SecurityProtocolVersions(connectOptions.encryptionOptions().SecurityProtocolVersions());
+        }
         copts.encryptionOptions().SecurityProvider(connectOptions.encryptionOptions().SecurityProvider());
         copts.encryptionOptions().KeyManagerAlgorithm(connectOptions.encryptionOptions().KeyManagerAlgorithm());
         copts.encryptionOptions().TrustManagerAlgorithm(connectOptions.encryptionOptions().TrustManagerAlgorithm());

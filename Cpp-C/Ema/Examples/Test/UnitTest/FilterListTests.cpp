@@ -1,14 +1,15 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
 #include "TestUtilities.h"
 
 using namespace refinitiv::ema::access;
+using namespace refinitiv::ema::rdm;
 using namespace std;
 
 TEST(FilterListTests, testFilterListContainsFieldListsDecodeAll)
@@ -618,8 +619,25 @@ TEST(FilterListTests, testFilterListContainsOpaqueXmlAnsiPageDecodeAll)
 
 	filterEntry.flags = RSSL_FTEF_HAS_CONTAINER_TYPE;
 	filterEntry.action = RSSL_FTEA_SET_ENTRY;
-	filterEntry.encData = rsslBuf;
 	filterEntry.id = 3;
+	filterEntry.containerType = RSSL_DT_JSON;
+
+	RsslBuffer jsonValue;
+	jsonValue.data = ( char* )"{\"value\":\"KLMNOPQR\"}";
+	jsonValue.length = static_cast<rtrUInt32>( strlen( jsonValue.data ) );
+
+	encodeNonRWFData( &rsslBuf, &jsonValue );
+
+	filterEntry.encData = rsslBuf;
+
+	ret =  rsslEncodeFilterEntry( &filterEncodeIter, &filterEntry );
+
+	rsslClearFilterEntry( &filterEntry );
+
+	filterEntry.flags = RSSL_FTEF_HAS_CONTAINER_TYPE;
+	filterEntry.action = RSSL_FTEA_SET_ENTRY;
+	filterEntry.encData = rsslBuf;
+	filterEntry.id = 4;
 	filterEntry.containerType = RSSL_DT_ANSI_PAGE;
 
 	RsslBuffer ansiPageValue;
@@ -668,12 +686,24 @@ TEST(FilterListTests, testFilterListContainsOpaqueXmlAnsiPageDecodeAll)
 
 	const FilterEntry& fe3 = fl.getEntry();
 
-	EXPECT_EQ( fe3.getFilterId(), 3 ) << "fe1.getFilterId() == 3" ;
+	EXPECT_EQ( fe3.getFilterId(), 3 ) << "fe3.getFilterId() == 3" ;
 	EXPECT_EQ( fe3.getAction(), FilterEntry::SetEnum ) << "FilterEntry::getAction() == FilterEntry::SetEnum" ;
-	EXPECT_EQ( fe3.getLoad().getDataType(), DataType::AnsiPageEnum ) << "FilterEntry::getLoad().getDataType() == DataType::AnsiPageEnum" ;
+	EXPECT_EQ( fe3.getLoad().getDataType(), DataType::JsonEnum ) << "FilterEntry::getLoad().getDataType() == DataType::JsonEnum" ;
+	{
+		EmaBuffer Buf( "{\"value\":\"KLMNOPQR\"}", 20 );
+		EXPECT_STREQ( fe3.getJson().getBuffer(), Buf ) << "ElementEntry::getJson()" ;
+	}
+
+	EXPECT_TRUE( fl.forth() ) << "FilterList contains Xml - fourth forth()" ;
+
+	const FilterEntry& fe4 = fl.getEntry();
+
+	EXPECT_EQ( fe4.getFilterId(), 4 ) << "fe4.getFilterId() == 4" ;
+	EXPECT_EQ( fe4.getAction(), FilterEntry::SetEnum ) << "FilterEntry::getAction() == FilterEntry::SetEnum" ;
+	EXPECT_EQ( fe4.getLoad().getDataType(), DataType::AnsiPageEnum ) << "FilterEntry::getLoad().getDataType() == DataType::AnsiPageEnum" ;
 	{
 		EmaBuffer Buf( "328-srfsjkj43rouw-01-20ru2l24903$%", 34 );
-		EXPECT_STREQ( fe3.getAnsiPage().getBuffer(), Buf ) << "ElementEntry::getAnsiPage().getBuffer()" ;
+		EXPECT_STREQ( fe4.getAnsiPage().getBuffer(), Buf ) << "ElementEntry::getAnsiPage().getBuffer()" ;
 	}
 }
 
@@ -684,8 +714,40 @@ TEST(FilterListTests, testFilterListEncodeDecodeAll)
 
 	ASSERT_TRUE(loadDictionaryFromFile( &dictionary )) << "Failed to load dictionary";
 
-	FilterList flEnc;
-	EXPECT_EQ( flEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "FilterList.toString() == Decoding of just encoded object in the same application is not supported";
+	DataDictionary dataDictionary, dataDictionaryEmpty;
+
+	const EmaString filterListString =
+		"FilterList\n"
+		"    FilterEntry action=\"Clear\" filterId=\"1\" permissionData=\"50 45 52 4D 49 53 53 49 4F 4E 20 44 41 54 41\" dataType=\"NoData\"\n"
+		"        NoData\n"
+		"        NoDataEnd\n"
+		"    FilterEntryEnd\n"
+		"    FilterEntry action=\"Set\" filterId=\"2\" dataType=\"ElementList\"\n"
+		"        ElementList\n"
+		"            ElementEntry name=\"Element Ascii\" dataType=\"Ascii\" value=\"GHIJKL\"\n"
+		"            ElementEntry name=\"Element Real\" dataType=\"Real\" value=\"0.0000000010\"\n"
+		"            ElementEntry name=\"Element Date Time\" dataType=\"DateTime\" value=\"06 SEP 1985 11:22:33:044:000:000\"\n"
+		"        ElementListEnd\n"
+		"    FilterEntryEnd\n"
+		"    FilterEntry action=\"Update\" filterId=\"3\" permissionData=\"50 45 52 4D 49 53 53 49 4F 4E 20 44 41 54 41\" dataType=\"ElementList\"\n"
+		"        ElementList\n"
+		"            ElementEntry name=\"Element Ascii\" dataType=\"Ascii\" value=\"MNOPQR\"\n"
+		"            ElementEntry name=\"Element Real\" dataType=\"Real\" value=\"0.000000000010\"\n"
+		"            ElementEntry name=\"Element Date Time\" dataType=\"DateTime\" value=\"06 SEP 1995 11:22:33:044:000:000\"\n"
+		"        ElementListEnd\n"
+		"    FilterEntryEnd\n"
+		"FilterListEnd\n";
+
+	try {
+		dataDictionary.loadFieldDictionary("RDMFieldDictionaryTest");
+		dataDictionary.loadEnumTypeDictionary("enumtypeTest.def");
+	}
+	catch (const OmmException&) {
+		ASSERT_TRUE(false) << "DataDictionary::loadFieldDictionary() failed to load dictionary information";
+	}
+
+	FilterList flEnc, flEmpty;
+	EXPECT_EQ( flEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n") << "FilterList.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 	char* s1 = const_cast<char*>("PERMISSION DATA");
 	EmaBuffer permission( s1, 15 );
@@ -718,19 +780,31 @@ TEST(FilterListTests, testFilterListEncodeDecodeAll)
 		//Encoding
 
 
-		flEnc.add( 1, FilterEntry::ClearEnum, ELEnc1, permission )
-		.add( 2, FilterEntry::SetEnum, ELEnc2 )
-		.add( 3, FilterEntry::UpdateEnum, ELEnc3, permission )
-		.complete();
+        flEnc.add(1, FilterEntry::ClearEnum, ELEnc1, permission)
+            .add(2, FilterEntry::SetEnum, ELEnc2)
+            .add(3, FilterEntry::UpdateEnum, ELEnc3, permission);
 
-		EXPECT_EQ( flEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "FilterList.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( flEnc.toString(dataDictionary), "\nUnable to decode not completed FilterList data.\n" ) << "FieldList.toString() == Unable to decode not completed FilterList data.";
 
+        flEnc.complete();
+
+		EXPECT_EQ( flEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n") << "FilterList.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
+
+		EXPECT_EQ( flEnc.toString(dataDictionaryEmpty), "\nDictionary is not loaded.\n") << "FieldList.toString() == Dictionary is not loaded.";
+
+		EXPECT_EQ( flEnc.toString(dataDictionary), filterListString ) << "FieldList.toString() == filterListString";
+
+		flEmpty.add(1, FilterEntry::ClearEnum, ELEnc1, permission);
+		flEmpty.complete();
+		flEmpty.clear();
+		EXPECT_EQ( flEmpty.toString( dataDictionary ), "\nUnable to decode not completed FilterList data.\n" ) << "FieldList.toString() == Unable to decode not completed FilterList data.";
+
+		flEmpty.complete();
+		EXPECT_EQ( flEmpty.toString( dataDictionary ), "FilterList\nFilterListEnd\n" ) << "FieldList.toString() == FilterList\nFilterListEnd\n";
 
 		//Decoding
 		StaticDecoder::setData( &flEnc, &dictionary );
-		EXPECT_NE( flEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "FilterList.toString() != Decoding of just encoded object in the same application is not supported";
-
-
+		EXPECT_EQ( flEnc.toString(), filterListString) << "FilterList.toString() == filterListString";
 
 		try
 		{
@@ -2084,5 +2158,184 @@ TEST(FilterListTests, testFilerListClear_Encode_Decode)
 	catch (const OmmException& exp)
 	{
 		EXPECT_FALSE(true) << "Fails to encode and decode FilterList - exception not expected with text" << exp.getText().c_str();
+	}
+}
+
+TEST(FilterListTests, testFilterListAddNotCompletedContainer)
+{
+	try
+	{
+		FilterList filterList;
+		ElementList elementList;
+
+		filterList.add(1, FilterEntry::UpdateEnum, elementList);
+		filterList.complete();
+
+		EXPECT_FALSE(true) << "FilterList complete while ElementList is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "FilterList complete while ElementList is not completed  - exception expected";
+	}
+
+	try
+	{
+		FilterList filterList;
+		ElementList elementList;
+		filterList.add(1, FilterEntry::UpdateEnum, elementList);
+		elementList.addUInt("test", 64);
+		filterList.complete();
+
+		EXPECT_FALSE(true) << "FilterList complete while ElementList with data is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "FilterList complete while ElementList with data is not completed  - exception expected";
+	}
+
+	try
+	{
+		FilterList filterList;
+		ElementList elementList, elementList1;
+		filterList.add(1, FilterEntry::UpdateEnum, elementList);
+		filterList.add(2, FilterEntry::UpdateEnum, elementList1);
+
+		EXPECT_FALSE(true) << "FilterList add two not completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "FilterList add two not completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		FilterList filterList;
+		ElementList elementList, elementList1;
+		filterList.add(1, FilterEntry::UpdateEnum, elementList);
+		elementList.complete();
+		filterList.add(2, FilterEntry::UpdateEnum, elementList1);
+		filterList.complete();
+
+		EXPECT_FALSE(true) << "FilterList add first completed and second not completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "FilterList add first completed and second not completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		FilterList filterList;
+		ElementList elementList, elementList1;
+		filterList.add(1, FilterEntry::UpdateEnum, elementList);
+		elementList1.complete();
+		filterList.add(2, FilterEntry::UpdateEnum, elementList1);
+		filterList.complete();
+
+		EXPECT_FALSE(true) << "FilterList add first not completed and second completed ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "FilterList add first not completed and second completed ElementLists - exception expected";
+	}
+
+	try
+	{
+		FilterList filterList;
+		ElementList elementList, elementList1;
+		filterList.add(1, FilterEntry::UpdateEnum, elementList);
+		elementList1.complete();
+		filterList.complete();
+		filterList.add(2, FilterEntry::UpdateEnum, elementList1);
+		filterList.complete();
+
+		EXPECT_FALSE(true) << "FilterList add first completed then complete FilterList and add second ElementLists - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "FilterList add first completed then complete FilterList and add second ElementLists - exception expected";
+	}
+
+	try
+	{
+		FilterList filterList, filterList1;
+		ElementList elementList;
+		filterList1.add(1, FilterEntry::UpdateEnum, elementList);
+		elementList.complete();
+		filterList1.complete();
+		filterList.add(2, FilterEntry::UpdateEnum, filterList1);
+		filterList.complete();
+
+		EXPECT_TRUE(true) << "FilterList add completed FilterList with nested ElementLists - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "FilterList add completed FilterList with nested ElementLists - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		FilterList filterList;
+		filterList.add(1, FilterEntry::UpdateEnum, ElementList().addInt("test1", 1).complete());
+		filterList.add(2, FilterEntry::UpdateEnum, ElementList().addInt("test2", 2).complete());
+		filterList.complete();
+
+		EXPECT_TRUE(true) << "FilterList add two ElementList as a separate objects - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "FilterList add two ElementList as a separate objects - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		FilterList filterList;
+		GenericMsg genericMsg;
+
+		genericMsg.streamId(1);
+
+		filterList.add(1, FilterEntry::UpdateEnum, genericMsg);
+		filterList.complete();
+
+		EXPECT_TRUE(true) << "FilterList add not completed GenericMsg - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "FilterList add not completed GenericMsg - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		FilterList filterList;
+		OmmOpaque opaque;
+		char* string = const_cast<char*>("OPQRST");
+		EmaBuffer buffer(string, 6);
+		opaque.set(buffer);
+
+		filterList.add(1, FilterEntry::SetEnum, opaque);
+		filterList.complete();
+
+		EXPECT_TRUE(true) << "FilterList add OmmOpaque - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "FilterList add OmmOpaque - exception not expected with text: " << exp.getText();
+	}
+
+	try
+	{
+		FilterList filtertList;
+		ElementList elementList;
+		GenericMsg genericMsg;
+
+		filtertList.add(1, FilterEntry::UpdateEnum, genericMsg);
+		filtertList.add(1, FilterEntry::UpdateEnum, elementList);
+		filtertList.complete();
+
+		EXPECT_FALSE(true) << "FilterList add not completed ElementList after GenericMsg - exception expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_TRUE(true) << "FilterList add not completed ElementList after GenericMsg - exception expected with text: " << exp.getText();
 	}
 }

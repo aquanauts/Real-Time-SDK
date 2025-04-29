@@ -2,10 +2,11 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #include "rtr/wlLogin.h"
+#include "rtr/rsslReactorImpl.h"
 
 static RsslBool wlMatchLoginParameterBuffer(RsslBuffer *pNewBuffer, RsslUInt32 newFlags, 
 		RsslBuffer *pOldBuffer, RsslUInt32 oldFlags, RsslUInt32 matchFlag)
@@ -856,8 +857,7 @@ RsslRet wlLoginChannelDown(WlLogin *pLogin, WlBase *pBase, RsslErrorInfo *pError
 		wlMsgEventClear(&msgEvent);
 		msgEvent.pRsslMsg = (RsslMsg*)&statusMsg;
 		msgEvent.pRdmMsg = (RsslRDMMsg*)&loginMsg;
-		if ((ret = (*pBase->config.msgCallback)
-					((RsslWatchlist*)&pBase->watchlist, &msgEvent, pErrorInfo)) 
+		if ((ret = _reactorWatchlistMsgCallback((RsslWatchlist*)&pBase->watchlist, &msgEvent, pErrorInfo)) 
 				!= RSSL_RET_SUCCESS)
 			return ret;
 	}

@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|          Copyright (C) 2021 Refinitiv.      All rights reserved.          --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|          Copyright (C) 2021 LSEG. All rights reserved.                    --
 ///*|-----------------------------------------------------------------------------
 
 #pragma once
@@ -55,6 +55,10 @@ public:
 	refinitiv::ema::access::EmaString		loginPosition;				/* Configuration data for handling the login domain. */
 
 	refinitiv::ema::access::EmaString		providerName;				/* Name of the NiProvider component in EmaConfig.xml. See -providerName. */
+
+	refinitiv::ema::access::Int32			packedMsgBufferSize;		/* Amount of packed  Update Messages into PackedMsg */
+
+	refinitiv::ema::access::Int32			numberMsgInPackedMsg;		/* Amount of packed  Update Messages into PackedMsg */
 
 private:
 	// Defaults

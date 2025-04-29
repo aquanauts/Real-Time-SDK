@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #ifndef _RTR_RSSL_CONSUMER_H
@@ -24,6 +24,7 @@ static void initReactorNextDebugTime();
 static void reactorDebugPrint();
 void cleanUpAndExit(int code);
 void exitApp(int code);
+static RsslRet handlePreferredHostRuntime(RsslErrorInfo* pErrorInfo);
 
 static RsslReactorCallbackRet defaultMsgCallback(RsslReactor *pReactor, RsslReactorChannel *pChannel, RsslMsgEvent* pMsgEvent);
 

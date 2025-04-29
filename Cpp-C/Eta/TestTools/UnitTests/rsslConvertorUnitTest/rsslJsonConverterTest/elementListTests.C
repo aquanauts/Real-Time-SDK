@@ -2,13 +2,17 @@
 *| This source code is provided under the Apache 2.0 license –
 *| and is provided AS IS with no warranty or guarantee of fit for purpose. –
 *| See the project's LICENSE.md for details. –
-*| Copyright (C) 2020 Refinitiv. All rights reserved. –
+*| Copyright (C) 2020 LSEG. All rights reserved.      –
 *|-----------------------------------------------------------------------------
 */
 
 #include "rsslJsonConverterTestBase.h"
 
 //#include "q_ansi.h"
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
+#endif
 
 using namespace std;
 using namespace json; 
@@ -1599,7 +1603,7 @@ TEST_P(ElementListTypesTestFixture, ElementListTypesTest)
 	ASSERT_EQ(params.json, foundJsonElement);
 }
 
-INSTANTIATE_TEST_CASE_P(ElementListTests, ElementListTypesTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(ElementListTests, ElementListTypesTestFixture, ::testing::Values(
 	/* Test encoding any of Int, UInt, Float, Double, Real, Date, Time, DateTime, QoS, State, Enum, Array, Buffer, AsciiString,
 	 * Utf8String, RmtesString, Opaque, Xml, FieldList, ElementList, FilterList, Map, Message, and Json. */
 
@@ -1692,7 +1696,7 @@ INSTANTIATE_TEST_CASE_P(ElementListTests, ElementListTypesTestFixture, ::testing
 
 ));
 
-INSTANTIATE_TEST_CASE_P(ElementListTestsJson1, ElementListTypesTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(ElementListTestsJson1, ElementListTypesTestFixture, ::testing::Values(
 	/* Test encoding any of Int, UInt, Float, Double, Real, Date, Time, DateTime, QoS, State, Enum, Array, Buffer, AsciiString,
 	 * Utf8String, RmtesString, Opaque, Xml, FieldList, ElementList, FilterList, Map, Message, and Json. */
 
@@ -2477,7 +2481,7 @@ TEST_P(ElementListPrimitiveTypesTestFixture, ElementListBlankTests)
 	ASSERT_EQ(params.rmtesString, foundRmtesStringElement);
 }
 
-INSTANTIATE_TEST_CASE_P(ElementListTests, ElementListPrimitiveTypesTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(ElementListTests, ElementListPrimitiveTypesTestFixture, ::testing::Values(
 	/* Test encoding any of Int, UInt, Float, Double, Real, Date, Time, DateTime, QoS, State, Enum, Array, Buffer, AsciiString,
 	 * Utf8String, RmtesString, Opaque, Xml, FieldList, ElementList, FilterList, Map, Message, and Json. */
 
@@ -2534,7 +2538,7 @@ INSTANTIATE_TEST_CASE_P(ElementListTests, ElementListPrimitiveTypesTestFixture, 
 
 ));
 
-INSTANTIATE_TEST_CASE_P(ElementListTestsJson1, ElementListPrimitiveTypesTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(ElementListTestsJson1, ElementListPrimitiveTypesTestFixture, ::testing::Values(
 	/* Test encoding any of Int, UInt, Float, Double, Real, Date, Time, DateTime, QoS, State, Enum, Array, Buffer, AsciiString,
 	 * Utf8String, RmtesString, Opaque, Xml, FieldList, ElementList, FilterList, Map, Message, and Json. */
 

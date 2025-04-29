@@ -1,13 +1,14 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Xml;
 using LSEG.Eta.Codec;
 using Buffer = LSEG.Eta.Codec.Buffer;
@@ -99,9 +100,14 @@ namespace LSEG.Eta.PerfTools.Common
                     GetEstimatedFieldListContentLength(marketPriceMsg);
                 }
             }
+            catch(FileNotFoundException)
+            {
+                Console.WriteLine($"Failed to find XML file: {fileName}");
+                return PerfToolsReturnCode.FAILURE;
+            }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to parse XML file: {ex.ToString()}");
+                Console.WriteLine($"Failed to parse XML file: {ex.Message}");
                 return PerfToolsReturnCode.FAILURE;
             }
             return PerfToolsReturnCode.SUCCESS;

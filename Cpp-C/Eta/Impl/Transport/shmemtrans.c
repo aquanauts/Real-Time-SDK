@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -22,7 +22,7 @@ rtrShmTransServer *rtrShmTransCreate(rtrShmCreateOpts *createOpts, RsslError *er
 {
 	rtrUInt32 i;
 	rtrUInt32 segSize;
-	char errBuff[256];
+	char errBuff[__ERROR_LEN];
 	rtrShmBuffer *bufPtr = 0;
 	rtrShmTransServer *trans = 0;
 	rtrUInt32 bufSize = (rtrUInt32)RTR_SHM_ALIGNBYTES((sizeof(rtrShmBuffer) + createOpts->maxBufSize)); /* sizeof(rtrShmBuffer) is diff on 64 vrs 32 bit machines */
@@ -314,7 +314,7 @@ int rtrShmTransDestroy( void *trans, RsslError *error )
 rtrShmTransClient* rtrShmTransAttach( rtrShmAttachOpts *attachOpts, RsslError *error )
 {
 	char *curLoc;
-	char errBuff[256];
+	char errBuff[__ERROR_LEN];
 	rtrShmTransClient *trans = (rtrShmTransClient*)_rsslMalloc(sizeof(rtrShmTransClient));
 
 	if (!trans)

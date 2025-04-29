@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|         Copyright (C) 2019-2020,2024-2025 LSEG. All rights reserved.           --
  *|-----------------------------------------------------------------------------
  */
 
@@ -233,6 +233,27 @@ static RsslReactorCallbackRet msgCallback(RsslReactor* pReactor,
 	WtfRsslMsgEvent *pRsslMsgEvent;
 	EXPECT_TRUE(wtf.eventCount < DISPATCH_EVENT_MAX);
 
+	switch (component)
+	{
+		case WTF_TC_PROVIDER:
+		{
+			RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
+			if (wtf.pProvReactorChannelList[serverIndex] != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pProvReactorChannelList[serverIndex] == pReactorChannel) << "Mismatched Provider channel in msgCallback.";
+			}
+			break;
+		}
+		case WTF_TC_CONSUMER:
+		{
+			if (wtf.pConsReactorChannel != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pConsReactorChannel == pReactorChannel) << "Mismatched Consumer channel in msgCallback.";
+			}
+			break;
+		}
+	}
+
 	/* Buffer is not modified by the watchlist, and so should not be forwarded. */
 	if (component == WTF_TC_CONSUMER)
 	  EXPECT_EQ(NULL, pEvent->pRsslMsgBuffer);
@@ -255,6 +276,11 @@ static RsslReactorCallbackRet msgCallback(RsslReactor* pReactor,
 		pRsslMsgEvent->seqNum = *pEvent->pSeqNum;
 	}
 
+	if (component == WTF_TC_PROVIDER)
+	{
+		pRsslMsgEvent->serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
+	}
+
 	++wtf.eventCount;
 
 	if (wtf.consumerMsgCallbackAction)
@@ -264,11 +290,11 @@ static RsslReactorCallbackRet msgCallback(RsslReactor* pReactor,
 }
 
 /* Channel Event Callback. */
-static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, 
-		RsslReactorChannel *pReactorChannel, RsslReactorChannelEvent *pEvent)
+static RsslReactorCallbackRet channelEventCallback(RsslReactor* pReactor,
+	RsslReactorChannel* pReactorChannel, RsslReactorChannelEvent* pEvent)
 {
 	WtfComponent component = *(WtfComponent*)&pReactor->userSpecPtr;
-	WtfChannelEvent *pChannelEvent;
+	WtfChannelEvent* pChannelEvent;
 
 	EXPECT_TRUE(wtf.eventCount < DISPATCH_EVENT_MAX);
 
@@ -276,7 +302,7 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 	pChannelEvent = &wtf.eventList[wtf.eventCount].channelEvent;
 	wtfClearChannelEvent(pChannelEvent, component);
 	pChannelEvent->channelEventType = pEvent->channelEventType;
-		
+
 	++wtf.eventCount;
 
 	if (wtf.state == WTF_ST_CLEANUP)
@@ -297,11 +323,46 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 			EXPECT_EQ(pEvent->channelEventType, RSSL_RC_CET_CHANNEL_DOWN);
 		}
 
-	  return RSSL_RC_CRET_SUCCESS;
+		return RSSL_RC_CRET_SUCCESS;
 	}
 
 	if (pEvent->pError)
 		pChannelEvent->rsslErrorId = pEvent->pError->rsslError.rsslErrorId;
+
+	switch (component)
+	{
+		case WTF_TC_PROVIDER:
+		{
+			RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
+			if (wtf.pProvReactorChannelList[serverIndex] == NULL)
+			{
+				wtf.pProvReactorChannelList[serverIndex] = pReactorChannel;
+			}
+			else
+			{
+				if (wtf.pProvReactorChannelList[serverIndex] != pReactorChannel)
+				{
+					EXPECT_TRUE(wtf.pProvReactorChannelList[serverIndex] == pReactorChannel) << "Mismatched Provider channel in channelEventCallback.";
+				}
+			}
+			break;
+		}
+		case WTF_TC_CONSUMER:
+		{
+			if (wtf.pConsReactorChannel == NULL)
+			{
+				wtf.pConsReactorChannel = pReactorChannel;
+			}
+			else
+			{
+				if (wtf.pConsReactorChannel != pReactorChannel)
+				{
+					EXPECT_TRUE(wtf.pConsReactorChannel == pReactorChannel) << "Mismatched Consumer channel in channelEventCallback.";
+				}
+			}
+			break;
+		}
+	}
 
 	switch(pEvent->channelEventType)
 	{
@@ -310,7 +371,6 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 			switch(component)
 			{
 				case WTF_TC_CONSUMER:
-				  wtf.pConsReactorChannel = pReactorChannel;
 				  break;
 				case WTF_TC_PROVIDER:
 				  EXPECT_TRUE(0) << "unexpected event type: provider received channel open"
@@ -325,14 +385,10 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 			{
 				case WTF_TC_PROVIDER:
 				{
-					RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
-					wtf.pProvReactorChannelList[serverIndex] = pReactorChannel;
 					break;
 				}
 				case WTF_TC_CONSUMER:
 				  wtf.consReactorChannelUp = RSSL_TRUE;
-
-				  wtf.pConsReactorChannel = pReactorChannel;
 
 				  if (pReactorChannel->reactorChannelType == RSSL_REACTOR_CHANNEL_TYPE_WARM_STANDBY)
 				  {
@@ -374,6 +430,11 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 				wtf.socketIdListCount = 0;
 			}
 
+			if (pReactorChannel->pRsslChannel != NULL)
+			{
+				pChannelEvent->port = (int)pReactorChannel->pRsslChannel->port;
+			}
+
 			break;
 
 		case RSSL_RC_CET_CHANNEL_DOWN:
@@ -382,7 +443,7 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 			case WTF_TC_PROVIDER:
 			{
 				RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
-				wtfCloseChannel(WTF_TC_PROVIDER);
+				wtfCloseChannel(WTF_TC_PROVIDER, (RsslUInt16)serverIndex);
 				wtf.pProvReactorChannelList[serverIndex] = NULL;
 				break;
 			}
@@ -393,6 +454,9 @@ static RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor,
 			  wtf.socketIdListCount = 0;
 			  break;
 			}
+			break;
+		case RSSL_RC_CET_PREFERRED_HOST_COMPLETE:
+		case RSSL_RC_CET_PREFERRED_HOST_STARTING_FALLBACK:
 			break;
 		default:
 		  EXPECT_TRUE(0) << "unhandled channel event" << std::endl;
@@ -409,6 +473,27 @@ static RsslReactorCallbackRet loginMsgCallback(RsslReactor* pReactor,
 	WtfComponent component = *(WtfComponent*)&pReactor->userSpecPtr;
 	WtfRdmMsgEvent *pRdmMsgEvent;
 	EXPECT_TRUE(wtf.eventCount < DISPATCH_EVENT_MAX);
+
+	switch (component)
+	{
+		case WTF_TC_PROVIDER:
+		{
+			RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
+			if (wtf.pProvReactorChannelList[serverIndex] != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pProvReactorChannelList[serverIndex] == pReactorChannel) << "Mismatched channel.";
+			}
+			break;
+		}
+		case WTF_TC_CONSUMER:
+		{
+			if (wtf.pConsReactorChannel != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pConsReactorChannel == pReactorChannel) << "Mismatched channel.";
+			}
+			break;
+		}
+	}
 
 	/* When provided as RDM messages, buffer & msg are not modified, and so should not be 
 	 * forwarded. */
@@ -452,6 +537,27 @@ static RsslReactorCallbackRet directoryMsgCallback(RsslReactor* pReactor,
 	WtfRdmMsgEvent *pRdmMsgEvent;
 	EXPECT_TRUE(wtf.eventCount < DISPATCH_EVENT_MAX);
 
+	switch (component)
+	{
+		case WTF_TC_PROVIDER:
+		{
+			RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
+			if (wtf.pProvReactorChannelList[serverIndex] != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pProvReactorChannelList[serverIndex] == pReactorChannel) << "Mismatched Provider channel in directoryCallback.";
+			}
+			break;
+		}
+		case WTF_TC_CONSUMER:
+		{
+			if (wtf.pConsReactorChannel != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pConsReactorChannel == pReactorChannel) << "Mismatched Consumer channel in directoryCallback.";
+			}
+			break;
+		}
+	}
+
 	/* When provided as RDM messages, buffer & msg are not modified, and so should not be 
 	 * forwarded. */
 	if (component == WTF_TC_CONSUMER)
@@ -493,6 +599,27 @@ static RsslReactorCallbackRet dictionaryMsgCallback(RsslReactor* pReactor,
 	WtfRdmMsgEvent *pRdmMsgEvent;
 	EXPECT_TRUE(wtf.eventCount < DISPATCH_EVENT_MAX);
 
+	switch (component)
+	{
+		case WTF_TC_PROVIDER:
+		{
+			RsslUInt64 serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
+			if (wtf.pProvReactorChannelList[serverIndex] != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pProvReactorChannelList[serverIndex] == pReactorChannel) << "Mismatched Provider channel in dictionaryCallback.";
+			}
+			break;
+		}
+		case WTF_TC_CONSUMER:
+		{
+			if (wtf.pConsReactorChannel != pReactorChannel)
+			{
+				EXPECT_TRUE(wtf.pConsReactorChannel == pReactorChannel) << "Mismatched Consumer channel in dictionaryCallback.";
+			}
+			break;
+		}
+	}
+
 	/* When provided as RDM messages, buffer & msg are not modified, and so should not be 
 	 * forwarded. */
 	if (component == WTF_TC_CONSUMER)
@@ -526,6 +653,11 @@ static RsslReactorCallbackRet dictionaryMsgCallback(RsslReactor* pReactor,
 						pInfo->baseMsgEvent.pStreamInfo->pServiceName);
 			}
 		}
+	}
+
+	if (component == WTF_TC_PROVIDER)
+	{
+		pRdmMsgEvent->serverIndex = (RsslUInt64)pReactorChannel->userSpecPtr;
 	}
 
 	++wtf.eventCount;
@@ -647,8 +779,46 @@ void wtfBindServer(RsslConnectionTypes connectionType, char* serverPort)
 		++wtf.serverIt;
 	}
 
+	// Copy the connection information here.  Serverport is a pre-allocated 10 byte char array.
+	pTestServer->connType = connectionType;
+	strncpy(pTestServer->serverPort, serverPort, sizeof(pTestServer->serverPort));
+
 	pTestServer->pServer = rsslBind(&bindOpts, &rsslErrorInfo.rsslError);
 	bindOpts.pingTimeout = bindOpts.minPingTimeout = 30;
+}
+
+// This will close a server but will not remove it from the server list, useful if we want to stop a connection that has previously succeeded.
+void wtfShutdownServer(RsslUInt16 serverIndex)
+{
+	RsslErrorInfo				rsslErrorInfo;
+
+	if (wtf.pServerList[serverIndex].pServer != NULL)
+	{
+		rsslCloseServer(wtf.pServerList[serverIndex].pServer, &rsslErrorInfo.rsslError);
+		wtf.pServerList[serverIndex].pServer = NULL;
+	}
+
+#ifdef WIN32
+	/* Give windows a chance to release the FD */
+	Sleep(200);
+#endif
+}
+
+// This will restart a server that has been previously shut down.
+void wtfRestartServer(RsslUInt16 serverIndex)
+{
+	RsslBindOptions				bindOpts;
+	RsslErrorInfo				rsslErrorInfo;
+
+	rsslClearBindOpts(&bindOpts);
+
+	if (wtf.pServerList[serverIndex].pServer == NULL)
+	{
+		bindOpts.serviceName = wtf.pServerList[serverIndex].serverPort;
+		if (wtf.pServerList[serverIndex].connType == RSSL_CONN_TYPE_WEBSOCKET)
+			bindOpts.wsOpts.protocols = const_cast<char*>("rssl.json.v2");
+		wtf.pServerList[serverIndex].pServer = rsslBind(&bindOpts, &rsslErrorInfo.rsslError);
+	}
 }
 
 void wtfCloseServer(RsslUInt16 serverIndex)
@@ -659,13 +829,23 @@ void wtfCloseServer(RsslUInt16 serverIndex)
 	{
 		rsslCloseServer(wtf.pServerList[serverIndex].pServer, &rsslErrorInfo.rsslError);
 		wtf.pServerList[serverIndex].pServer = NULL;
+	}
 
-		if (wtf.serverCount > 1 && wtf.serverIt > 0)
-		{
-			--wtf.serverIt;
-		}
+	if (wtf.serverCount > 1 && wtf.serverIt > 0)
+	{
+		--wtf.serverIt;
 	}
 }
+
+
+void wtfTeardownServers()
+{
+	for (int i = 0; i < wtf.serverCount; ++i)
+	{
+		wtfCloseServer(i);
+	}
+}
+
 
 void wtfConnect(WtfSetupConnectionOpts *pOpts)
 {
@@ -674,19 +854,43 @@ void wtfConnect(WtfSetupConnectionOpts *pOpts)
 	RsslReactorConnectOptions connectOpts;
 
 	rsslClearReactorConnectOptions(&connectOpts);
-	connectOpts.rsslConnectOptions.connectionType = wtf.config.connType;
 	connectOpts.reconnectAttemptLimit = pOpts->reconnectAttemptLimit;
 	connectOpts.reconnectMinDelay = pOpts->reconnectMinDelay;
 	connectOpts.reconnectMaxDelay = pOpts->reconnectMaxDelay;
 
-
-	connectOpts.rsslConnectOptions.connectionInfo.unified.address = const_cast<char*>("localhost");
-	connectOpts.rsslConnectOptions.connectionInfo.unified.serviceName = pOpts->pServerPort;
-
-	if (connectOpts.rsslConnectOptions.connectionType == RSSL_CONN_TYPE_WEBSOCKET)
+	if (pOpts->reactorConnectionList != NULL)
 	{
-		connectOpts.rsslConnectOptions.wsOpts.protocols = const_cast<char*>("rssl.json.v2");
+		connectOpts.reactorConnectionList = pOpts->reactorConnectionList;
+		connectOpts.connectionCount = pOpts->connectionCount;
+
+		for (RsslUInt32 i = 0; i < connectOpts.connectionCount; ++i)
+		{
+			connectOpts.reactorConnectionList[i].rsslConnectOptions.connectionType = wtf.config.connType;
+			if (wtf.config.connType == RSSL_CONN_TYPE_WEBSOCKET)
+			{
+				connectOpts.reactorConnectionList[i].rsslConnectOptions.wsOpts.protocols = const_cast<char*>("rssl.json.v2");
+			}
+		}
 	}
+	else
+	{
+		connectOpts.rsslConnectOptions.connectionType = wtf.config.connType;
+		connectOpts.rsslConnectOptions.connectionInfo.unified.address = const_cast<char*>("localhost");
+		connectOpts.rsslConnectOptions.connectionInfo.unified.serviceName = pOpts->pServerPort;
+
+		if (connectOpts.rsslConnectOptions.connectionType == RSSL_CONN_TYPE_WEBSOCKET)
+		{
+			connectOpts.rsslConnectOptions.wsOpts.protocols = const_cast<char*>("rssl.json.v2");
+		}
+	}
+
+	// Do a shallow copy here for preferred host.
+	connectOpts.preferredHostOptions.enablePreferredHostOptions = pOpts->preferredHostOpts.enablePreferredHostOptions;
+	connectOpts.preferredHostOptions.connectionListIndex = pOpts->preferredHostOpts.connectionListIndex;
+	connectOpts.preferredHostOptions.detectionTimeInterval = pOpts->preferredHostOpts.detectionTimeInterval;
+	connectOpts.preferredHostOptions.detectionTimeSchedule = pOpts->preferredHostOpts.detectionTimeSchedule;
+	connectOpts.preferredHostOptions.fallBackWithInWSBGroup = pOpts->preferredHostOpts.fallBackWithInWSBGroup;
+	connectOpts.preferredHostOptions.warmStandbyGroupListIndex = pOpts->preferredHostOpts.warmStandbyGroupListIndex;
 
 
 	if ((ret = rsslReactorConnect(wtf.pConsReactor, &connectOpts, 
@@ -719,6 +923,13 @@ void wtfWarmStandbyConnect(WtfSetupWarmStandbyOpts *pOpts)
 	connectOpts.warmStandbyGroupCount = pOpts->warmStandbyGroupCount;
 	connectOpts.reactorConnectionList = pOpts->reactorConnectionList;
 	connectOpts.connectionCount = pOpts->connectionCount;
+	// Do a shallow copy here for preferred host.
+	connectOpts.preferredHostOptions.enablePreferredHostOptions = pOpts->preferredHostOpts.enablePreferredHostOptions;
+	connectOpts.preferredHostOptions.connectionListIndex = pOpts->preferredHostOpts.connectionListIndex;
+	connectOpts.preferredHostOptions.detectionTimeInterval = pOpts->preferredHostOpts.detectionTimeInterval;
+	connectOpts.preferredHostOptions.detectionTimeSchedule = pOpts->preferredHostOpts.detectionTimeSchedule;
+	connectOpts.preferredHostOptions.fallBackWithInWSBGroup = pOpts->preferredHostOpts.fallBackWithInWSBGroup;
+	connectOpts.preferredHostOptions.warmStandbyGroupListIndex = pOpts->preferredHostOpts.warmStandbyGroupListIndex;
 
 	if ((ret = rsslReactorConnect(wtf.pConsReactor, &connectOpts,
 		(RsslReactorChannelRole*)&wtf.ommConsumerRole, &rsslErrorInfo) != RSSL_RET_SUCCESS))
@@ -1437,6 +1648,257 @@ void wtfSetupConnection(WtfSetupConnectionOpts *pOpts, RsslConnectionTypes conne
 	
 }
 
+void wtfSetupConnectionList(WtfSetupConnectionOpts* pOpts, RsslConnectionTypes connectionType, RsslBool noEventsExpected, RsslUInt16 serverIndex)
+{
+	RsslReactorSubmitMsgOptions submitOpts;
+	WtfEvent* pEvent;
+	RsslRDMLoginRequest loginRequest;
+	RsslRDMLoginRefresh loginRefresh;
+
+	WtfSetupConnectionOpts defaultCalOpts;
+
+	if (pOpts == NULL)
+	{
+		wtfClearSetupConnectionOpts(&defaultCalOpts);
+		pOpts = &defaultCalOpts;
+	}
+
+	rsslClearOMMConsumerRole(&wtf.ommConsumerRole);
+	wtf.ommConsumerRole.base.defaultMsgCallback = msgCallback;
+	wtf.ommConsumerRole.base.channelEventCallback = channelEventCallback;
+
+	wtf.consumerLoginCallbackAction = pOpts->consumerLoginCallback;
+	wtf.consumerDirectoryCallbackAction = pOpts->consumerDirectoryCallback;
+	wtf.consumerDictionaryCallbackAction = pOpts->consumerDictionaryCallback;
+	wtf.providerDictionaryCallbackAction = pOpts->providerDictionaryCallback;
+
+	if (pOpts->consumerLoginCallback != WTF_CB_NONE)
+		wtf.ommConsumerRole.loginMsgCallback = loginMsgCallback;
+	if (pOpts->consumerDirectoryCallback != WTF_CB_NONE)
+		wtf.ommConsumerRole.directoryMsgCallback = directoryMsgCallback;
+	if (pOpts->consumerDictionaryCallback != WTF_CB_NONE)
+		wtf.ommConsumerRole.dictionaryMsgCallback = dictionaryMsgCallback;
+
+	rsslClearOMMProviderRole(&wtf.ommProviderRole);
+	wtf.ommProviderRole.base.defaultMsgCallback = msgCallback;
+	wtf.ommProviderRole.base.channelEventCallback = channelEventCallback;
+	wtf.ommProviderRole.loginMsgCallback = loginMsgCallback;
+	wtf.ommProviderRole.directoryMsgCallback = directoryMsgCallback;
+
+	if (pOpts->providerDictionaryCallback != WTF_CB_NONE)
+		wtf.ommProviderRole.dictionaryMsgCallback = dictionaryMsgCallback;
+
+	/* Consumer connects. */
+	wtf.ommConsumerRole.watchlistOptions.enableWatchlist = RSSL_TRUE;
+	wtf.ommConsumerRole.watchlistOptions.channelOpenCallback = channelEventCallback;
+	wtf.ommConsumerRole.watchlistOptions.requestTimeout = pOpts->requestTimeout;
+	wtf.ommConsumerRole.watchlistOptions.postAckTimeout = pOpts->postAckTimeout;
+
+	/* wtfDispatch() multiplies times less than 1 second. So set
+	 * requestTimeout/postAckTimeout accordingly. */
+	wtf.ommConsumerRole.watchlistOptions.requestTimeout =
+		(RsslUInt32)((float)wtf.ommConsumerRole.watchlistOptions.requestTimeout / wtfGlobalConfig.speed);
+	wtf.ommConsumerRole.watchlistOptions.postAckTimeout =
+		(RsslUInt32)((float)wtf.ommConsumerRole.watchlistOptions.postAckTimeout / wtfGlobalConfig.speed);
+
+	wtf.config.connType = connectionType;
+	wtfConnect(pOpts);
+
+	/* Consumer receives channel open. */
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_CHNL);
+	ASSERT_TRUE(pEvent->channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_OPENED);
+
+	if (!pOpts->login)
+		return;
+
+	/* Consumer submits login. */
+	wtfInitDefaultLoginRequest(&loginRequest);
+
+	if (!pOpts->singleOpen)
+	{
+		loginRequest.flags |= RDM_LG_RQF_HAS_SINGLE_OPEN;
+		loginRequest.singleOpen = 0;
+	}
+	if (!pOpts->allowSuspectData)
+	{
+		loginRequest.flags |= RDM_LG_RQF_HAS_ALLOW_SUSPECT_DATA;
+		loginRequest.allowSuspectData = 0;
+	}
+
+	rsslClearReactorSubmitMsgOptions(&submitOpts);
+	submitOpts.pRDMMsg = (RsslRDMMsg*)&loginRequest;
+	submitOpts.requestMsgOptions.pUserSpec = (void*)WTF_DEFAULT_LOGIN_USER_SPEC_PTR;
+	wtfSubmitMsg(&submitOpts, WTF_TC_CONSUMER, NULL, noEventsExpected);
+
+	if (!pOpts->accept)
+		return;
+
+	/* Provider should now accept. */
+	wtfAccept(serverIndex);
+
+	/* Provider channel up & ready
+	 * (must be checked before consumer; in the case of raw providers,
+	 * this call will initialize the channel). */
+	wtfDispatch(WTF_TC_PROVIDER, 200, serverIndex);
+	while (!(pEvent = wtfGetEvent()))
+	{
+		wtfDispatch(WTF_TC_PROVIDER, 200, serverIndex);
+	}
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_CHNL);
+	ASSERT_TRUE(pEvent->channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP);
+
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_CHNL);
+	ASSERT_TRUE(pEvent->channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY);
+
+
+	/* Consumer channel up. */
+	wtfDispatch(WTF_TC_CONSUMER, 800);
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_CHNL);
+	ASSERT_TRUE(pEvent->channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_UP);
+
+	/* Consumer channel ready (reactor sends login request). */
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_CHNL);
+	ASSERT_TRUE(pEvent->channelEvent.channelEventType == RSSL_RC_CET_CHANNEL_READY);
+
+	/* Provider receives login request. */
+	wtfDispatch(WTF_TC_PROVIDER, 100, serverIndex);
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_RDM_MSG);
+	ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.domainType == RSSL_DMT_LOGIN);
+	ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.rdmMsgType == RDM_LG_MT_REQUEST);
+	wtf.providerLoginStreamId = pEvent->rdmMsg.pRdmMsg->rdmMsgBase.streamId;
+
+	if (!pOpts->provideLoginRefresh)
+		return;
+
+	/* Provider sends login response. */
+	wtfInitDefaultLoginRefresh(&loginRefresh);
+
+	rsslClearReactorSubmitMsgOptions(&submitOpts);
+	submitOpts.pRDMMsg = (RsslRDMMsg*)&loginRefresh;
+	wtfSubmitMsg(&submitOpts, WTF_TC_PROVIDER, NULL, noEventsExpected, serverIndex);
+
+	/* Consumer receives login response. */
+	wtfDispatch(WTF_TC_CONSUMER, 100);
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	if (pOpts->consumerLoginCallback == WTF_CB_USE_DOMAIN_CB)
+	{
+		ASSERT_TRUE(pEvent->base.type == WTF_DE_RDM_MSG);
+		ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.rdmMsgType == RDM_LG_MT_REFRESH);
+		ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.streamId == 1);
+		ASSERT_TRUE(pEvent->rdmMsg.pUserSpec == (void*)0x55557777);
+	}
+	else
+	{
+		ASSERT_TRUE(pEvent->base.type == WTF_DE_RSSL_MSG);
+		ASSERT_TRUE(pEvent->rsslMsg.pRsslMsg->msgBase.msgClass == RSSL_MC_REFRESH);
+		ASSERT_TRUE(pEvent->rsslMsg.pRsslMsg->msgBase.domainType == RSSL_DMT_LOGIN);
+		ASSERT_TRUE(pEvent->rsslMsg.pRsslMsg->msgBase.streamId == 1);
+		ASSERT_TRUE(pEvent->rsslMsg.pUserSpec == (void*)0x55557777);
+	}
+
+	/* Provider receives source directory request. */
+	wtfDispatch(WTF_TC_PROVIDER, 100, serverIndex);
+	ASSERT_TRUE(pEvent = wtfGetEvent());
+	ASSERT_TRUE(pEvent->base.type == WTF_DE_RDM_MSG);
+	ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.domainType == RSSL_DMT_SOURCE);
+	ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.rdmMsgType == RDM_DR_MT_REQUEST);
+
+	/* Filter should contain at least Info, State, and Group filters. */
+	wtf.providerDirectoryFilter =
+		pEvent->rdmMsg.pRdmMsg->directoryMsg.request.filter;
+	ASSERT_TRUE(wtf.providerDirectoryFilter ==
+		(RDM_DIRECTORY_SERVICE_INFO_FILTER
+			| RDM_DIRECTORY_SERVICE_STATE_FILTER
+			| RDM_DIRECTORY_SERVICE_GROUP_FILTER
+			| RDM_DIRECTORY_SERVICE_LOAD_FILTER
+			| RDM_DIRECTORY_SERVICE_DATA_FILTER
+			| RDM_DIRECTORY_SERVICE_LINK_FILTER));
+
+	/* Request should not have service ID. */
+	ASSERT_TRUE(!(pEvent->rdmMsg.pRdmMsg->directoryMsg.request.flags
+		& RDM_DR_RQF_HAS_SERVICE_ID));
+
+	/* Request should be streaming. */
+	ASSERT_TRUE((pEvent->rdmMsg.pRdmMsg->directoryMsg.request.flags
+		& RDM_DR_RQF_STREAMING));
+
+	wtf.providerDirectoryStreamId = pEvent->rdmMsg.pRdmMsg->rdmMsgBase.streamId;
+
+	if (pOpts->provideDefaultDirectory)
+	{
+		RsslRDMDirectoryRefresh directoryRefresh;
+		RsslRDMService service;
+
+		rsslClearRDMDirectoryRefresh(&directoryRefresh);
+		directoryRefresh.rdmMsgBase.streamId = wtf.providerDirectoryStreamId;
+		directoryRefresh.filter = wtf.providerDirectoryFilter;
+		directoryRefresh.flags = RDM_DR_RFF_SOLICITED | RDM_DR_RFF_CLEAR_CACHE;
+
+		directoryRefresh.serviceList = &service;
+		directoryRefresh.serviceCount = 1;
+
+		wtfSetService1Info(&service);
+
+		if (pOpts->provideDefaultServiceLoad)
+		{
+			service.flags |= RDM_SVCF_HAS_LOAD;
+			service.load.flags |= RDM_SVC_LDF_HAS_OPEN_LIMIT;
+			service.load.openLimit = 0xffffffffffffffffULL;
+			service.load.flags |= RDM_SVC_LDF_HAS_OPEN_WINDOW;
+			service.load.openWindow = 0xffffffffffffffffULL;
+			service.load.flags |= RDM_SVC_LDF_HAS_LOAD_FACTOR;
+			service.load.loadFactor = 65535;
+		}
+
+		if (pOpts->provideDictionaryUsedAndProvided)
+		{
+			service.info.flags |= RDM_SVC_IFF_HAS_DICTS_PROVIDED;
+
+			// Send only two elements in the refresh message and all element in the update message. 
+			service1DictionariesProvidedList = (RsslBuffer*)malloc(sizeof(RsslBuffer) * service1DictionariesProvidedCount);
+			service.info.dictionariesProvidedList = service1DictionariesProvidedList;
+
+			service.info.dictionariesProvidedCount = service1DictionariesProvidedCount - 2;
+			service.info.dictionariesProvidedList[0].length = 6;
+			service.info.dictionariesProvidedList[0].data = const_cast<char*>("RWFFld");
+			service.info.dictionariesProvidedList[1].length = 7;
+			service.info.dictionariesProvidedList[1].data = const_cast<char*>("RWFEnum");
+			service.info.dictionariesProvidedList[2].length = 7;
+			service.info.dictionariesProvidedList[2].data = const_cast<char*>("RWFFld2");
+			service.info.dictionariesProvidedList[3].length = 8;
+			service.info.dictionariesProvidedList[3].data = const_cast<char*>("RWFEnum2");
+
+			service.info.flags |= RDM_SVC_IFF_HAS_DICTS_USED;
+			// Send only two elements in the refresh message and all element in the update message. 
+			service1DictionariesUsedList = (RsslBuffer*)malloc(sizeof(RsslBuffer) * service1DictionariesUsedCount);
+
+			service.info.dictionariesUsedList = service1DictionariesUsedList;
+			service.info.dictionariesUsedCount = service1DictionariesUsedCount - 2;
+			service.info.dictionariesUsedList[0].length = 6;
+			service.info.dictionariesUsedList[0].data = const_cast<char*>("RWFFld");
+			service.info.dictionariesUsedList[1].length = 7;
+			service.info.dictionariesUsedList[1].data = const_cast<char*>("RWFEnum");
+			service.info.dictionariesUsedList[2].length = 7;
+			service.info.dictionariesUsedList[2].data = const_cast<char*>("RWFFld2");
+			service.info.dictionariesUsedList[3].length = 8;
+			service.info.dictionariesUsedList[3].data = const_cast<char*>("RWFEnum2");
+		}
+
+		rsslClearReactorSubmitMsgOptions(&submitOpts);
+		submitOpts.pRDMMsg = (RsslRDMMsg*)&directoryRefresh;
+		wtfSubmitMsg(&submitOpts, WTF_TC_PROVIDER, NULL, noEventsExpected, serverIndex);
+	}
+
+	/* Consumer should receive no more messages. */
+	wtfDispatch(WTF_TC_CONSUMER, 100);
+	ASSERT_TRUE(wtf.eventCount == 0);
+}
+
 void wtfSendDefaultSourceDirectory(WtfSetupWarmStandbyOpts *pOpts, RsslRDMDirectoryRequest *pRDMDirectoryRequest, RsslUInt16 serverIndex)
 {
 	RsslReactorSubmitMsgOptions submitOpts;
@@ -1494,7 +1956,7 @@ void wtfSendDefaultSourceDirectory(WtfSetupWarmStandbyOpts *pOpts, RsslRDMDirect
 	}
 }
 
-void wtfSetupWarmStandbyConnection(WtfSetupWarmStandbyOpts *pOpts, WtfWarmStandbyExpectedMode* pExpectedWarmStandbyMode, RsslRDMService *pActiveServerService, 
+void wtfSetupWarmStandbyConnection(WtfSetupWarmStandbyOpts *pOpts, WtfWarmStandbyExpectedMode* pExpectedWarmStandbyMode, RsslRDMService *pActiveServerService,
 	RsslRDMService* pStandByServerService, RsslBool sendDirectoryRequest, RsslConnectionTypes connectionType, RsslBool multiLogin)
 {
 	RsslReactorSubmitMsgOptions submitOpts;
@@ -1580,8 +2042,6 @@ void wtfSetupWarmStandbyConnection(WtfSetupWarmStandbyOpts *pOpts, WtfWarmStandb
 		}
 	}
 
-		
-
 	rsslClearOMMProviderRole(&wtf.ommProviderRole);
 	wtf.ommProviderRole.base.defaultMsgCallback = msgCallback;
 	wtf.ommProviderRole.base.channelEventCallback = channelEventCallback;
@@ -1634,7 +2094,7 @@ void wtfSetupWarmStandbyConnection(WtfSetupWarmStandbyOpts *pOpts, WtfWarmStandb
 		rsslClearReactorSubmitMsgOptions(&submitOpts);
 		submitOpts.pRDMMsg = (RsslRDMMsg*)&loginRequest;
 		submitOpts.requestMsgOptions.pUserSpec = (void*)WTF_DEFAULT_LOGIN_USER_SPEC_PTR;
-		wtfSubmitMsg(&submitOpts, WTF_TC_CONSUMER, NULL, RSSL_TRUE);
+		wtfSubmitMsg(&submitOpts, WTF_TC_CONSUMER, NULL, RSSL_FALSE);
 
 		if (sendDirectoryRequest)
 		{
@@ -1916,8 +2376,12 @@ void wtfSetupWarmStandbyConnection(WtfSetupWarmStandbyOpts *pOpts, WtfWarmStandb
 		wtf.pServerList[pEvent->rdmMsg.serverIndex].warmStandbyMode = WTF_WSBM_LOGIN_BASED_SERVER_TYPE_STANDBY;
 	}
 
-	wtfDispatch(WTF_TC_PROVIDER, 200, 1, 1);
-	ASSERT_TRUE(pEvent = wtfGetEvent());
+	if ((pEvent = wtfGetEvent()) == NULL)
+	{
+		wtfDispatch(WTF_TC_PROVIDER, 200, 1, 1);
+		ASSERT_TRUE(pEvent = wtfGetEvent());
+	}
+
 	ASSERT_TRUE(pEvent->base.type == WTF_DE_RDM_MSG);
 	ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.domainType == RSSL_DMT_SOURCE);
 	ASSERT_TRUE(pEvent->rdmMsg.pRdmMsg->rdmMsgBase.rdmMsgType == RDM_DR_MT_REQUEST);
@@ -2629,7 +3093,7 @@ void wtfSubmitMsg(RsslReactorSubmitMsgOptions *pOpts, WtfComponent component,
 
 	if (noEventsExpected)
 	{
-		wtfDispatch(component, 30);
+		wtfDispatch(component, 30, serverIndex);
 		ASSERT_TRUE(!wtfGetEvent());
 	}
 }

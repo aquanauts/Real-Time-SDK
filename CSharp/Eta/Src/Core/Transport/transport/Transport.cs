@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -10,11 +10,11 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Linq;
+using System.Text;
 using System.Threading;
 
 using LSEG.Eta.Common;
 using LSEG.Eta.Internal;
-using System.Text;
 
 namespace LSEG.Eta.Transports
 {
@@ -35,7 +35,7 @@ namespace LSEG.Eta.Transports
 
         private static ProtocolRegistry _protocolRegistry = ProtocolRegistry.Instance;
 
-        private static Assembly _assembly = Assembly.GetExecutingAssembly();
+        private static Assembly _assembly;
 
         private static readonly FileVersionInfo m_FileVersionInfo;
 
@@ -49,6 +49,7 @@ namespace LSEG.Eta.Transports
         {
             try
             {
+                _assembly = Assembly.GetExecutingAssembly();
                 m_FileVersionInfo = FileVersionInfo.GetVersionInfo(_assembly.Location);
             }
             catch (Exception) { }
@@ -66,7 +67,7 @@ namespace LSEG.Eta.Transports
                     productVersion = $"{versionNumbers[0]}.{versionNumbers[1]}.{versionNumbers[2]}";
                 }
 
-                m_LibVersionInfo.m_ProductInternalVersion = $"etacsharp{productVersion}.L1.all.rrg";
+                m_LibVersionInfo.m_ProductInternalVersion = $"etacsharp{productVersion}.G2.all.rrg";
             }
             else
             {
@@ -103,9 +104,9 @@ namespace LSEG.Eta.Transports
                         Interlocked.Increment(ref _numInitCalls);
 
                         _globalLocking = initArgs.GlobalLocking;
-                        GlobalLocker = (_globalLocking)
-                            ? (Locker)new WriteLocker(_slimLock)
-                            : (Locker)new NoLocker();
+                        GlobalLocker = _globalLocking
+                            ? new MonitorWriteLocker(new object())
+                            : new NoLocker();
                         error = null;
                     }
                     else if (initArgs.GlobalLocking != _globalLocking)
@@ -195,16 +196,16 @@ namespace LSEG.Eta.Transports
             error = null;
             IChannel channel = null;
 
-            if (Interlocked.Read(ref _numInitCalls) == 0)
-            {
-                error = new Error(errorId: TransportReturnCode.INIT_NOT_INITIALIZED,
-                                     text: "Transport not initialized.");
-                return null;
-            }
-
             try
             {
-                GlobalLocker.Enter();
+                GlobalLocker?.Enter();
+
+                if (Interlocked.Read(ref _numInitCalls) == 0)
+                {
+                    error = new Error(errorId: TransportReturnCode.INIT_NOT_INITIALIZED,
+                                         text: "Transport not initialized.");
+                    return null;
+                }
 
                 if (connectOptions is null)
                 {
@@ -233,6 +234,22 @@ namespace LSEG.Eta.Transports
                     return null;
                 }
 
+                if (System.OperatingSystem.IsWindows()
+                    && connectOptions.ConnectionType == ConnectionType.ENCRYPTED
+                    && connectOptions.EncryptionOpts.TlsCipherSuites != null
+                    && connectOptions.EncryptionOpts.TlsCipherSuites.Any())
+                {
+                    error = new Error
+                    {
+                        Channel = null,
+                        ErrorId = TransportReturnCode.FAILURE,
+                        SysError = 0,
+                        Text = "Unable to create encrypted client connection. Reason: EncryptionOpts.TlsCipherSuites is not supported on the Windows platform."
+                    };
+
+                    return null;
+                }
+
                 channel = protocol.CreateChannel(connectOptions, out error);
 
                 if (channel == null)
@@ -246,7 +263,7 @@ namespace LSEG.Eta.Transports
             }
             finally
             {
-                GlobalLocker.Exit();
+                GlobalLocker?.Exit();
             }
 
 
@@ -270,18 +287,18 @@ namespace LSEG.Eta.Transports
             error = null;
             IServer server = null;
 
-            if (Interlocked.Read(ref _numInitCalls) == 0)
-            {
-                error = new Error(errorId: TransportReturnCode.INIT_NOT_INITIALIZED,
-                                     text: "Transport not initialized.");
-                return null;
-            }
-
             try
             {
-                GlobalLocker.Enter();
+                GlobalLocker?.Enter();
 
-                if(bindOptions == null)
+                if (Interlocked.Read(ref _numInitCalls) == 0)
+                {
+                    error = new Error(errorId: TransportReturnCode.INIT_NOT_INITIALIZED,
+                                         text: "Transport not initialized.");
+                    return null;
+                }
+
+                if (bindOptions == null)
                 {
                     error = new Error
                     {
@@ -308,11 +325,31 @@ namespace LSEG.Eta.Transports
                     return null;
                 }
 
+                if (System.OperatingSystem.IsWindows()
+                    && bindOptions.ConnectionType == ConnectionType.ENCRYPTED
+                    && bindOptions.BindEncryptionOpts.TlsCipherSuites != null
+                    && bindOptions.BindEncryptionOpts.TlsCipherSuites.Any())
+                {
+                    error = new Error
+                    {
+                        Channel = null,
+                        ErrorId = TransportReturnCode.FAILURE,
+                        SysError = 0,
+                        Text = "Unable to create encrypted server. Reason: BindEncryptionOpts.TlsCipherSuites is not supported on the Windows platform."
+                    };
+
+                    return null;
+                }
+
                 server = protocol.CreateServer(bindOptions, out error);
+            }
+            catch (Exception ex)
+            {
+                error = new Error(errorId: TransportReturnCode.FAILURE, text: ex.Message);
             }
             finally
             {
-                GlobalLocker.Exit();
+                GlobalLocker?.Exit();
             }
 
             return server;
@@ -329,11 +366,6 @@ namespace LSEG.Eta.Transports
         {
             return m_LibVersionInfo;
         }
-
-        /// <summary>
-        /// The library version
-        /// </summary>
-        internal static FileVersionInfo TransportLibrayVersion { get; } = FileVersionInfo.GetVersionInfo(_assembly.Location);
 
         /// <summary>
         /// Clears ETA Initialize Arguments

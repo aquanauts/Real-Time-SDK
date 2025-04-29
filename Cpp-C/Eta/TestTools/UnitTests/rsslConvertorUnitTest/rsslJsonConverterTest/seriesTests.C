@@ -2,11 +2,15 @@
 *| This source code is provided under the Apache 2.0 license –
 *| and is provided AS IS with no warranty or guarantee of fit for purpose. –
 *| See the project's LICENSE.md for details. –
-*| Copyright (C) 2020 Refinitiv. All rights reserved. –
+*| Copyright (C) 2020 LSEG. All rights reserved.      –
 *|-----------------------------------------------------------------------------
 */
 
 #include "rsslJsonConverterTestBase.h"
+
+#ifndef INSTANTIATE_TEST_SUITE_P
+#define INSTANTIATE_TEST_SUITE_P INSTANTIATE_TEST_CASE_P
+#endif
 
 using namespace std;
 using namespace json;
@@ -249,7 +253,7 @@ TEST_P(SeriesMembersTestFixture, SeriesMembersTest)
 }
 
 
-INSTANTIATE_TEST_CASE_P(SeriesTests, SeriesMembersTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(SeriesTests, SeriesMembersTestFixture, ::testing::Values(
 
 	/* Test with/without SummaryData, TotalCountHint */
 
@@ -533,7 +537,7 @@ TEST_P(SeriesContainerTypesTestFixture, SeriesContainerTypesTest)
 	ASSERT_EQ(RSSL_RET_END_OF_CONTAINER, rsslDecodeSeriesEntry(&_dIter, &seriesEntry));
 }
 
-INSTANTIATE_TEST_CASE_P(SeriesTests, SeriesContainerTypesTestFixture, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(SeriesTests, SeriesContainerTypesTestFixture, ::testing::Values(
 	RsslDataTypeParam(RSSL_DT_FIELD_LIST),
 	RsslDataTypeParam(RSSL_DT_ELEMENT_LIST)
 ));

@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -253,9 +253,9 @@ namespace LSEG.Eta.ValueAdd.Consumer
                 m_ReactorOptions.XmlTracing = true;
             }
 
-            if(!string.IsNullOrEmpty(m_ConsumerCmdLineParser.TokenURL))
+            if(!string.IsNullOrEmpty(m_ConsumerCmdLineParser.TokenURLV2))
             {
-                m_ReactorOptions.SetTokenServiceURL(m_ConsumerCmdLineParser.TokenURL);
+                m_ReactorOptions.SetTokenServiceURL(m_ConsumerCmdLineParser.TokenURLV2);
             }
 
             if (m_ConsumerCmdLineParser.EnableRestLogging)
@@ -1371,7 +1371,7 @@ namespace LSEG.Eta.ValueAdd.Consumer
                 }
             }
 
-            // handler encrypted or http connection
+            // handler encrypted connection
             chnlInfo.ShouldEnableEncrypted = m_ConsumerCmdLineParser.EnableEncrypted;
 
             if(chnlInfo.ShouldEnableEncrypted)

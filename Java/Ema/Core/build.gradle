@@ -1,4 +1,3 @@
-apply plugin: 'net.saliman.cobertura'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
 apply plugin: 'java-library'
@@ -51,6 +50,7 @@ compileTestJava {
     options.compilerArgs += ["-Xlint:path"]
     options.compilerArgs += ["-Xlint:serial"]
     options.compilerArgs += ["-Xlint:unchecked"]
+    options.compilerArgs += ["-Xlint:-options"] //suppresses warning "warning: [options] source/target value 8 is obsolete and will be removed in a future release"
 }
 
 javadoc {
@@ -149,10 +149,6 @@ signing {
     sign publishing.publications.mavenJava
 }
 
-cobertura {
-     coverageFormats = ['html', 'xml']
-}
-
 eclipse {
     project {
         name = 'RTSDK-Ema-Src'
@@ -160,15 +156,15 @@ eclipse {
 }
 
 dependencies {
-    api 'commons-logging:commons-logging:1.2'
-    api group: 'org.apache.commons', name: 'commons-configuration2', version: '2.8.0'
-    api group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
-    api group: 'org.slf4j', name: 'slf4j-api', version: '1.7.32'
+    api 'commons-logging:commons-logging:1.3.4'
+    api group: 'org.apache.commons', name: 'commons-configuration2', version: '2.11.0'
+    api group: 'org.apache.commons', name: 'commons-collections4', version: '4.5.0-M2'
+    api group: 'org.slf4j', name: 'slf4j-api', version: '2.0.16'
 
     api project(':Eta:ValueAdd')
     api project(':Eta:Core')
 
-    testRuntimeOnly 'org.hamcrest:hamcrest-core:1.3'
+    testRuntimeOnly 'org.hamcrest:hamcrest-core:3.0'
 }
 
 jar {

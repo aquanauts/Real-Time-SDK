@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -934,15 +934,16 @@ class WlLoginHandler implements WlHandler
 					"WlLoginHandler.readGenericMsg", _watchlist.reactorChannel(),
 					null, msg, wlRequest,
 					errorInfo);
-		} else if (rttEnabled) {
-			submitMsg(wlRequest, msg, _submitOptions, errorInfo);
+		} else {
+			if(rttEnabled)
+				submitMsg(wlRequest, msg, _submitOptions, errorInfo);
+			
 			loginRTT.clear();
 			loginRTT.decode(dIter, msg);
 			return _watchlist.reactor().sendAndHandleLoginMsgCallback("WlLoginHandler.readGenericMsg",
 					_watchlist.reactorChannel(), null, msg, loginRTT, wlRequest,
 					errorInfo);
 		}
-		return ReactorReturnCodes.SUCCESS;
 	}
 
 	/* Reads an Ack message. */

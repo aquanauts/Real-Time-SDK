@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019,2024 LSEG. All rights reserved.
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.eta.transport;
@@ -905,7 +905,7 @@ public class TransportMessageJunit
         return bindOptions;
     }
 
-    public BindOptions encryptedBindOptions(String portNumber)
+    public BindOptions encryptedBindOptions(String portNumber, String[] securityProtocolVersions)
     {
         BindOptions bindOptions = TransportFactory.createBindOptions();
         bindOptions.connectionType(ConnectionTypes.ENCRYPTED);
@@ -915,6 +915,7 @@ public class TransportMessageJunit
         bindOptions.encryptionOptions().trustManagerAlgorithm("");
         bindOptions.encryptionOptions().keyManagerAlgorithm("SunX509");
         bindOptions.encryptionOptions().securityProtocol("TLS");
+		bindOptions.encryptionOptions().securityProtocolVersions(securityProtocolVersions);
         bindOptions.encryptionOptions().securityProvider("SunJSSE");
         bindOptions.serviceName(portNumber);
         bindOptions.sysRecvBufSize(64 * 1024);
@@ -952,6 +953,7 @@ public class TransportMessageJunit
         connectOptions.encryptionOptions().TrustManagerAlgorithm("");
         connectOptions.encryptionOptions().KeyManagerAlgorithm("SunX509");
         connectOptions.encryptionOptions().SecurityProtocol("TLS");
+		connectOptions.encryptionOptions().SecurityProtocolVersions(new String[] {"1.3", "1.2"});
         connectOptions.encryptionOptions().SecurityProvider("SunJSSE");
         connectOptions.tunnelingInfo().tunnelingType("None");
         connectOptions.unifiedNetworkInfo().address("localhost");
@@ -1333,6 +1335,7 @@ public class TransportMessageJunit
         int expectedTotalBytes = -1;
         int expectedUncompressedBytes = -1;
         boolean encrypted = false;
+        String[] securityProtocolVersions = {"1.2", "1.3"};
 
 	private static int portNumber = 15200;
 	String PORT_NUMBER;
@@ -2391,7 +2394,7 @@ public class TransportMessageJunit
         assertTrue("Cannot have client blocking and globalLocking=true with server using same JVM, globalLocking will deadlock.", (args.blocking && args.globalLocking) == false);
 
         // BindOptions
-        BindOptions bindOptions = args.encrypted ? encryptedBindOptions(args.PORT_NUMBER) : defaultBindOptions(args.PORT_NUMBER);
+        BindOptions bindOptions = args.encrypted ? encryptedBindOptions(args.PORT_NUMBER, args.securityProtocolVersions) : defaultBindOptions(args.PORT_NUMBER);
         bindOptions.compressionType(args.compressionType);
         if (args.compressionType > CompressionTypes.NONE)
             bindOptions.compressionLevel(args.compressionLevel);

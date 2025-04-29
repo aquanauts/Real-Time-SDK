@@ -1,13 +1,16 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
 
+import com.refinitiv.ema.rdm.DataDictionary;
+
 import java.util.Collection;
+import java.util.Iterator;
 
 /**
  * Map is a homogeneous container of complex data type entries.
@@ -102,6 +105,7 @@ import java.util.Collection;
  * @see FilterList
  * @see OmmOpaque
  * @see OmmXml
+ * @see OmmJson
  * @see OmmAnsiPage
  * @see OmmError
  */
@@ -204,4 +208,24 @@ public interface Map extends ComplexType, Collection<MapEntry>
 	 * @return reference to this object
 	 */
 	public Map keyType(int keyPrimitiveType);
+
+	/**
+	 *  Returns a string representation of the class instance.
+	 * @param dictionary use for toString() conversion
+	 * @return string representation of the class instance
+	 */
+	public String toString(DataDictionary dictionary);
+	
+	/**
+	 * A more efficient and performant iterator call, which eliminates using a collection and
+	 * having an iterator over the collection.
+	 * 
+	 * Returns an iterator over a single decoded Map. This does not return a copy of this data,
+	 * but rather a reference to it that can be read and used before being moved to the next decoded MapEntry
+	 * when hasNext() is called, and returning the entry with next() on this iterator. hasNext() is required to be called
+	 * before each next() call to return the following entry.
+	 * 
+	 * @return iterator for a reference of a single decoded MapEntry.
+	 */
+	public Iterator<MapEntry> iteratorByRef();
 }

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -14,6 +14,7 @@
 #include "EmaList.h"
 #include "EmaVector.h"
 #include "ItemCallbackClient.h"
+#include "DataDictionaryImpl.h"
 
 namespace refinitiv {
 
@@ -67,6 +68,8 @@ public :
 
 	static LocalDictionary* create( OmmCommonImpl&, BaseConfig& );
 
+	static LocalDictionary* create(OmmCommonImpl&, BaseConfig&, RsslDataDictionary*);
+
 	static void destroy( LocalDictionary*& );
 
 	const RsslDataDictionary* getRsslDictionary() const;
@@ -80,6 +83,7 @@ public :
 private :
 
 	LocalDictionary( OmmCommonImpl&, BaseConfig& );
+	LocalDictionary( OmmCommonImpl&, BaseConfig&, RsslDataDictionary*);
 	virtual ~LocalDictionary();
 
 	static const EmaString		_clientName;
@@ -87,6 +91,7 @@ private :
 	BaseConfig&					_baseConfig;
 	RsslDataDictionary			_rsslDictionary;
 	bool						_isLoaded;
+	bool						_deleteRsslDictionary;
 
 	LocalDictionary( const LocalDictionary& );
 	LocalDictionary& operator=( const LocalDictionary& );
@@ -158,7 +163,7 @@ public :
 
 	DictionaryItem* getDictionaryItem( const ReqMsg&, OmmConsumerClient&, void* );
 
-	bool downloadDictionary( const Directory& );
+	bool downloadDictionary( Directory& );
 
 	bool isDictionaryReady() const;
 
@@ -173,6 +178,8 @@ public :
 	static const EmaString	_rwfEnumName;
 
 	void loadDictionaryFromFile();
+
+	bool sentRequest;
 private :
 
 	int allocateAndSetEncodeIteratorBuffer(RsslBuffer*, UInt32, UInt8, UInt8, RsslEncodeIterator*, const char *);

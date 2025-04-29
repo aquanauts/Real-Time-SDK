@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,7 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "OmmInvalidUsageException.h"
+#include "StaticDecoder.h"
 
 using namespace refinitiv::ema::access;
 
@@ -29,14 +30,11 @@ Map::Map() :
 
 Map::~Map()
 {
-	if ( GlobalPool::isFinalState() )
-		return;
-
 	if ( _pEncoder )
-		g_pool._mapEncoderPool.returnItem( _pEncoder );
+		g_pool.returnItem( _pEncoder );
 
 	if ( _pDecoder )
-		g_pool._mapDecoderPool.returnItem( _pDecoder );
+		g_pool.returnItem( _pDecoder );
 }
 
 Map& Map::clear()
@@ -72,11 +70,34 @@ const EmaString& Map::toString() const
 	return toString( 0 );
 }
 
+const EmaString& Map::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	Map map;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+		_pEncoder = g_pool.getMapEncoderItem();
+
+	if (_pEncoder->isComplete())
+	{
+		RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+		StaticDecoder::setRsslData(&map, &rsslBuffer, RSSL_DT_MAP, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+		_toString.clear().append(map.toString());
+
+		return _toString;
+	}
+
+	return _toString.clear().append("\nUnable to decode not completed Map data.\n");
+}
+
 const EmaString& Map::toString( UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );	
-	
+	if (!_pDecoder)
+		return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
+
 	MapDecoder tempDecoder;
 	tempDecoder.clone( *_pDecoder );
 
@@ -151,7 +172,7 @@ Decoder& Map::getDecoder()
 {
 	if ( !_pDecoder )
 	{
-		_summary._pDecoder = _entry._pDecoder = _pDecoder = g_pool._mapDecoderPool.getItem();
+		_summary._pDecoder = _entry._pDecoder = _pDecoder = g_pool.getMapDecoderItem();
 		_entry._pLoad = &_pDecoder->getLoad();
 		_entry._key._pData = &_pDecoder->getKeyData();
 	}
@@ -167,7 +188,7 @@ bool Map::hasDecoder() const
 const Encoder& Map::getEncoder() const
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	return *_pEncoder;
 }
@@ -213,7 +234,7 @@ const MapEntry& Map::getEntry() const
 Map& Map::keyFieldId( Int16 fieldId )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->keyFieldId( fieldId );
 
@@ -223,7 +244,7 @@ Map& Map::keyFieldId( Int16 fieldId )
 Map& Map::totalCountHint( UInt32 totalCountHint )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->totalCountHint( totalCountHint );
 
@@ -233,7 +254,7 @@ Map& Map::totalCountHint( UInt32 totalCountHint )
 Map& Map::summaryData( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->summaryData( data );
 
@@ -243,7 +264,7 @@ Map& Map::summaryData( const ComplexType& data )
 Map& Map::keyType(DataType::DataTypeEnum keyPrimitiveType)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->keyType(keyPrimitiveType);
 
@@ -254,7 +275,7 @@ Map& Map::addKeyInt( Int64 key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyInt( key, action, value, permissionData );
 
@@ -265,7 +286,7 @@ Map& Map::addKeyInt(Int64 key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyInt(key, action, permissionData);
 
@@ -276,7 +297,7 @@ Map& Map::addKeyUInt( UInt64 key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyUInt( key, action, value, permissionData );
 
@@ -287,7 +308,7 @@ Map& Map::addKeyUInt(UInt64 key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyUInt(key, action, permissionData);
 
@@ -298,7 +319,7 @@ Map& Map::addKeyReal( Int64 mantissa, OmmReal::MagnitudeType magnitudeType,
 	MapEntry::MapAction action, const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyReal( mantissa, magnitudeType, action, value, permissionData );
 
@@ -309,7 +330,7 @@ Map& Map::addKeyReal(Int64 mantissa, OmmReal::MagnitudeType magnitudeType,
 	MapEntry::MapAction action, const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyReal(mantissa, magnitudeType, action, permissionData);
 
@@ -322,7 +343,7 @@ Map& Map::addKeyRealFromDouble( double key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyRealFromDouble( key, action, value, magnitudeType, permissionData );
 
@@ -334,7 +355,7 @@ Map& Map::addKeyRealFromDouble(double key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyRealFromDouble(key, action, magnitudeType, permissionData);
 
@@ -345,7 +366,7 @@ Map& Map::addKeyFloat( float key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyFloat( key, action, value, permissionData );
 
@@ -356,7 +377,7 @@ Map& Map::addKeyFloat(float key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyFloat(key, action, permissionData);
 
@@ -367,7 +388,7 @@ Map& Map::addKeyDouble( double key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyDouble( key, action, value, permissionData );
 
@@ -378,7 +399,7 @@ Map& Map::addKeyDouble(double key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyDouble(key, action, permissionData);
 
@@ -389,7 +410,7 @@ Map& Map::addKeyDate( UInt16 year, UInt8 month, UInt8 day, MapEntry::MapAction a
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyDate( year, month, day, action, value, permissionData );
 
@@ -400,7 +421,7 @@ Map& Map::addKeyDate(UInt16 year, UInt8 month, UInt8 day, MapEntry::MapAction ac
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyDate(year, month, day, action, permissionData);
 
@@ -413,7 +434,7 @@ Map& Map::addKeyTime( UInt8 hour, UInt8 minute, UInt8 second,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyTime( hour, minute, second, millisecond, microsecond, nanosecond, action, 
 		value, permissionData );
@@ -426,7 +447,7 @@ Map& Map::addKeyTime(UInt8 hour, UInt8 minute, UInt8 second,
 	MapEntry::MapAction action, const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyTime(hour, minute, second, millisecond, microsecond, nanosecond, action,
 		permissionData);
@@ -441,7 +462,7 @@ Map& Map::addKeyDateTime( UInt16 year, UInt8 month, UInt8 day,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyDateTime( year, month, day, hour, minute, second, millisecond, microsecond, 
 		nanosecond, action, value, permissionData );
@@ -455,7 +476,7 @@ Map& Map::addKeyDateTime(UInt16 year, UInt8 month, UInt8 day,
 	MapEntry::MapAction action, const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyDateTime(year, month, day, hour, minute, second, millisecond, microsecond,
 		nanosecond, action, permissionData);
@@ -467,7 +488,7 @@ Map& Map::addKeyQos( UInt32 timeliness, UInt32 rate, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyQos( timeliness, rate, action, value, permissionData );
 
@@ -478,7 +499,7 @@ Map& Map::addKeyQos(UInt32 timeliness, UInt32 rate, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyQos(timeliness, rate, action, permissionData);
 
@@ -489,7 +510,7 @@ Map& Map::addKeyState( OmmState::StreamState streamState, OmmState::DataState da
 	const EmaString& statusText, MapEntry::MapAction action, const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyState( streamState, dataState, statusCode, statusText, action, value, permissionData );
 
@@ -500,7 +521,7 @@ Map& Map::addKeyState(OmmState::StreamState streamState, OmmState::DataState dat
 	const EmaString& statusText, MapEntry::MapAction action, const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyState(streamState, dataState, statusCode, statusText, action, permissionData);
 
@@ -511,7 +532,7 @@ Map& Map::addKeyEnum( UInt16 key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyEnum( key, action, value, permissionData );
 
@@ -522,7 +543,7 @@ Map& Map::addKeyEnum(UInt16 key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyEnum(key, action, permissionData);
 
@@ -533,7 +554,7 @@ Map& Map::addKeyBuffer( const EmaBuffer& key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyBuffer( key, action, value, permissionData );
 
@@ -544,7 +565,7 @@ Map& Map::addKeyBuffer(const EmaBuffer& key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyBuffer(key, action, permissionData);
 
@@ -555,7 +576,7 @@ Map& Map::addKeyAscii( const EmaString& key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyAscii( key, action, value, permissionData );
 
@@ -566,7 +587,7 @@ Map& Map::addKeyAscii(const EmaString& key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyAscii(key, action, permissionData);
 
@@ -577,7 +598,7 @@ Map& Map::addKeyUtf8( const EmaBuffer& key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyUtf8( key, action, value, permissionData );
 
@@ -588,7 +609,7 @@ Map& Map::addKeyUtf8(const EmaBuffer& key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyUtf8(key, action, permissionData);
 
@@ -599,7 +620,7 @@ Map& Map::addKeyRmtes( const EmaBuffer& key, MapEntry::MapAction action,
 	const ComplexType& value, const EmaBuffer& permissionData	)
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyRmtes( key, action, value, permissionData );
 
@@ -610,7 +631,7 @@ Map& Map::addKeyRmtes(const EmaBuffer& key, MapEntry::MapAction action,
 	const EmaBuffer& permissionData)
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->addKeyRmtes(key, action, permissionData);
 
@@ -620,7 +641,7 @@ Map& Map::addKeyRmtes(const EmaBuffer& key, MapEntry::MapAction action,
 const Map& Map::complete()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._mapEncoderPool.getItem();
+		_pEncoder = g_pool.getMapEncoderItem();
 
 	_pEncoder->complete();
 

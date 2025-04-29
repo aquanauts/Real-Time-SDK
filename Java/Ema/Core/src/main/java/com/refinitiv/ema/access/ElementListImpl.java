@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -13,14 +13,17 @@ import java.util.LinkedList;
 
 import com.refinitiv.ema.access.DataType.DataTypes;
 import com.refinitiv.ema.access.OmmError.ErrorCode;
+import com.refinitiv.ema.rdm.DataDictionary;
 import com.refinitiv.eta.codec.Buffer;
 import com.refinitiv.eta.codec.CodecReturnCodes;
+import com.refinitiv.eta.codec.Codec;
 
 class ElementListImpl extends CollectionDataImpl implements ElementList
 {
 	private com.refinitiv.eta.codec.ElementList _rsslElementList = com.refinitiv.eta.codec.CodecFactory
 			.createElementList();
 	private LinkedList<ElementEntry> _elementListCollection = new LinkedList<ElementEntry>();
+	private ElementListIterImpl _elementListIterImpl = null;
 
 	ElementListImpl()
 	{
@@ -115,6 +118,16 @@ class ElementListImpl extends CollectionDataImpl implements ElementList
 
 		return new EmaIterator<ElementEntry>(_elementListCollection.iterator());
 	}
+	
+	@Override
+	public Iterator<ElementEntry> iteratorByRef()
+	{
+		if (_elementListIterImpl == null)
+			_elementListIterImpl = new ElementListIterImpl(this);
+		else
+			_elementListIterImpl.clear();
+		return _elementListIterImpl;
+	}
 
 	@Override
 	public int size()
@@ -181,8 +194,34 @@ class ElementListImpl extends CollectionDataImpl implements ElementList
 		throw new UnsupportedOperationException("ElementList collection doesn't support this operation.");
 	}
 
+	@Override
+	public String toString (DataDictionary dictionary)
+	{
+		if (!dictionary.isFieldDictionaryLoaded() || !dictionary.isEnumTypeDefLoaded())
+			return "\nDictionary is not loaded.\n";
+
+		if (_objManager == null)
+		{
+			_objManager = new EmaObjectManager();
+			_objManager.initialize(((DataImpl)this).dataType());
+		}
+
+		ElementList elemntList = new ElementListImpl(_objManager);
+
+		((CollectionDataImpl) elemntList).decode(((DataImpl)this).encodedData(), Codec.majorVersion(), Codec.minorVersion(), ((DataDictionaryImpl)dictionary).rsslDataDictionary(), null);
+		if (_errorCode != ErrorCode.NO_ERROR)
+		{
+			return "\nFailed to decode ElementList with error: " + ((CollectionDataImpl) elemntList).errorString() + "\n";
+		}
+
+		return elemntList.toString();
+	}
+
 	String toString(int indent)
 	{
+		if ( _objManager == null )
+			return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
+
 		_toString.setLength(0);
 		Utilities.addIndent(_toString, indent).append("ElementList");
 
@@ -206,7 +245,7 @@ class ElementListImpl extends CollectionDataImpl implements ElementList
 		{
 			load = (DataImpl) elementEntry.load();
 			if ( load == null )
-				return "\nDecoding of just encoded object in the same application is not supported\n";
+				return "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n";
 			
 			loadDataType = load.dataType();
 

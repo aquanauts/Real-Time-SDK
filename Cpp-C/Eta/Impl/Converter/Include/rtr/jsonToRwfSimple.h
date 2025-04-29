@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2023, 2025 LSEG. All rights reserved.         --
  *|-----------------------------------------------------------------------------
  */
 
@@ -15,7 +15,7 @@ class EnumTableDefinition; // forward declaration
 class jsonToRwfSimple : public jsonToRwfBase
 {
  public:
-	jsonToRwfSimple(int bufSize, unsigned int flags, int numTokens = DEFAULT_NUM_TOKENS, int incSize = DEFAULT_NUM_TOKENS);
+	jsonToRwfSimple(int bufSize, unsigned int flags, int numTokens, int incSize);
 	~jsonToRwfSimple();
 	void reset();
 	RsslBuffer *errorText();
@@ -68,6 +68,7 @@ class jsonToRwfSimple : public jsonToRwfBase
 	jsmntok_t *		_batchReqTokPtr;
 	jsmntok_t *		_batchCloseTokPtr;
 	EnumTableDefinition**		_enumTableDefinition;
+	EnumTableDefinition**		_enumTableDefinitionPtr;
 	const RsslDictionaryEntry*	_pDictionaryEntry;
 
 	// Buffers used for RMTES to UTF8 conversion

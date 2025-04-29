@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.         --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -15,6 +15,7 @@ using LSEG.Eta.ValueAdd.Rdm;
 using System.Net.Sockets;
 using System.Text;
 using Buffer = LSEG.Eta.Codec.Buffer;
+using System.Runtime.CompilerServices;
 
 namespace LSEG.Eta.ValueAdd.Reactor
 {
@@ -27,8 +28,9 @@ namespace LSEG.Eta.ValueAdd.Reactor
     {
         internal const int DEFAULT_INIT_EVENT_POOLS = 10;
 
-        internal ReaderWriterLockSlim ReactorLock { get; set; } = 
-            new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
+        internal const int DEFAULT_WAIT_CLOSE_CHANNEL_ACK = 5; /* Maximum wait time to receive close ack from the worker thread. */
+
+        internal MonitorWriteLocker ReactorLock { get; set; } = new MonitorWriteLocker(new object());
 
         private VaDoubleLinkList<ReactorChannel> m_ReactorChannelQueue = new VaDoubleLinkList<ReactorChannel>();
         private bool m_ReactorActive = false;
@@ -44,6 +46,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         private DecodeIterator m_DecodeIterator = new DecodeIterator();
         private EncodeIterator m_EncodeIterator = new EncodeIterator();
         private Msg m_Msg = new Msg();
+        private Msg m_CloseMsg = new Msg();
 
         private ReactorSubmitOptions m_ReactorSubmitOptions = new();
 
@@ -51,13 +54,23 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
         private StringBuilder m_XmlString = new StringBuilder();
         private XmlTraceDump m_XmlTraceDump = new XmlTraceDump();
+        private readonly bool m_XmlTraceReadEnabled;
+        private readonly bool m_XmlTraceWriteEnabled;
 
         private IDictionary<Msg, ITransportBuffer> m_SubmitMsgMap = new Dictionary<Msg, ITransportBuffer>();
         private IDictionary<MsgBase, ITransportBuffer> m_SubmitRdmMsgMap = new Dictionary<MsgBase, ITransportBuffer>();
 
+        private uint m_waitingForCloseAck = 0;
+
         internal ReactorRestClient? m_ReactorRestClient;
 
         private WriteArgs m_WriteArgs = new WriteArgs();
+
+        internal WlTimeoutTimerManager m_TimeoutTimerManager = new WlTimeoutTimerManager();
+
+        internal FileDumper? m_FileDumper;
+
+        internal static ReactorErrorInfo m_errorInfo = new ReactorErrorInfo();
 
         /// <summary>
         /// Gets the <c>Socket</c> to listen for Reactor's event
@@ -69,7 +82,21 @@ namespace LSEG.Eta.ValueAdd.Reactor
         /// </summary>
         public object? UserSpecObj { get; private set; }
 
-        internal int ChannelCount { get => m_ReactorChannelQueue.Count(); }
+        internal int ChannelCount
+        {
+            get
+            {
+                ReactorLock.Enter();
+                try
+                {
+                    return m_ReactorChannelQueue.Count();
+                }
+                finally
+                {
+                    ReactorLock.Exit();
+                }
+            }
+        }
 
         private ReactorOAuthCredential m_ReactorOAuthCredential = new ReactorOAuthCredential();
 
@@ -77,6 +104,14 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
         private Reactor(ReactorOptions options, out ReactorErrorInfo? errorInfo)
         {
+            if (options.XmlTraceToFile)
+            {
+                m_FileDumper = new FileDumper(options.XmlTraceFileName, options.XmlTraceToMultipleFiles, options.XmlTraceMaxFileSize);
+            }
+
+            m_XmlTraceReadEnabled = (options.XmlTraceRead && (options.XmlTracing || options.XmlTraceToFile));
+            m_XmlTraceWriteEnabled = (options.XmlTraceWrite && (options.XmlTracing || options.XmlTraceToFile));
+
             if(InitializeTransport(out errorInfo) != ReactorReturnCode.SUCCESS )
             {
                 return;
@@ -90,6 +125,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             m_ReactorOptions.Copy(options);
             m_ReactorRestClient = new ReactorRestClient(this);
             m_ReactorActive = true;
+            m_CloseMsg.MsgClass = MsgClasses.CLOSE;
         }
 
 
@@ -136,7 +172,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
             ReactorReturnCode retVal = ReactorReturnCode.SUCCESS;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -242,7 +278,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
                     reactorChannel.TokenSession = new ReactorTokenSession(this, oAuthCredential);
 
-                    if(ReactorRestClient.ValidateJWKFile(reactorChannel.TokenSession.ReactorOAuthCredential, out errorInfo) != ReactorReturnCode.SUCCESS)
+                    if(ReactorRestClient.ValidateJWK(reactorChannel.TokenSession.ReactorOAuthCredential, out errorInfo) != ReactorReturnCode.SUCCESS)
                     {
                         reactorChannel.ReturnToPool();
                         reactorChannel.TokenSession = null;
@@ -250,7 +286,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     }
                 }
 
-                if(reactorConnectOptions.ConnectionList[0].EnableSessionManagement)
+                if (reactorConnectOptions.ConnectionList[0].EnableSessionManagement)
                 {
                     if(SessionManagementStartup(reactorChannel.TokenSession!, reactorConnectOptions.ConnectionList[0], role,
                         reactorChannel, false, out errorInfo) != ReactorReturnCode.SUCCESS)
@@ -278,6 +314,16 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 reactorChannel.State = ReactorChannelState.INITIALIZING;
                 reactorChannel.Role = role;
 
+                /* Create a watchlist if it is enabled. */
+                if (role.Type == ReactorRoleType.CONSUMER)
+                {
+                    ConsumerRole? consumerRole = role as ConsumerRole;
+                    if (consumerRole != null && consumerRole.WatchlistOptions.EnableWatchlist)
+                    {
+                        reactorChannel.Watchlist = m_ReactorPool.CreateWatchlist(reactorChannel, consumerRole);
+                    }
+                }
+
                 // Add it to the initChannelQueue.
                 m_ReactorChannelQueue.PushBack(reactorChannel, ReactorChannel.REACTOR_CHANNEL_LINK);
 
@@ -286,10 +332,10 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 connectOptions.ChannelReadLocking = true;
                 connectOptions.ChannelWriteLocking = true;
 
-                if(sendAuthTokenEvent)
+                if (sendAuthTokenEvent)
                 {
                     errorInfo = new ReactorErrorInfo();
-                    if(SendAuthTokenEventCallback(reactorChannel, reactorChannel.TokenSession!.ReactorAuthTokenInfo, errorInfo) != ReactorCallbackReturnCode.SUCCESS)
+                    if (SendAuthTokenEventCallback(reactorChannel, reactorChannel.TokenSession!.ReactorAuthTokenInfo, errorInfo) != ReactorCallbackReturnCode.SUCCESS)
                     {
                         return ReactorReturnCode.FAILURE;
                     }
@@ -316,6 +362,16 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 IChannel channel = Transport.Connect(connectOptions, out Error error);
 
                 reactorChannel.SetChannel(channel);
+
+                // Call ChannelOpenEventCallback if it defined and watchlist is enabled.
+                if (reactorChannel.Watchlist != null)
+                {
+                    if (reactorChannel.Watchlist.ConsumerRole?.ChannelEventCallback != null)
+                    {
+                        SendAndHandleChannelEventCallback("Reactor.Connect", ReactorChannelEventType.CHANNEL_OPENED,
+                            reactorChannel, errorInfo);
+                    }
+                }
 
                 if (channel is null)
                 {
@@ -360,7 +416,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             return retVal;
@@ -381,7 +437,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             errorInfo = null;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -474,14 +530,14 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
 
             return ReactorReturnCode.SUCCESS;
         }
 
-        private ReactorReturnCode SendAndHandleChannelEventCallback(string location, ReactorChannelEventType eventType, 
+        internal ReactorReturnCode SendAndHandleChannelEventCallback(string location, ReactorChannelEventType eventType, 
             ReactorChannel reactorChannel, ReactorErrorInfo? errorInfo)
         {
             ReactorCallbackReturnCode retVal = SendChannelEventCallback(eventType, reactorChannel, errorInfo);
@@ -493,7 +549,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                         ReactorReturnCode.FAILURE,
                         location,
                         "ReactorCallbackReturnCode.FAILURE was returned from reactorChannelEventCallback(). This caused the Reactor to shutdown.");
-                Shutdown(out errorInfo);
+                Shutdown(out _);
                 return ReactorReturnCode.FAILURE;
             }
             else if (retVal == ReactorCallbackReturnCode.RAISE)
@@ -501,7 +557,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 // RAISE is not a valid return code for the
                 // reactorChannelEventCallback.
                 PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE, location, "ReactorCallbackReturnCode.RAISE is not a valid return code from reactorChannelEventCallback(). This caused the Reactor to shutdown.");
-                Shutdown(out errorInfo);
+                Shutdown(out _);
                 return ReactorReturnCode.FAILURE;
 
             }
@@ -510,12 +566,17 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 // retval is not a valid ReactorReturnCodes.
                 PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE, location, "retval of "
                                                     + retVal + " is not a valid ReactorCallbackReturnCodes. This caused the Reactor to shutdown.");
-                Shutdown(out errorInfo);
+                Shutdown(out _);
                 return ReactorReturnCode.FAILURE;
             }
 
-            if (eventType == ReactorChannelEventType.CHANNEL_DOWN || eventType == ReactorChannelEventType.CHANNEL_DOWN_RECONNECTING)
+            if (eventType == ReactorChannelEventType.CHANNEL_DOWN
+                || eventType == ReactorChannelEventType.CHANNEL_DOWN_RECONNECTING)
             {
+                // If watchlist is on, it will send status messages to the tunnel streams (so
+                // don't do it ourselves).
+                reactorChannel.Watchlist?.ChannelDown();
+
                 if (reactorChannel.State != ReactorChannelState.CLOSED)
                 {
                     SendReactorImplEvent(ReactorEventImpl.ImplType.CHANNEL_DOWN, reactorChannel);
@@ -539,7 +600,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             return (ReactorReturnCode)retVal;
         }
 
-        private ReactorCallbackReturnCode SendLoginMsgCallback(ReactorChannel reactorChannel, ITransportBuffer transportBuffer, Msg msg, LoginMsg loginMsg)
+        private ReactorCallbackReturnCode SendLoginMsgCallback(ReactorChannel reactorChannel, ITransportBuffer? transportBuffer, Msg msg, LoginMsg loginMsg)
         {
             if (reactorChannel.Role == null)
                 return ReactorCallbackReturnCode.FAILURE;
@@ -584,8 +645,8 @@ namespace LSEG.Eta.ValueAdd.Reactor
         }
 
         // returns ReactorCallbackReturnCodes and populates errorInfo if needed.
-        private ReactorCallbackReturnCode SendAndHandleLoginMsgCallback(string location, ReactorChannel reactorChannel,
-            ITransportBuffer transportBuffer, Msg msg, LoginMsg loginMsg, out ReactorErrorInfo? errorInfo)
+        internal ReactorCallbackReturnCode SendAndHandleLoginMsgCallback(string location, ReactorChannel reactorChannel,
+            ITransportBuffer? transportBuffer, Msg msg, LoginMsg loginMsg, out ReactorErrorInfo? errorInfo)
         {
             ReactorCallbackReturnCode retval = SendLoginMsgCallback(reactorChannel, transportBuffer, msg, loginMsg /*, null*/);
 
@@ -663,7 +724,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             int msgCount = 0;
             ReactorReturnCode retVal = ReactorReturnCode.SUCCESS;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -691,8 +752,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 int reactorChannelCount = 0;
 
                 /* Either handle just one specified channel, or round robin through all channels */
-                ReactorChannel? reactorChannel = reactorDispatchOptions.ReactorChannel
-                    ?? m_ReactorChannelQueue.Start(ReactorChannel.REACTOR_CHANNEL_LINK);
+                ReactorChannel? reactorChannel = reactorDispatchOptions.ReactorChannel ?? m_ReactorChannelQueue.Start(ReactorChannel.REACTOR_CHANNEL_LINK);
 
                 do
                 {
@@ -706,9 +766,8 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     bool isReadReady = false;
 
                     try
-                    {
-                        isReadReady = reactorChannel.Socket.Poll(0, SelectMode.SelectRead) || 
-                            reactorChannel.ReadRet > TransportReturnCode.SUCCESS;
+                    {                        
+                        isReadReady = reactorChannel.Socket.Poll(0, SelectMode.SelectRead) || reactorChannel.ReadRet > TransportReturnCode.SUCCESS;
                     }
                     catch (Exception)
                     {
@@ -724,8 +783,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     {
                         if ((retVal = PerformChannelRead(reactorChannel, reactorDispatchOptions.ReadArgs, out errorInfo)) < ReactorReturnCode.SUCCESS)
                         {
-                            if (reactorChannel.State != ReactorChannelState.CLOSED &&
-                                reactorChannel.State != ReactorChannelState.DOWN_RECONNECTING)
+                            if (reactorChannel.State != ReactorChannelState.CLOSED && reactorChannel.State != ReactorChannelState.DOWN_RECONNECTING)
                             {
                                 return retVal;
                             }
@@ -761,7 +819,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             errorInfo = null;
@@ -770,7 +828,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
 
         /// <summary>
-        /// Queries EDP-RT service discovery to get service endpoint information.
+        /// Queries Delivery Platform service discovery to get service endpoint information.
         /// </summary>
         /// <param name="serviceDiscoveryOptions"></param>
         /// <param name="errorInfo"></param>
@@ -779,7 +837,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             errorInfo = null;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -872,7 +930,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 m_ReactorOAuthCredential.Audience.Data(new ByteBuffer(serviceDiscoveryOptions.Audience.Length));
                 serviceDiscoveryOptions.Audience.Copy(m_ReactorOAuthCredential.Audience);
 
-                if (ReactorRestClient.ValidateJWKFile(m_ReactorOAuthCredential, out errorInfo) != ReactorReturnCode.SUCCESS)
+                if (ReactorRestClient.ValidateJWK(m_ReactorOAuthCredential, out errorInfo) != ReactorReturnCode.SUCCESS)
                 {
                     return errorInfo!.Code;
                 }
@@ -899,13 +957,11 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             { 
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             return ReactorReturnCode.SUCCESS;
         }
-
-
 
         /// <summary>
         /// Submit OAuth credential renewal with sensitive information.
@@ -918,7 +974,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             ReactorOAuthCredentialRenewal oAuthCredentialRenewal, out ReactorErrorInfo? errorInfo)
         {
             errorInfo = null;
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -981,7 +1037,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             return ReactorReturnCode.SUCCESS;
@@ -993,7 +1049,18 @@ namespace LSEG.Eta.ValueAdd.Reactor
         /// <returns><c>true</c> if the Reactor is shutdown; otherwise <c>false</c></returns>
         public bool IsShutdown
         {
-            get => !m_ReactorActive;
+            get
+            {
+                ReactorLock.Enter();
+                try
+                {
+                    return !m_ReactorActive;
+                }
+                finally
+                {
+                    ReactorLock.Exit();
+                }
+            }
         }
 
         /// <summary>
@@ -1009,7 +1076,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             errorInfo = null;
 
             ReactorReturnCode retVal = ReactorReturnCode.SUCCESS;
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -1033,6 +1100,15 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 }
 
                 m_ReactorChannelQueue.Clear();
+
+                var startTime = System.DateTime.Now;
+                var endTime = startTime + TimeSpan.FromSeconds(DEFAULT_WAIT_CLOSE_CHANNEL_ACK);
+
+                /* Checks for only the CHANNEL_ACK event from the worker thread and return ReactorChannel back to the pool */
+                while (m_waitingForCloseAck > 0 && System.DateTime.Now < endTime)
+                {
+                    ProcessCloseChannelAck();
+                }
 
                 SendReactorImplEvent(ReactorEventImpl.ImplType.SHUTDOWN, null);
 
@@ -1062,11 +1138,16 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     m_ReactorRestClient.Dispose();
                     m_ReactorRestClient = null;
                 }
+
+                UserSpecObj = null;
+                m_ReactorOptions.Clear();
+
+                m_FileDumper?.Close();
             }
             finally
             {
                 m_ReactorActive = false;
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             return retVal;
@@ -1119,6 +1200,9 @@ namespace LSEG.Eta.ValueAdd.Reactor
             m_ReactorPool.InitReactorRDMDirectoryMsgEventImplPool(DEFAULT_INIT_EVENT_POOLS);
             m_ReactorPool.InitReactorRDMDictionaryMsgEventImplPool(DEFAULT_INIT_EVENT_POOLS);
 
+            /* Initialize watchlist pools */
+            m_ReactorPool.InitWatchlistPool(1);
+
             m_ReactorWorker = new ReactorWorker(this);
 
             if (m_ReactorWorker.InitReactorWorker(out errorInfo) != ReactorReturnCode.SUCCESS)
@@ -1132,12 +1216,10 @@ namespace LSEG.Eta.ValueAdd.Reactor
         internal static ReactorReturnCode PopulateErrorInfo(out ReactorErrorInfo? errorInfo, ReactorReturnCode reactorReturnCode, 
             string location, Error error)
         {
-            errorInfo = new ReactorErrorInfo
-            {
-                Code = reactorReturnCode,
-                Location = location,
-                Error = error,
-            };
+            m_errorInfo.Code = reactorReturnCode;
+            m_errorInfo.Location = location;
+            m_errorInfo.Error = error;
+            errorInfo = m_errorInfo;
 
             return reactorReturnCode;
         }
@@ -1145,15 +1227,10 @@ namespace LSEG.Eta.ValueAdd.Reactor
         internal static ReactorReturnCode PopulateErrorInfo(out ReactorErrorInfo errorInfo, ReactorReturnCode reactorReturnCode,
             string location, string text)
         {
-            errorInfo = new ReactorErrorInfo
-            {
-                Code = reactorReturnCode,
-                Location = location,
-                Error = new Error
-                {
-                    Text = text
-                }
-            };
+            m_errorInfo.Code = reactorReturnCode;
+            m_errorInfo.Location = location;
+            m_errorInfo.Error.Text = text;
+            errorInfo = m_errorInfo;
 
             return reactorReturnCode;
         }
@@ -1172,7 +1249,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             errorInfo = null;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -1211,11 +1288,19 @@ namespace LSEG.Eta.ValueAdd.Reactor
                                 "Reactor.CloseChannel",
                                 "SendReactorImplEvent() failed");
                     }
+
+                    if(reactorChannel.Watchlist != null)
+                    {
+                        reactorChannel.Watchlist.Close();
+                        reactorChannel.Watchlist = null;
+                    }
+
+                    Interlocked.Increment(ref m_waitingForCloseAck);
                 }
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             return ReactorReturnCode.SUCCESS;
@@ -1236,8 +1321,9 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             ReactorReturnCode reactorReturnCode = ReactorReturnCode.SUCCESS;
             ITransportBuffer writeBuffer = buffer;
+            errorInfo = null;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -1248,17 +1334,23 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 }
                 else
                 {
-                    if (m_ReactorOptions.XmlTracing)
+                    if (m_XmlTraceWriteEnabled)
                     {
                         Error dumpError;
                         m_XmlString.Length = 0;
                         m_XmlString
-                                .Append("\n<!-- Outgoing Reactor message -->\n")
-                                .Append("<!-- ").Append(reactorChannel?.Channel?.ToString()).Append(" -->\n")
-                                .Append("<!-- ").Append(System.DateTime.Now.ToString()).Append(" -->\n");
-                        if (m_XmlTraceDump.DumpBuffer(reactorChannel?.Channel, (int)reactorChannel!.Channel!.ProtocolType, writeBuffer, null, m_XmlString, out dumpError) == TransportReturnCode.SUCCESS)
+                                .Append($"{NewLine}<!-- Outgoing Reactor message -->{NewLine}")
+                                .Append("<!-- ").Append(reactorChannel?.Channel?.ToString()).Append($" -->{NewLine}")
+                                .Append("<!-- ").Append(System.DateTime.Now).Append($" -->{NewLine}");
+
+                        if (TransportReturnCode.SUCCESS ==
+                                m_XmlTraceDump.DumpBuffer(reactorChannel?.Channel, (int)reactorChannel!.Channel!.ProtocolType, writeBuffer, null, m_XmlString, out dumpError))
                         {
+                            if (m_ReactorOptions.XmlTracing)
                             Console.WriteLine(m_XmlString);
+
+                            if (m_ReactorOptions.XmlTraceToFile)
+                                m_FileDumper!.Dump(m_XmlString);
                         }
                         else
                         {
@@ -1266,7 +1358,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                         }
                     }
 
-                    TransportReturnCode transportReturnCode = reactorChannel.Channel!.Write(writeBuffer, submitOptions.WriteArgs, out Error transportError);
+                    TransportReturnCode transportReturnCode = reactorChannel!.Channel!.Write(writeBuffer, submitOptions.WriteArgs, out Error transportError);
                     if (transportReturnCode > TransportReturnCode.SUCCESS
                         || transportReturnCode == TransportReturnCode.WRITE_FLUSH_FAILED
                         || transportReturnCode == TransportReturnCode.WRITE_CALL_AGAIN)
@@ -1301,7 +1393,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             // update ping handler for message sent
@@ -1310,7 +1402,6 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 reactorChannel.GetPingHandler().SentMsg();
             }
 
-            errorInfo = null;
             return reactorReturnCode;
         }
 
@@ -1318,7 +1409,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             ReactorReturnCode reactorReturnCode = ReactorReturnCode.SUCCESS;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -1338,6 +1429,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                         {
                             m_SubmitMsgMap.Remove(msg);
                         }
+
                         return reactorReturnCode;
                     }
                     // Msg not pending - proceed
@@ -1360,6 +1452,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                                 {
                                     m_SubmitMsgMap.Add(msg, writeBuffer);
                                 }
+
                                 break;
                             }
                             else if (codecReturnCode == CodecReturnCode.BUFFER_TOO_SMALL) // resize buffer and try again
@@ -1400,7 +1493,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
             return reactorReturnCode;
@@ -1410,8 +1503,9 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             ReactorReturnCode reactorReturnCode = ReactorReturnCode.SUCCESS;
             CodecReturnCode codecReturnCode;
+            errorInfo = null;
 
-            ReactorLock.EnterWriteLock();
+            ReactorLock.Enter();
 
             try
             {
@@ -1501,31 +1595,43 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
             finally
             {
-                ReactorLock.ExitWriteLock();
+                ReactorLock.Exit();
             }
 
-            errorInfo = null;
             return reactorReturnCode;
         }
 
         private ReactorReturnCode PerformChannelRead(ReactorChannel reactorChannel, ReadArgs readArgs, out ReactorErrorInfo? errorInfo)
         {
             errorInfo = null;
-            ITransportBuffer msgBuf = reactorChannel.Channel!.Read(readArgs, out Error error);
+            IChannel? channel = reactorChannel.Channel;
+            /* The channel is set to null when sending the CHANNEL_DOWN event to the worker to close the channel within this method. */
+            if (channel == null)
+            {
+                return ReactorReturnCode.FAILURE;
+            }
+
+            ITransportBuffer msgBuf = channel.Read(readArgs, out Error error);
 
             reactorChannel.ReadRet = readArgs.ReadRetVal;
 
             if (msgBuf != null)
             {
-                if (m_ReactorOptions.XmlTracing)
+                if (m_XmlTraceReadEnabled)
                 {
                     m_XmlString.Length = 0;
                     m_XmlString
-                            .Append("\n<!-- Incoming Reactor message -->\n")
-                    .Append("<!-- ").Append(reactorChannel.Channel).Append(" -->\n")
-                    .Append("<!-- ").Append(System.DateTime.Now).Append(" -->\n");
-                    m_XmlTraceDump.DumpBuffer(reactorChannel.Channel, (int)reactorChannel.Channel.ProtocolType, msgBuf, null, m_XmlString, out error);
+                            .Append($"{NewLine}<!-- Incoming Reactor message -->{NewLine}")
+                    .Append("<!-- ").Append(channel).Append($" -->{NewLine}")
+                    .Append("<!-- ").Append(System.DateTime.Now).Append($" -->{NewLine}");
+
+                    m_XmlTraceDump.DumpBuffer(channel, (int)channel.ProtocolType, msgBuf, null, m_XmlString, out error);
+
+                    if (m_ReactorOptions.XmlTracing)
                     Console.WriteLine(m_XmlString);
+
+                    if (m_ReactorOptions.XmlTraceToFile)
+                        m_FileDumper!.Dump(m_XmlString);
                 }
 
                 reactorChannel.GetPingHandler().ReceivedMsg();
@@ -1576,7 +1682,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 }
                 else if (readArgs.ReadRetVal == TransportReturnCode.READ_FD_CHANGE)
                 {
-                    reactorChannel.SetChannel(reactorChannel.Channel);
+                    reactorChannel.SetChannel(channel);
 
                     // send FD_CHANGE WorkerEvent to Worker.
                     if (SendReactorImplEvent(ReactorEventImpl.ImplType.FD_CHANGE, reactorChannel) != ReactorReturnCode.SUCCESS)
@@ -1603,7 +1709,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 else if (readArgs.ReadRetVal == TransportReturnCode.READ_PING)
                 {
                     /* PingHandler.m_ReceivedRemoteMsg is set to true from the following call as well */
-                    reactorChannel.GetPingHandler().ReceivedPing();
+                    reactorChannel.GetPingHandler().ReceivedPing(reactorChannel);
                 }
             }
 
@@ -1619,6 +1725,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         {
             // inspect the message and dispatch it to the application.
             m_DecodeIterator.Clear();
+            errorInfo = null;
 
             if (buffer is not null)
             {
@@ -1638,7 +1745,45 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     $"initial decode of msg failed: {codecReturnCode.GetAsString()}");
             }
 
-            return ProcessChannelMessage(reactorChannel, m_DecodeIterator, m_Msg, transportBuffer, out errorInfo);
+            // determine if for watchlist and process by watchlist
+            if (reactorChannel.Watchlist != null && reactorChannel.Watchlist.TryGetActiveStream(m_Msg.StreamId, out WlStream? wlStream))
+            {
+                ReactorReturnCode ret;
+                if ((ret = reactorChannel.Watchlist.ReadMsg(wlStream!, m_DecodeIterator, m_Msg, out errorInfo)) < ReactorReturnCode.SUCCESS)
+                {
+                    return ret;
+                }
+            }
+            else // not for watchlist
+            {
+                if (reactorChannel.Role!.Type != ReactorRoleType.CONSUMER || !((ConsumerRole)reactorChannel.Role).WatchlistOptions.EnableWatchlist)
+                {
+                    return ProcessChannelMessage(reactorChannel, m_DecodeIterator, m_Msg, transportBuffer, out errorInfo);
+                }
+                else // Consumer role and the watchlist is enabled but the stream ID is not found.
+                {
+                    /* Messages from unrecognized streams are likely messages that were sent at the 
+                     * same time the consumer closed a stream.  Most such messages can be ignored, however 
+                     * if the provider closed the stream instead of the consumer, any recent reissued request 
+                     * may be misinterpreted as a new request using the same stream. So in this case, 
+                     * send a close message to make sure. */
+                    if (m_Msg.CheckHasState() && m_Msg.State.StreamState() != StreamStates.OPEN)
+                    {
+                        m_CloseMsg.MsgClass = MsgClasses.CLOSE;
+                        m_CloseMsg.StreamId = m_Msg.StreamId;
+                        m_CloseMsg.DomainType = m_Msg.DomainType;
+                        ReactorSubmitOptions submitOptions = new ReactorSubmitOptions();
+                        var retVal = SubmitChannel(reactorChannel, m_CloseMsg, submitOptions, out errorInfo);
+                        if (retVal != ReactorReturnCode.SUCCESS)
+                        {
+                            errorInfo!.Error.Text = $"Submit of CloseMsg failed: <{retVal}>";
+                            return ReactorReturnCode.FAILURE;
+                        }
+                    }                 
+                }
+            }
+
+            return ReactorReturnCode.SUCCESS;
         }
 
         ReactorReturnCode ProcessChannelMessage(ReactorChannel reactorChannel, DecodeIterator dIter, Msg msg, ITransportBuffer transportBuffer, out ReactorErrorInfo? errorInfo)
@@ -1688,6 +1833,35 @@ namespace LSEG.Eta.ValueAdd.Reactor
             serviceEnpointEvent.ReturnToPool();
         }
 
+        private ReactorReturnCode ProcessCloseChannelAck()
+        {
+            while (m_ReactorEventQueue!.GetEventQueueSize() > 0)
+            {
+                ReactorEventImpl? eventImpl = (ReactorEventImpl?)m_ReactorEventQueue!.GetEventFromQueue();
+
+                if (eventImpl is null)
+                    return ReactorReturnCode.SUCCESS;
+
+                ReactorEventImpl.ImplType eventType = eventImpl.EventImplType;
+                ReactorChannel? reactorChannel = eventImpl.ReactorChannel;
+
+                switch (eventType)
+                {
+                    case ReactorEventImpl.ImplType.CHANNEL_CLOSE_ACK:
+
+                        Interlocked.Decrement(ref m_waitingForCloseAck);
+                        /* Worker is done with channel. Safe to release it. */
+                        reactorChannel?.ReturnToPool();
+
+                        break;
+                }
+
+                eventImpl.ReturnToPool();
+            }
+
+            return ReactorReturnCode.SUCCESS;
+        }
+
         private ReactorReturnCode ProcessReactorEventImpl(out ReactorErrorInfo? errorInfo)
         {
             errorInfo = null;
@@ -1715,6 +1889,22 @@ namespace LSEG.Eta.ValueAdd.Reactor
                             return ReactorReturnCode.FAILURE;
                         }
                     }
+                    /*
+                     * Dispatch watchlist; it may be waiting on a flush  to complete if it ran out 
+                     * of output buffers.
+                     */
+                    if (reactorChannel.Watchlist != null)
+                    {
+                        if ((ret = reactorChannel.Watchlist.Dispatch(out errorInfo)) != ReactorReturnCode.SUCCESS)
+                        {
+                            PopulateErrorInfo(errorInfo!, ReactorReturnCode.SUCCESS,
+                                "Reactor.ProcessReactorEventImpl",
+                                $"Watchlist dispatch failed - {errorInfo!.Error.Text}");
+
+                            eventImpl.ReturnToPool();
+                            return ret;
+                        }
+                    }
                     break;
                 case ReactorEventImpl.ImplType.CHANNEL_UP:
                     ProcessChannelUp(eventImpl, out errorInfo);
@@ -1724,13 +1914,13 @@ namespace LSEG.Eta.ValueAdd.Reactor
                     {
                         PopulateErrorInfo(out errorInfo, ReactorReturnCode.SUCCESS,
                                 "Reactor.ProcessReactorEventImpl",
-                                "client channel has connection attempts left");
+                                $"{eventImpl.ReactorErrorInfo.Error.Text} Client channel has connection attempts left");
                     }
                     else // server channel or no more retries
                     {
                         PopulateErrorInfo(out errorInfo, ReactorReturnCode.SUCCESS,
                                 "Reactor.ProcessReactorEventImpl",
-                                "either a server channel is down or no more retries");
+                                $"{eventImpl.ReactorErrorInfo.Error.Text} Either a server channel is down or no more retries");
                     }
                     ProcessChannelDown(eventImpl, errorInfo);
                     break;
@@ -1771,6 +1961,19 @@ namespace LSEG.Eta.ValueAdd.Reactor
                         SendOAuthCredentialEventCallback(tokenSession, eventImpl.ReactorErrorInfo);
                         m_TokenSessionRenewalCallback = null;
                     }
+                    break;
+                case ReactorEventImpl.ImplType.WATCHLIST_DISPATCH_NOW:
+                    if(reactorChannel!.Watchlist != null)
+                    {
+                        if((ret = reactorChannel.Watchlist.Dispatch(out errorInfo)) != ReactorReturnCode.SUCCESS)
+                        {
+                            eventImpl.ReturnToPool();
+                            return ret;
+                        }
+                    }
+                    break;
+                case ReactorEventImpl.ImplType.WATCHLIST_TIMEOUT:
+                    m_TimeoutTimerManager.DispatchExpiredTimers();
                     break;
                 default:
                     eventImpl.ReturnToPool();
@@ -1858,7 +2061,8 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
             // If channel has no watchlist, consider connection established and reset the
             // reconnect timer.
-            reactorChannel.ResetReconnectTimers();
+            if (reactorChannel.Watchlist == null)
+                reactorChannel.ResetReconnectTimers();
 
             // send channel_up to user app via reactorChannelEventCallback.
             if (SendAndHandleChannelEventCallback("Reactor.ProcessChannelUp",
@@ -1881,7 +2085,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
                         LoginRequest? loginRequest = null;
 
-                        if(reactorChannel.EnableSessionManagement())
+                        if (reactorChannel.EnableSessionManagement())
                         {
                             loginRequest = reactorChannel.RDMLoginRequestRDP;
                         }
@@ -1892,7 +2096,21 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
                         if (loginRequest != null)
                         {
-                            EncodeAndWriteLoginRequest(loginRequest, reactorChannel, out errorInfo);
+                            if (reactorChannel.Watchlist == null) // watchlist not enabled
+                            {
+                                EncodeAndWriteLoginRequest(loginRequest, reactorChannel, out errorInfo);
+                            }
+                            else // watchlist enabled
+                            {
+                                if (reactorChannel.Watchlist.LoginHandler != null
+                                    && reactorChannel.Watchlist.LoginHandler.LoginRequestForEDP != null)
+                                {
+                                    reactorChannel.Watchlist.LoginHandler.LoginRequestForEDP.UserName = loginRequest.UserName;
+                                }
+                                reactorChannel.Watchlist.LoginHandler!.IsRttEnabled = loginRequest.LoginAttrib
+                                        .HasSupportRoundTripLatencyMonitoring;
+                                reactorChannel.Watchlist.ChannelUp(out errorInfo);
+                            }
                         }
                         else
                         {
@@ -1992,17 +2210,23 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 return;
             }
 
-            if (m_ReactorOptions.XmlTracing) {
+            if (m_XmlTraceWriteEnabled)
+            {
                 m_XmlString.Length = 0;
                 m_XmlString
-                    .Append("\n<!-- Outgoing Reactor message -->\n")
-                    .Append("<!-- ").Append(reactorChannel.Channel).Append(" -->\n")
-                    .Append("<!-- ").Append(System.DateTime.Now).Append(" -->\n");
+                    .Append($"{NewLine}<!-- Outgoing Reactor message -->{NewLine}")
+                    .Append("<!-- ").Append(reactorChannel.Channel).Append($" -->{NewLine}")
+                    .Append("<!-- ").Append(System.DateTime.Now).Append($" -->{NewLine}");
+
                 if (m_XmlTraceDump.DumpBuffer(reactorChannel.Channel,
                     (int)reactorChannel.Channel!.ProtocolType, msgBuf, null, m_XmlString, out var dumpError)
                         == TransportReturnCode.SUCCESS)
                 {
+                    if (m_ReactorOptions.XmlTracing)
                     Console.WriteLine(m_XmlString);
+
+                    if (m_ReactorOptions.XmlTraceToFile)
+                        m_FileDumper!.Dump(m_XmlString);
                 }
                 else
                 {
@@ -2071,6 +2295,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
         private bool ProceedLoginGenericMsg(ReactorChannel reactorChannel, DecodeIterator decodeIterator,
                                            Msg msg, out ReactorErrorInfo? errorInfo)
         {
+            errorInfo = null;
             LoginMsg loginGenericMsg = m_LoginMsg;
             if (DataTypes.ELEMENT_LIST == msg.ContainerType)
             {
@@ -2105,7 +2330,6 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 loginGenericMsg.LoginMsgType = LoginMsgType.CONSUMER_CONNECTION_STATUS;
             }
             loginGenericMsg.Decode(decodeIterator, msg);
-            errorInfo = null;
             return true;
         }
 
@@ -2563,13 +2787,13 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
 
             Error transportError;
-            if (m_ReactorOptions.XmlTracing)
+            if (m_XmlTraceWriteEnabled)
             {
                 m_XmlString.Length = 0;
                 m_XmlString
-                    .Append("\n<!-- Outgoing Reactor message -->\n")
-                    .Append("<!-- ").Append(reactorChannel.Channel!.ToString()).Append(" -->\n")
-                    .Append("<!-- ").Append(new System.DateTime().ToString()).Append(" -->\n");
+                    .Append($"{NewLine}<!-- Outgoing Reactor message -->{NewLine}")
+                    .Append("<!-- ").Append(reactorChannel.Channel!.ToString()).Append($" -->{NewLine}")
+                    .Append("<!-- ").Append(System.DateTime.Now).Append($" -->{NewLine}");
 
                 TransportReturnCode dumpReturnCode = m_XmlTraceDump.DumpBuffer(reactorChannel.Channel,
                     (int)reactorChannel.Channel.ProtocolType,
@@ -2582,7 +2806,11 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 }
                 else
                 {
+                    if (m_ReactorOptions.XmlTracing)
                     Console.WriteLine(m_XmlString);
+
+                    if (m_ReactorOptions.XmlTraceToFile)
+                        m_FileDumper!.Dump(m_XmlString);
                 }
             }
 
@@ -2621,7 +2849,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
             }
         }
 
-        private ReactorCallbackReturnCode SendDirectoryMsgCallback(ReactorChannel reactorChannel, ITransportBuffer transportBuffer, Msg msg, DirectoryMsg directoryMsg)
+        private ReactorCallbackReturnCode SendDirectoryMsgCallback(ReactorChannel reactorChannel, ITransportBuffer? transportBuffer, IMsg? msg, DirectoryMsg? directoryMsg, WlRequest? wlRequest = null)
         {
             ReactorCallbackReturnCode retval;
             IDirectoryMsgCallback? callback = null;
@@ -2650,6 +2878,17 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 rdmDirectoryMsgEvent.Msg = msg;
                 rdmDirectoryMsgEvent.DirectoryMsg = directoryMsg;
 
+                if (wlRequest != null)
+                {
+                    rdmDirectoryMsgEvent.StreamInfo.Clear();
+                    rdmDirectoryMsgEvent.StreamInfo.ServiceName = wlRequest.WatchlistStreamInfo.ServiceName;
+                    rdmDirectoryMsgEvent.StreamInfo.UserSpec = wlRequest.WatchlistStreamInfo.UserSpec;
+                }
+                else
+                {
+                    rdmDirectoryMsgEvent.StreamInfo.Clear();
+                }
+
                 retval = callback.RdmDirectoryMsgCallback(rdmDirectoryMsgEvent);
                 rdmDirectoryMsgEvent.ReturnToPool();
             }
@@ -2662,9 +2901,9 @@ namespace LSEG.Eta.ValueAdd.Reactor
             return retval;
         }
 
-        private ReactorCallbackReturnCode SendAndHandleDirectoryMsgCallback(string location, ReactorChannel reactorChannel, ITransportBuffer transportBuffer, Msg msg, DirectoryMsg directoryMsg, out ReactorErrorInfo? errorInfo)
+        internal ReactorCallbackReturnCode SendAndHandleDirectoryMsgCallback(string location, ReactorChannel reactorChannel, ITransportBuffer? transportBuffer, IMsg? msg, DirectoryMsg? directoryMsg, out ReactorErrorInfo? errorInfo, WlRequest? wlRequest = null)
         {
-            ReactorCallbackReturnCode retval = SendDirectoryMsgCallback(reactorChannel, transportBuffer, msg, directoryMsg);
+            ReactorCallbackReturnCode retval = SendDirectoryMsgCallback(reactorChannel, transportBuffer, msg, directoryMsg, wlRequest);
 
             // check return code from callback.
             if (retval == ReactorCallbackReturnCode.FAILURE)
@@ -2690,7 +2929,8 @@ namespace LSEG.Eta.ValueAdd.Reactor
             return retval;
         }
 
-        private ReactorCallbackReturnCode SendDictionaryMsgCallback(ReactorChannel reactorChannel, ITransportBuffer transportBuffer, Msg msg, DictionaryMsg dictionaryMsg)
+        private ReactorCallbackReturnCode SendDictionaryMsgCallback(ReactorChannel reactorChannel, ITransportBuffer transportBuffer, IMsg msg, 
+            DictionaryMsg dictionaryMsg, WlRequest? wlRequest)
         {
             ReactorCallbackReturnCode callbackReturnCode;
             IDictionaryMsgCallback? callback = null;
@@ -2718,6 +2958,17 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 rdmDictionaryMsgEvent.Msg = msg;
                 rdmDictionaryMsgEvent.DictionaryMsg = dictionaryMsg;
 
+                if (wlRequest != null)
+                {
+                    rdmDictionaryMsgEvent.StreamInfo.Clear();
+                    rdmDictionaryMsgEvent.StreamInfo.ServiceName = wlRequest.WatchlistStreamInfo.ServiceName;
+                    rdmDictionaryMsgEvent.StreamInfo.UserSpec = wlRequest.WatchlistStreamInfo.UserSpec;
+                }
+                else
+                {
+                    rdmDictionaryMsgEvent.StreamInfo.Clear();
+                }
+
                 callbackReturnCode = callback.RdmDictionaryMsgCallback(rdmDictionaryMsgEvent);
                 rdmDictionaryMsgEvent.ReturnToPool();
             }
@@ -2730,9 +2981,10 @@ namespace LSEG.Eta.ValueAdd.Reactor
             return callbackReturnCode;
         }
 
-        private ReactorCallbackReturnCode SendAndHandleDictionaryMsgCallback(string location, ReactorChannel reactorChannel, ITransportBuffer transportBuffer, Msg msg, DictionaryMsg dictionaryMsg, out ReactorErrorInfo? errorInfo)
+        internal ReactorCallbackReturnCode SendAndHandleDictionaryMsgCallback(string location, ReactorChannel reactorChannel, ITransportBuffer transportBuffer, IMsg msg,
+            DictionaryMsg dictionaryMsg, out ReactorErrorInfo? errorInfo, WlRequest? wlRequest = null)
         {
-            ReactorCallbackReturnCode callbackReturnCode = SendDictionaryMsgCallback(reactorChannel, transportBuffer, msg, dictionaryMsg);
+            ReactorCallbackReturnCode callbackReturnCode = SendDictionaryMsgCallback(reactorChannel, transportBuffer, msg, dictionaryMsg, wlRequest);
 
             // check return code from callback.
             if (callbackReturnCode == ReactorCallbackReturnCode.FAILURE)
@@ -2759,13 +3011,13 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
         private ReactorCallbackReturnCode SendDefaultMsgCallback(ReactorChannel reactorChannel, ITransportBuffer transportBuffer, Msg msg)
         {
-            ReactorMsgEvent reactorMsgEvent = m_ReactorPool.CreateReactorMsgEventImpl();
-            reactorMsgEvent.ReactorChannel = reactorChannel;
-            reactorMsgEvent.TransportBuffer = transportBuffer;
-            reactorMsgEvent.Msg = msg;
+            var m_DefaultReactorMsgEvent = reactorChannel.Role!.DefaultReactorMsgEvent;
+            m_DefaultReactorMsgEvent.Clear();
+            m_DefaultReactorMsgEvent.ReactorChannel = reactorChannel;
+            m_DefaultReactorMsgEvent.TransportBuffer = transportBuffer;
+            m_DefaultReactorMsgEvent.Msg = msg;
 
-            ReactorCallbackReturnCode callbackReturnCode = reactorChannel.Role!.DefaultMsgCallback!.DefaultMsgCallback(reactorMsgEvent);
-            reactorMsgEvent.ReturnToPool();
+            ReactorCallbackReturnCode callbackReturnCode = reactorChannel.Role!.DefaultMsgCallback!.DefaultMsgCallback(m_DefaultReactorMsgEvent);
 
             return callbackReturnCode;
         }
@@ -2804,6 +3056,68 @@ namespace LSEG.Eta.ValueAdd.Reactor
 
             errorInfo = null;
             return callbackReturnCode;
+        }
+
+        private ReactorCallbackReturnCode SendDefaultMsgCallBack(ReactorChannel reactorChannel, ITransportBuffer? transportBuffer, IMsg? msg,
+            WlRequest wlRequest)
+        {
+            var m_DefaultReactorMsgEvent = reactorChannel.Role!.DefaultReactorMsgEvent;
+            m_DefaultReactorMsgEvent.Clear();
+            m_DefaultReactorMsgEvent.TransportBuffer = transportBuffer;
+            m_DefaultReactorMsgEvent.Msg = msg;
+            m_DefaultReactorMsgEvent.ReactorChannel = reactorChannel;
+
+            if(wlRequest is not null)
+            {
+                m_DefaultReactorMsgEvent.StreamInfo.ServiceName = wlRequest.WatchlistStreamInfo.ServiceName;
+                m_DefaultReactorMsgEvent.StreamInfo.UserSpec = wlRequest.WatchlistStreamInfo.UserSpec;
+            }
+            else
+            {
+                m_DefaultReactorMsgEvent.StreamInfo.Clear();
+            }
+
+            ReactorCallbackReturnCode ret = reactorChannel.Role!.DefaultMsgCallback!.DefaultMsgCallback(m_DefaultReactorMsgEvent);
+
+            return ret;
+        }
+
+        internal ReactorReturnCode SendAndHandleDefaultMsgCallback(string location, ReactorChannel reactorChannel, ITransportBuffer? transportBuffer,
+            IMsg? msg, WlRequest wlRequest, out ReactorErrorInfo? errorInfo)
+        {
+            errorInfo = null;
+            ReactorCallbackReturnCode retVal = SendDefaultMsgCallBack(reactorChannel, transportBuffer, msg, wlRequest);
+
+            // Checks callback return code
+            if(retVal == ReactorCallbackReturnCode.FAILURE)
+            {
+                PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE, location,
+                    "ReactorCallbackReturnCodes.FAILURE was returned from DefaultMsgCallback()." +
+                    " This caused the Reactor to shutdown.");
+
+                Shutdown(out _);
+                return ReactorReturnCode.FAILURE;
+            }
+            else if (retVal == ReactorCallbackReturnCode.RAISE)
+            {
+                PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE, location,
+                    "ReactorCallbackReturnCodes.RAISE is not a valid return code from DefaultMsgCallback()." +
+                    " This caused the Reactor to shutdown.");
+
+                Shutdown(out _);
+                return ReactorReturnCode.FAILURE;
+            }
+            else if (retVal != ReactorCallbackReturnCode.SUCCESS)
+            {
+                PopulateErrorInfo(out errorInfo, ReactorReturnCode.FAILURE, location,
+                    $"Callback return value of {retVal} is not a valid ReactorCallbackReturnCodes." +
+                    $" This caused the Reactor to shutdown.");
+
+                Shutdown(out _);
+                return ReactorReturnCode.FAILURE;
+            }
+
+            return ReactorReturnCode.SUCCESS;
         }
 
         private int GetMaxFragmentSize(ReactorChannel reactorChannel, out ReactorErrorInfo? errorInfo)
@@ -2927,7 +3241,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 reactorChannel.RDMLoginRequestRDP.Flags &= ~LoginRequestFlags.HAS_PASSWORD;
             }
 
-            if(RequestServiceDiscovery(reactorConnectInfo))
+            if (RequestServiceDiscovery(reactorConnectInfo))
             {
                 switch(reactorConnectInfo.ConnectOptions.ConnectionType)
                 {
@@ -2949,7 +3263,7 @@ namespace LSEG.Eta.ValueAdd.Reactor
                         return PopulateErrorInfo(out errorInfo, ReactorReturnCode.PARAMETER_INVALID, "Reactor.Connect",
                             "Reactor.Connect(): Invalid connection type: " +
                             reactorConnectInfo.ConnectOptions.ConnectionType +
-                            " for requesting EDP-RT service discovery.");
+                            " for requesting Delivery Platform service discovery.");
                 }
             }
 
@@ -3114,7 +3428,8 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 PopulateErrorInfo(reactorEventImpl.ReactorErrorInfo, reactorErrorInfo.Code, reactorErrorInfo.Location!, reactorErrorInfo.Error.Text);
             }
             
-            m_ReactorEventQueue!.PutEventToQueue(reactorEventImpl);
+            if(m_ReactorEventQueue != null) /* m_ReactorEventQueue is null when the Reactor is shut down. */
+                m_ReactorEventQueue.PutEventToQueue(reactorEventImpl);
         }
 
         internal void SendCredentialRenewalEvent(ReactorChannel reactorChannel, ReactorTokenSession tokenSession, ReactorErrorInfo? reactorErrorInfo)
@@ -3129,7 +3444,8 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 PopulateErrorInfo(reactorEventImpl.ReactorErrorInfo, reactorErrorInfo.Code, reactorErrorInfo.Location!, reactorErrorInfo.Error.Text);
             }
 
-            m_ReactorEventQueue!.PutEventToQueue(reactorEventImpl);
+            if(m_ReactorEventQueue != null)/* m_ReactorEventQueue is null when the Reactor is shut down. */
+                m_ReactorEventQueue.PutEventToQueue(reactorEventImpl);
         }
         
         internal void SendChannelWarningEvent(ReactorChannel reactorChannel, ReactorErrorInfo reactorErrorInfo)
@@ -3143,7 +3459,46 @@ namespace LSEG.Eta.ValueAdd.Reactor
                 PopulateErrorInfo(reactorEventImpl.ReactorErrorInfo, reactorErrorInfo.Code, reactorErrorInfo.Location!, reactorErrorInfo.Error.Text);
             }
 
-            m_ReactorEventQueue!.PutEventToQueue(reactorEventImpl);
+            if (m_ReactorEventQueue != null)/* m_ReactorEventQueue is null when the Reactor is shut down. */
+                m_ReactorEventQueue.PutEventToQueue(reactorEventImpl);
         }
+
+        internal void SendWatchlistDispatchNowEvent(ReactorChannel reactorChannel)
+        {
+            ReactorEventImpl reactorEventImpl = m_ReactorPool.CreateReactorEventImpl();
+            reactorEventImpl.EventImplType = ReactorEventImpl.ImplType.WATCHLIST_DISPATCH_NOW;
+            reactorEventImpl.ReactorChannel = reactorChannel;
+
+            if (m_ReactorEventQueue != null)/* m_ReactorEventQueue is null when the Reactor is shut down. */
+                m_ReactorEventQueue.PutEventToQueue(reactorEventImpl);
+        }
+
+        /* Disconnects a channel and notifies application that the channel is down. */
+        internal ReactorReturnCode Disconnect(ReactorChannel reactorChannel, String location, out ReactorErrorInfo? errorInfo)
+        {
+            errorInfo = null;
+            if (reactorChannel.Server == null && !reactorChannel.RecoveryAttemptLimitReached()) // client channel
+            {
+                reactorChannel.State = ReactorChannelState.DOWN_RECONNECTING;
+            }
+            else // server channel or no more retries
+            {
+                reactorChannel.State = ReactorChannelState.DOWN;
+            }
+
+            if (reactorChannel.Server == null && !reactorChannel.RecoveryAttemptLimitReached()) // client channel
+            {
+                // send CHANNEL_DOWN to user app via reactorChannelEventCallback.
+                return SendAndHandleChannelEventCallback(location, ReactorChannelEventType.CHANNEL_DOWN_RECONNECTING,
+                    reactorChannel, errorInfo);
+            }
+            else // server channel or no more retries
+            {
+                // send CHANNEL_DOWN to user app via reactorChannelEventCallback.
+                return SendAndHandleChannelEventCallback(location, ReactorChannelEventType.CHANNEL_DOWN, reactorChannel,
+                    errorInfo);
+            }
+        }
+
     }
 }

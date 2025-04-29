@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -27,6 +27,7 @@ RSSL_API RsslRet rsslRealignEncodeIteratorBuffer(
 {
 	rtrIntPtr offset;
 	rtrIntPtr encodedLength;
+	rtrUInt32 currentBufferSize;
 	RsslInt8 i;
 
 	RSSL_ASSERT(pIter, Invalid parameters or parameters passed in as NULL);
@@ -34,7 +35,9 @@ RSSL_API RsslRet rsslRealignEncodeIteratorBuffer(
 	RSSL_ASSERT(pIter->_encodingLevel < RSSL_ITER_MAX_LEVELS, Iterator level overrun);
 	RSSL_ASSERT(pNewEncodeBuffer && pNewEncodeBuffer->data, Invalid parameters or parameters passed in as NULL);
 
-	if (pNewEncodeBuffer->length < pIter->_pBuffer->length)
+	currentBufferSize = (rtrUInt32)(pIter->_endBufPtr - pIter->_pBuffer->data);
+
+	if (pNewEncodeBuffer->length < currentBufferSize)
 		return RSSL_RET_BUFFER_TOO_SMALL;
 
 	offset = (rtrIntPtr)(pNewEncodeBuffer->data - pIter->_pBuffer->data);
@@ -45,7 +48,8 @@ RSSL_API RsslRet rsslRealignEncodeIteratorBuffer(
 
 	/* Fix main iterator pointers */
 	pIter->_curBufPtr += offset;
-	pIter->_endBufPtr += offset + (pNewEncodeBuffer->length - pIter->_pBuffer->length);
+	pIter->_endBufPtr += offset + (pNewEncodeBuffer->length - currentBufferSize);
+
 	pIter->_pBuffer = pNewEncodeBuffer;
 	
 	/* Fix all pointers in levelInfo */

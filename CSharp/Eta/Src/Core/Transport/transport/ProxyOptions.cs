@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -43,6 +43,11 @@ namespace LSEG.Eta.Transports
         /// Gets or sets a proxy password.
         /// </summary>
         public string ProxyPassword { get; set; }
+
+        /// <summary>
+        /// Indicates that current ProxyOptions is set.
+        /// </summary>
+        public bool IsHostAndPortSet => !(string.IsNullOrEmpty(ProxyHostName) && string.IsNullOrEmpty(ProxyPort));
 
         /// <summary>
         /// Gets the port
@@ -142,6 +147,18 @@ namespace LSEG.Eta.Transports
         {
             return (ProxyHostName ?? string.Empty).GetHashCode() ^ (ProxyPort ?? string.Empty).GetHashCode()
                 ^ (ProxyUserName ?? string.Empty).GetHashCode() ^ (ProxyPassword ?? string.Empty).GetHashCode();
+        }
+
+        /// <summary>
+        /// Performs a deep copy to a specified ProxyOptions from this ProxyOptions.
+        /// </summary>
+        /// <param name="dest">The proxy options to copy to.</param>
+        public void CopyTo(ProxyOptions dest)
+        {
+            dest.ProxyHostName = ProxyHostName;
+            dest.ProxyPort = ProxyPort;
+            dest.ProxyUserName = ProxyUserName;
+            dest.ProxyPassword = ProxyPassword;
         }
     }
 }

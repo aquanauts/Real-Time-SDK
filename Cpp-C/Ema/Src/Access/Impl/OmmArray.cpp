@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -14,6 +14,7 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "OmmInvalidUsageException.h"
+#include "StaticDecoder.h"
 
 using namespace refinitiv::ema::access;
 
@@ -29,14 +30,11 @@ OmmArray::OmmArray() :
 
 OmmArray::~OmmArray()
 {
-	if ( GlobalPool::isFinalState() )
-		return;
-
 	if ( _pEncoder )
-		g_pool._arrayEncoderPool.returnItem( _pEncoder );
+		g_pool.returnItem( _pEncoder );
 
 	if ( _pDecoder )
-		g_pool._arrayDecoderPool.returnItem( _pDecoder );
+		g_pool.returnItem( _pDecoder );
 }
 
 OmmArray& OmmArray::clear()
@@ -79,6 +77,29 @@ void OmmArray::reset() const
 	_pDecoder->reset();
 }
 
+const EmaString& OmmArray::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	OmmArray array;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
+
+	if (_pEncoder->isComplete())
+	{
+		RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+		StaticDecoder::setRsslData(&array, &rsslBuffer, RSSL_DT_ARRAY, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+		_toString.clear().append(array.toString());
+
+		return _toString;
+	}
+
+	return _toString.clear().append("\nUnable to decode not completed OmmArray data.\n");
+}
+
 const EmaString& OmmArray::toString() const
 {
 	return toString( 0 );
@@ -86,8 +107,8 @@ const EmaString& OmmArray::toString() const
 
 const EmaString& OmmArray::toString( UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );
+    if (!_pDecoder)
+        return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
 
 	if ( _pDecoder->getCode() == Data::BlankEnum )
 	{
@@ -156,7 +177,7 @@ Decoder& OmmArray::getDecoder()
 {
 	if ( !_pDecoder )
 	{
-		_pDecoder = g_pool._arrayDecoderPool.getItem();
+		_pDecoder = g_pool.getOmmArrayDecoderItem();
 		_entry._pDecoder = _pDecoder;
 		_entry._pLoad = &_pDecoder->getLoad();
 	}
@@ -172,7 +193,7 @@ bool OmmArray::hasDecoder() const
 const Encoder& OmmArray::getEncoder() const
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	return *_pEncoder;
 }
@@ -180,7 +201,7 @@ const Encoder& OmmArray::getEncoder() const
 OmmArray& OmmArray::fixedWidth( UInt16 width )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->fixedWidth( width );
 
@@ -190,7 +211,7 @@ OmmArray& OmmArray::fixedWidth( UInt16 width )
 OmmArray& OmmArray::addInt( Int64 value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addInt( value );
 
@@ -200,7 +221,7 @@ OmmArray& OmmArray::addInt( Int64 value )
 OmmArray& OmmArray::addUInt( UInt64 value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addUInt( value );
 
@@ -210,7 +231,7 @@ OmmArray& OmmArray::addUInt( UInt64 value )
 OmmArray& OmmArray::addReal( Int64 mantissa, OmmReal::MagnitudeType magnitudeType )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addReal( mantissa, magnitudeType );
 
@@ -220,7 +241,7 @@ OmmArray& OmmArray::addReal( Int64 mantissa, OmmReal::MagnitudeType magnitudeTyp
 OmmArray& OmmArray::addRealFromDouble( double value, OmmReal::MagnitudeType magnitudeType )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addRealFromDouble( value, magnitudeType );
 
@@ -230,7 +251,7 @@ OmmArray& OmmArray::addRealFromDouble( double value, OmmReal::MagnitudeType magn
 OmmArray& OmmArray::addFloat( float value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addFloat( value );
 
@@ -240,7 +261,7 @@ OmmArray& OmmArray::addFloat( float value )
 OmmArray& OmmArray::addDouble( double value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addDouble( value );
 
@@ -250,7 +271,7 @@ OmmArray& OmmArray::addDouble( double value )
 OmmArray& OmmArray::addDate( UInt16 year, UInt8 month, UInt8 day )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addDate( year, month, day );
 
@@ -261,7 +282,7 @@ OmmArray& OmmArray::addTime( UInt8 hour, UInt8 minute, UInt8 second, UInt16 mill
 					  UInt16 microsecond, UInt16 nanosecond )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addTime( hour, minute, second, millisecond, microsecond, nanosecond );
 
@@ -273,7 +294,7 @@ OmmArray& OmmArray::addDateTime( UInt16 year, UInt8 month, UInt8 day,
 					   UInt16 microsecond, UInt16 nanosecond )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addDateTime( year, month, day, hour, minute, second, millisecond, microsecond, nanosecond );
 
@@ -283,7 +304,7 @@ OmmArray& OmmArray::addDateTime( UInt16 year, UInt8 month, UInt8 day,
 OmmArray& OmmArray::addQos( UInt32 timeliness, UInt32 rate )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addQos( timeliness, rate );
 
@@ -296,7 +317,7 @@ OmmArray& OmmArray::addState( OmmState::StreamState streamState,
 					const EmaString& statusText )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addState( streamState, dataState, statusCode, statusText );
 
@@ -306,7 +327,7 @@ OmmArray& OmmArray::addState( OmmState::StreamState streamState,
 OmmArray& OmmArray::addEnum( UInt16 value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addEnum( value );
 
@@ -316,7 +337,7 @@ OmmArray& OmmArray::addEnum( UInt16 value )
 OmmArray& OmmArray::addBuffer( const EmaBuffer& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addBuffer( value );
 
@@ -326,7 +347,7 @@ OmmArray& OmmArray::addBuffer( const EmaBuffer& value )
 OmmArray& OmmArray::addAscii( const EmaString& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addAscii( value );
 
@@ -336,7 +357,7 @@ OmmArray& OmmArray::addAscii( const EmaString& value )
 OmmArray& OmmArray::addUtf8( const EmaBuffer& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addUtf8( value );
 
@@ -346,7 +367,7 @@ OmmArray& OmmArray::addUtf8( const EmaBuffer& value )
 OmmArray& OmmArray::addRmtes( const EmaBuffer& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addRmtes( value );
 
@@ -356,7 +377,7 @@ OmmArray& OmmArray::addRmtes( const EmaBuffer& value )
 OmmArray& OmmArray::addCodeInt()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeInt();
 
@@ -366,7 +387,7 @@ OmmArray& OmmArray::addCodeInt()
 OmmArray& OmmArray::addCodeUInt()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeUInt();
 
@@ -376,7 +397,7 @@ OmmArray& OmmArray::addCodeUInt()
 OmmArray& OmmArray::addCodeReal()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeReal();
 
@@ -386,7 +407,7 @@ OmmArray& OmmArray::addCodeReal()
 OmmArray& OmmArray::addCodeFloat()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeFloat();
 
@@ -396,7 +417,7 @@ OmmArray& OmmArray::addCodeFloat()
 OmmArray& OmmArray::addCodeDouble()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeDouble();
 
@@ -406,7 +427,7 @@ OmmArray& OmmArray::addCodeDouble()
 OmmArray& OmmArray::addCodeDate()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeDate();
 
@@ -416,7 +437,7 @@ OmmArray& OmmArray::addCodeDate()
 OmmArray& OmmArray::addCodeTime()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeTime();
 
@@ -426,7 +447,7 @@ OmmArray& OmmArray::addCodeTime()
 OmmArray& OmmArray::addCodeDateTime()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeDateTime();
 
@@ -436,7 +457,7 @@ OmmArray& OmmArray::addCodeDateTime()
 OmmArray& OmmArray::addCodeQos()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeQos();
 
@@ -446,7 +467,7 @@ OmmArray& OmmArray::addCodeQos()
 OmmArray& OmmArray::addCodeState()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeState();
 
@@ -456,7 +477,7 @@ OmmArray& OmmArray::addCodeState()
 OmmArray& OmmArray::addCodeEnum()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeEnum();
 
@@ -466,7 +487,7 @@ OmmArray& OmmArray::addCodeEnum()
 OmmArray& OmmArray::addCodeBuffer()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeBuffer();
 
@@ -476,7 +497,7 @@ OmmArray& OmmArray::addCodeBuffer()
 OmmArray& OmmArray::addCodeAscii()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeAscii();
 
@@ -486,7 +507,7 @@ OmmArray& OmmArray::addCodeAscii()
 OmmArray& OmmArray::addCodeUtf8()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeUtf8();
 
@@ -496,7 +517,7 @@ OmmArray& OmmArray::addCodeUtf8()
 OmmArray& OmmArray::addCodeRmtes()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->addCodeRmtes();
 
@@ -506,7 +527,7 @@ OmmArray& OmmArray::addCodeRmtes()
 const OmmArray& OmmArray::complete()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._arrayEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmArrayEncoderItem();
 
 	_pEncoder->complete();
 

@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #ifndef _RTR_RSSL_DICTIONARY_PROVIDER_H
@@ -21,7 +21,7 @@ extern "C" {
 #define MAX_DICTIONARY_REQ_INFO_STRLEN 128
 #define MAX_DICTIONARY_STATUS_MSG_SIZE 1024
 #define MAX_FIELD_DICTIONARY_MSG_SIZE 8192
-#define MAX_ENUM_TYPE_DICTIONARY_MSG_SIZE 12288 
+#define MAX_ENUM_TYPE_DICTIONARY_MSG_SIZE 12800
 #define MAX_DICTIONARY_MEMORY_BLOCK_LEN 256
 
 /* reasons a dictionary request is rejected */

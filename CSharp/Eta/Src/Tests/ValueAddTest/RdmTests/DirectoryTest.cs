@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.Md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.Md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -214,7 +214,7 @@ namespace LSEG.Eta.ValuedAdd.Tests
             if (rdmServiceInfo.HasDictionariesProvided)
             {
                 Assert.True(rdmServiceInfo.DictionariesProvidedList.Count == rdmServiceInfoDec.DictionariesProvidedList.Count);
-                Assert.True(rdmServiceInfo.DictionariesProvidedList[0].Equals(rdmServiceInfoDec.DictionariesProvidedList[0]));
+                Assert.Equal(rdmServiceInfo.DictionariesProvidedList[0], rdmServiceInfoDec.DictionariesProvidedList[0]);
             }
 
             if (rdmServiceInfo.HasDictionariesUsed)

@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2021-2022 Refinitiv. All rights reserved.         --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2021-2022 LSEG. All rights reserved.              --
 ///*|-----------------------------------------------------------------------------
 
 #include "IProvPerfConfig.h"
@@ -30,7 +30,9 @@ IProvPerfConfig::IProvPerfConfig() : PerfConfig((char*)defSummaryFilename.c_str(
 	measureEncode(false),
 	measureDecode(false),
 	loginPosition(""),
-	providerName("")
+	providerName(""),
+	packedMsgBufferSize(0),
+	numberMsgInPackedMsg(0)
 {
 }
 
@@ -72,4 +74,7 @@ void IProvPerfConfig::clearPerfConfig()
 	measureDecode = false;
 	loginPosition = "";
 	providerName = "";
+
+	packedMsgBufferSize = 0;
+	numberMsgInPackedMsg = 0;
 }

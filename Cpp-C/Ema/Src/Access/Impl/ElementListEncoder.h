@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -38,6 +38,7 @@ class UpdateMsg;
 class OmmAnsiPage;
 class OmmOpaque;
 class OmmXml;
+class OmmJson;
 
 class ElementListEncoder : public Encoder
 {
@@ -48,6 +49,8 @@ public :
 	virtual ~ElementListEncoder();
 
 	void clear();
+
+	void release();
 
 	void info( Int16 elmentListNum );
 
@@ -121,6 +124,8 @@ public :
 
 	void addXml( const EmaString& name, const OmmXml& value );
 
+	void addJson(const EmaString& name, const OmmJson& value);
+
 	void addAnsiPage( const EmaString& name, const OmmAnsiPage& value );
 
 	void addCodeInt( const EmaString& name );
@@ -172,6 +177,8 @@ private :
 	RsslElementList				_rsslElementList;
 
 	RsslElementEntry			_rsslElementEntry;
+
+	DataType::DataTypeEnum		_emaLoadType;
 
 	bool						_containerInitialized;
 };

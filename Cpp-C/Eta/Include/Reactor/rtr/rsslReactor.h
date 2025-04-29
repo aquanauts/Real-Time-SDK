@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019-2022 Refinitiv. All rights reserved.
+ * Copyright (C) 2019-2024 LSEG. All rights reserved.
 */
 
 #ifndef _RTR_RSSL_REACTOR_H
@@ -395,12 +395,14 @@ typedef struct {
 	FILE		*restLogOutputStream;			/*!< Set output stream for REST debug message (by default is stdout)> */
 	RsslBool	restEnableLogViaCallback;			/*!< Enable receiving REST logging messages via callback (pRestLoggingCallback).> */
 	RsslReactorRestLoggingCallback* pRestLoggingCallback;	/*!< Specifies user callback to receive Rest logging messages.> */
-	RsslBuffer	tokenServiceURL_V1;				/*!< Specifies a URL of the token service to get an access token and a refresh token for the Refinitiv Login V1. This is used for querying RDP service
+	RsslBuffer	tokenServiceURL_V1;				/*!< Specifies a URL of the token service to get an access token and a refresh token for the LSEG Login V1. This is used for querying RDP service
 												 * discovery and subscribing data from RDP. */
-	RsslBuffer	tokenServiceURL_V2;				/*!< Specifies a URL of the token service to get an access token from the Refinitiv Login V2. This is used for querying RDP service
+	RsslBuffer	tokenServiceURL_V2;				/*!< Specifies a URL of the token service to get an access token from the LSEG Login V2. This is used for querying RDP service
 												 * discovery and subscribing data from RDP. */
+	RsslProxyOpts	restProxyOptions;			/*!< Specifies proxy settings for Rest requests: service discovery and auth token service. This proxy is used when both proxyHostName and proxyPort are specified to override the proxy settings in the RsslReactorConnectOptions (RsslConnectOptions.proxyOpts) and RsslReactorServiceDiscoveryOptions (proxyHostName, proxyPort, proxyUserName, proxyPasswd, proxyDomain).> */
 	RsslUInt32   debugLevel;						/*!< Configure level of debugging info> */
 	RsslUInt32	 debugBufferSize;				/*!< Configure size of debug buffer> */
+	RsslBool	restVerboseMode;				/*!< Enable Verbose REST debug messages> */
 } RsslCreateReactorOptions;
 
 /**
@@ -420,6 +422,7 @@ RTR_C_INLINE void rsslClearCreateReactorOptions(RsslCreateReactorOptions *pReact
 	pReactorOpts->reissueTokenAttemptInterval = 5000;
 	pReactorOpts->restRequestTimeOut = 90;
 	pReactorOpts->restEnableLog = RSSL_FALSE;
+	pReactorOpts->restVerboseMode = RSSL_FALSE;
 	pReactorOpts->restLogOutputStream = NULL;
 	pReactorOpts->restEnableLogViaCallback = RSSL_FALSE;
 	pReactorOpts->pRestLoggingCallback = NULL;
@@ -503,6 +506,9 @@ typedef struct
 																			 *   Mandatory for V2 Client Credentials with JWT Logins. */
 	RsslBuffer								audience;						/*!< Specifies the audience claim for the JWT. Optional and only used for V2 Client Credentials with JWT Logins. 
 																			 *   The default value is: https://login.ciam.refinitiv.com/as/token.oauth2 */
+
+	RsslBool                                restBlocking;                   /*!< Specifies whether to send REST blocking for authentication and service discovery requests. 
+																			 *   The default value is TRUE.*/
 } RsslReactorServiceDiscoveryOptions;
 
 /**
@@ -515,6 +521,7 @@ RTR_C_INLINE void rsslClearReactorServiceDiscoveryOptions(RsslReactorServiceDisc
 	pOpts->tokenScope.data = (char *)"trapi.streaming.pricing.read";
 	pOpts->tokenScope.length = 28;
 	pOpts->takeExclusiveSignOnControl = RSSL_TRUE;
+	pOpts->restBlocking = RSSL_TRUE;
 }
 
 /**
@@ -652,6 +659,41 @@ RTR_C_INLINE void rsslClearReactorWarmStandbyGroup(RsslReactorWarmStandbyGroup *
 }
 
 /**
+ * @brief Configuration options for specifying a preferred host or warmstandby group.
+ * @see RsslReactorConnectOptions
+ */
+typedef struct
+{
+	RsslBool   enablePreferredHostOptions;	/* !<This is used to enable the preferred host feature. */
+
+	RsslBuffer detectionTimeSchedule;		/* !<Specifies cron time schedule to switch over to a preferred host or warmstandby group. Defaults is empty
+											 * detectionTimeInterval is used instead if this member is empty. Optional. */
+
+	RsslUInt32 detectionTimeInterval;		/* !<Specifies time interval (in second) unit to switch over to a preferred host or warmstandby group. Optional. */
+
+	RsslUInt32 connectionListIndex;			/* !<Specifies an index in RsslReactorConnectOptions.reactorConnectionList to set as preferred host. */
+
+	RsslUInt32 warmStandbyGroupListIndex;	/* !<Specifies an index in RsslReactorConnectOptions.reactorWarmStandbyGroupList to set as preferred warmstandby group. */
+
+	RsslBool   fallBackWithInWSBGroup;		/* !<This is used to check whether to fallback within a WSB group instead of moving into a preferred WSB group. */
+
+} RsslPreferredHostOptions;
+
+/**
+ * @brief Clears an RsslPreferredHostOptions object.
+ * @see RsslPreferredHostOptions
+ */
+RTR_C_INLINE void rsslClearRsslPreferredHostOptions(RsslPreferredHostOptions* pPreferredHostOptions)
+{
+	pPreferredHostOptions->enablePreferredHostOptions = RSSL_FALSE;
+	rsslClearBuffer(&pPreferredHostOptions->detectionTimeSchedule);
+	pPreferredHostOptions->detectionTimeInterval = 0;
+	pPreferredHostOptions->connectionListIndex = 0;
+	pPreferredHostOptions->warmStandbyGroupListIndex = 0;
+	pPreferredHostOptions->fallBackWithInWSBGroup = RSSL_FALSE;
+}
+
+/**
  * @brief Configuration options for creating an RsslReactor client-side connection.
  * @see rsslReactorConnect
  */
@@ -677,6 +719,8 @@ typedef struct
 
 	RsslUInt32				statisticFlags;			/* Specifies interests for the channel statistics defined in RsslReactorChannelStatisticFlags */
 
+	RsslPreferredHostOptions  preferredHostOptions;		/* Specifies preferred host options to fallback for the reactorConnectionList or reactorWarmStandbyGroupList. */
+
 } RsslReactorConnectOptions;
 
 /**
@@ -692,10 +736,11 @@ RTR_C_INLINE void rsslClearReactorConnectOptions(RsslReactorConnectOptions *pOpt
 	pOpts->reconnectAttemptLimit = 0;
 	pOpts->reactorConnectionList = NULL;
 	pOpts->connectionCount = 0;
-    pOpts->reactorWarmStandbyGroupList = NULL;
-    pOpts->warmStandbyGroupCount = 0;
+	pOpts->reactorWarmStandbyGroupList = NULL;
+	pOpts->warmStandbyGroupCount = 0;
 	pOpts->connectionDebugFlags = 0;
 	pOpts->statisticFlags = RSSL_RC_ST_NONE;
+	rsslClearRsslPreferredHostOptions(&pOpts->preferredHostOptions);
 }
 
 /**
@@ -1139,6 +1184,7 @@ typedef struct {
 	RsslBool								catchUnknownJsonFids;			/*!< When converting from JSON to RWF, catch unknown JSON field IDs. */
 	RsslBool								closeChannelFromFailure;		/*!< Closes the channel when the Reactor failed to parse JSON message or received JSON error message. */
 	RsslUInt32								outputBufferSize;				/*!< Size of the buffer that the converter will allocate for its output buffer. The conversion fails if the size is not large enough */
+	RsslUInt32								jsonTokenIncrementSize;				/*!< Number of json token increment size for parsing JSON messages. */
 	RsslBool								sendJsonConvError;				/*!< Enable sending json conversion error>*/
 } RsslReactorJsonConverterOptions;
 
@@ -1153,6 +1199,7 @@ RTR_C_INLINE void rsslClearReactorJsonConverterOptions(RsslReactorJsonConverterO
 	pReactorJsonConverterOptions->catchUnknownJsonFids = RSSL_TRUE;
 	pReactorJsonConverterOptions->closeChannelFromFailure = RSSL_TRUE;
 	pReactorJsonConverterOptions->outputBufferSize = 65535;
+	pReactorJsonConverterOptions->jsonTokenIncrementSize = 500;
 }
 
 /**

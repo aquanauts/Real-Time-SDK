@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2020 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2020 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -45,7 +45,7 @@ void OmmJsonConverterExceptionImpl::throwException(const char* text, Int32 error
 	if (pProvider != NULL)
 	{
 		ConsumerSessionInfo sessionInfo;
-		getChannelInformationImpl(reactorChannel, OmmCommonImpl::ConsumerEnum, const_cast<ChannelInformation&>(sessionInfo._channelInfo));
+		ChannelInfoImpl::getChannelInformationImpl(reactorChannel, OmmCommonImpl::ConsumerEnum, const_cast<ChannelInformation&>(sessionInfo._channelInfo));
 
 		exception.statusText(text);
 		exception._errorCode = errorCode;
@@ -62,13 +62,13 @@ void OmmJsonConverterExceptionImpl::throwException(const char* text, Int32 error
 			sessionInfo._clientHandle = clientSession->getClientHandle();
 			sessionInfo._handle = clientSession->getLoginHandle();
 			sessionInfo._provider = pProvider;
-			getChannelInformationImpl(reactorChannel, OmmCommonImpl::IProviderEnum, const_cast<ChannelInformation&>(sessionInfo._channelInfo));
+			ChannelInfoImpl::getChannelInformationImpl(reactorChannel, OmmCommonImpl::IProviderEnum, const_cast<ChannelInformation&>(sessionInfo._channelInfo));
 		}
 		else
 		{
 			sessionInfo._provider = pProvider;
 
-			getChannelInformationImpl(reactorChannel, OmmCommonImpl::NiProviderEnum, const_cast<ChannelInformation&>(sessionInfo._channelInfo));
+			ChannelInfoImpl::getChannelInformationImpl(reactorChannel, OmmCommonImpl::NiProviderEnum, const_cast<ChannelInformation&>(sessionInfo._channelInfo));
 		}
 
 		exception.statusText(text);

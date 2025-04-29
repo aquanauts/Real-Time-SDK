@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -12,6 +12,7 @@
 #include "Utilities.h"
 #include "GlobalPool.h"
 #include "OmmInvalidUsageException.h"
+#include "StaticDecoder.h"
 
 using namespace refinitiv::ema::access;
 
@@ -29,14 +30,11 @@ Vector::Vector() :
 
 Vector::~Vector()
 {
-	if ( GlobalPool::isFinalState() )
-		return;
-
 	if ( _pEncoder )
-		g_pool._vectorEncoderPool.returnItem( _pEncoder );
+		g_pool.returnItem( _pEncoder );
 
 	if ( _pDecoder )
-		g_pool._vectorDecoderPool.returnItem( _pDecoder );
+		g_pool.returnItem( _pDecoder );
 }
 
 Vector& Vector::clear()
@@ -77,10 +75,34 @@ const EmaString& Vector::toString() const
 	return toString( 0 );
 }
 
+const EmaString& Vector::toString( const refinitiv::ema::rdm::DataDictionary& dictionary ) const
+{
+	Vector vector;
+
+	if (!dictionary.isEnumTypeDefLoaded() || !dictionary.isFieldDictionaryLoaded())
+		return _toString.clear().append("\nDictionary is not loaded.\n");
+
+	if (!_pEncoder)
+		_pEncoder = g_pool.getVectorEncoderItem();
+
+	if (_pEncoder->isComplete())
+	{
+		RsslBuffer& rsslBuffer = _pEncoder->getRsslBuffer();
+
+		StaticDecoder::setRsslData(&vector, &rsslBuffer, RSSL_DT_VECTOR, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, dictionary._pImpl->rsslDataDictionary());
+		_toString.clear().append(vector.toString());
+
+		return _toString;
+	}
+
+	return _toString.clear().append("\nUnable to decode not completed Vector data.\n");
+}
+
+
 const EmaString& Vector::toString( UInt64 indent ) const
 {
-	if ( !_pDecoder )
-		return _toString.clear().append( "\nDecoding of just encoded object in the same application is not supported\n" );
+	if (!_pDecoder)
+		return _toString.clear().append("\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n");
 
 	VectorDecoder tempDecoder;
 	tempDecoder.clone( *_pDecoder );
@@ -146,7 +168,7 @@ Decoder& Vector::getDecoder()
 {
 	if ( !_pDecoder )
 	{
-		_summary._pDecoder = _entry._pDecoder = _pDecoder = g_pool._vectorDecoderPool.getItem();
+		_summary._pDecoder = _entry._pDecoder = _pDecoder = g_pool.getVectorDecoderItem();
 		_entry._pLoad = &_pDecoder->getLoad();
 	}
 
@@ -161,7 +183,7 @@ bool Vector::hasDecoder() const
 const Encoder& Vector::getEncoder() const
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	return *_pEncoder;
 }
@@ -197,7 +219,7 @@ Vector& Vector::add( UInt32 position, VectorEntry::VectorAction action,
 					const ComplexType& value, const EmaBuffer& permissionData )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	_pEncoder->add( position, action, value, permissionData );
 
@@ -208,7 +230,7 @@ Vector& Vector::add( UInt32 position, VectorEntry::VectorAction action,
 	const EmaBuffer& permissionData )
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	_pEncoder->add(position, action, permissionData);
 
@@ -218,7 +240,7 @@ Vector& Vector::add( UInt32 position, VectorEntry::VectorAction action,
 const Vector& Vector::complete()
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	_pEncoder->complete();
 
@@ -228,7 +250,7 @@ const Vector& Vector::complete()
 Vector& Vector::totalCountHint( UInt32 totalCountHint )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	_pEncoder->totalCountHint( totalCountHint );
 
@@ -238,7 +260,7 @@ Vector& Vector::totalCountHint( UInt32 totalCountHint )
 Vector& Vector::summaryData( const ComplexType& data )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	_pEncoder->summaryData( data );
 
@@ -248,7 +270,7 @@ Vector& Vector::summaryData( const ComplexType& data )
 Vector& Vector::sortable( bool sortable )
 {
 	if (!_pEncoder)
-		_pEncoder = g_pool._vectorEncoderPool.getItem();
+		_pEncoder = g_pool.getVectorEncoderItem();
 
 	_pEncoder->sortable( sortable );
 

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2025 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
@@ -20,7 +20,9 @@
 #include <process.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#if _MSC_VER < 1900
 #define snprintf _snprintf
+#endif
 #define getpid _getpid
 #else
 #include <sys/socket.h>
@@ -420,12 +422,12 @@ RsslRet rsslSeqMcastConnect(rsslChannelImpl* rsslChnlImpl, RsslConnectOptions *o
 #ifdef _WIN32
 	if (opts->connectionInfo.segmented.interfaceName && opts->connectionInfo.segmented.interfaceName[0] != 0)
 	{
-		if (rsslGetHostByName(opts->connectionInfo.segmented.interfaceName, &addr) < 0)
+		if ((rsslGetHostByName(opts->connectionInfo.segmented.interfaceName, &addr) < 0) && (rsslGetHostByIf(opts->connectionInfo.segmented.interfaceName, &addr) < 0))
 		{
 			sock_close(socketId);
 
 			_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> rsslConnect() Error 1004: getHostByName() failed.  Interface name (%s) is incorrect.  System errno: (%d)\n", __FILE__, __LINE__, opts->connectionInfo.segmented.interfaceName, errno);
+			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> rsslConnect() Error 1004: getHostByName() and rsslGetHostByIf() failed.  Interface name (%s) is incorrect.  System errno: (%d)\n", __FILE__, __LINE__, opts->connectionInfo.segmented.interfaceName, errno);
 			_rsslFree(pSeqMcastChannel->inputBufferMem);
 			_rsslFree(pSeqMcastChannel->bufferMem);
 			_rsslFree(pSeqMcastChannel);
@@ -498,12 +500,12 @@ RsslRet rsslSeqMcastConnect(rsslChannelImpl* rsslChnlImpl, RsslConnectOptions *o
 
 	if (opts->connectionInfo.segmented.interfaceName && opts->connectionInfo.segmented.interfaceName[0] != 0)
 	{
-		if (rsslGetHostByName(opts->connectionInfo.segmented.interfaceName, &addr) < 0)
+		if ((rsslGetHostByName(opts->connectionInfo.segmented.interfaceName, &addr) < 0) && (rsslGetHostByIf(opts->connectionInfo.segmented.interfaceName, &addr) < 0))
 		{
 			sock_close(socketId);
 
 			_rsslSetError(error, NULL, RSSL_RET_FAILURE, errno);
-			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> rsslConnect() Error: 1004 getHostByName() failed.  Interface address (%s) is incorrect.  System errno: (%d).\n", __FILE__, __LINE__, opts->connectionInfo.segmented.interfaceName, errno);
+			snprintf(error->text, MAX_RSSL_ERROR_TEXT, "<%s:%d> rsslConnect() Error: 1004 getHostByName() and rsslGetHostByIf() failed.  Interface address (%s) is incorrect.  System errno: (%d).\n", __FILE__, __LINE__, opts->connectionInfo.segmented.interfaceName, errno);
 			_rsslFree(pSeqMcastChannel->inputBufferMem);
 			_rsslFree(pSeqMcastChannel->bufferMem);
 			_rsslFree(pSeqMcastChannel);

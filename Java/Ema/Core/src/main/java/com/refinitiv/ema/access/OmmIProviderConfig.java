@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -146,7 +146,7 @@ public interface OmmIProviderConfig extends OmmProviderConfig
 	
 	/**
 	 * Specifies the keystore type for the configured keystore.
-	 * This is optional, and the default behavior be set to "JKS".
+	 * This is optional, and the default behavior is set to "JKS".
 	 * 
 	 * @param keystoreType the keystore type
 	 * @return reference to this object
@@ -155,16 +155,25 @@ public interface OmmIProviderConfig extends OmmProviderConfig
 	
 	/**
 	 * Specifies the security Protocol type for the configured server.
-	 * This is optional, and the default behavior be set to "TLS".
+	 * This is optional, and the default behavior is set to "TLS".
 	 * 
 	 * @param securityProtocol the security protocol
 	 * @return reference to this object
 	 */
 	public OmmIProviderConfig securityProtocol(String securityProtocol);
 	
+    /**
+	 * The Cryptographic protocol versions to be used. RTSDK default is {"1.3" , "1.2"} for the default protocol "TLS"
+	 * which will go to the latest one supported by the JDK version in use.
+	 *  
+	 * @param securityProtocolVersions specifies a cryptographic protocol versions list to use for the connection.
+	 * @return reference to this object
+	 */
+    public OmmIProviderConfig securityProtocolVersions(String[] securityProtocolVersions); 
+	
 	/**
 	 * Specifies the security provider type for the configured server.
-	 * This is optional, and the default behavior be set to "SunJSSE".
+	 * This is optional, and the default behavior is set to "SunJSSE".
 	 * 
 	 * @param securityProvider the security provider
 	 * @return reference to this object
@@ -173,7 +182,7 @@ public interface OmmIProviderConfig extends OmmProviderConfig
 	
 	/**
 	 * Specifies the key manager algorithm for the configured server.
-	 * This is optional, and the default behavior be set to "SunX509".
+	 * This is optional, and the default behavior is set to "SunX509".
 	 * 
 	 * @param keyManagerAlgorithm the key manager algorithm
 	 * @return reference to this object
@@ -182,7 +191,7 @@ public interface OmmIProviderConfig extends OmmProviderConfig
 	
 	/**
 	 * Specifies the trust manager algorithm for the configured server.
-	 * This is optional, and the default behavior be set to "PKIX".
+	 * This is optional, and the default behavior is set to "PKIX".
 	 * 
 	 * @param trustManagerAlgorithm the trust manager algorithm
 	 * @return reference to this object

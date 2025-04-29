@@ -1,14 +1,15 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|-----------------------------------------------------------------------------
  */
 
 #include "TestUtilities.h"
 
 using namespace refinitiv::ema::access;
+using namespace refinitiv::ema::rdm;
 using namespace std;
 
 TEST(MapTests, testMapContainsFieldListsDecodeAll)
@@ -966,6 +967,118 @@ TEST(MapTests, testMapContainsXmlDecodeAll)
 	catch ( const OmmException& )
 	{
 		EXPECT_FALSE( true ) << "Map Decode with Xml payload - exception not expected" ;
+	}
+}
+
+TEST(MapTests, testMapContainsJsonDecodeAll)
+{
+
+	RsslDataDictionary dictionary;
+
+	try
+	{
+		RsslBuffer mapBuffer;
+		mapBuffer.length = 4096;
+		mapBuffer.data = ( char* )malloc( sizeof( char ) * 4096 );
+
+		RsslMap rsslMap;
+		RsslEncodeIterator mapEncodeIter;
+
+		rsslClearMap( &rsslMap );
+		rsslClearEncodeIterator( &mapEncodeIter );
+		rsslSetEncodeIteratorRWFVersion( &mapEncodeIter, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION );
+		rsslSetEncodeIteratorBuffer( &mapEncodeIter, &mapBuffer );
+		rsslMap.flags = RSSL_MPF_HAS_KEY_FIELD_ID | RSSL_MPF_HAS_TOTAL_COUNT_HINT;
+
+		rsslMap.containerType = RSSL_DT_JSON;
+		rsslMap.totalCountHint = 2;
+
+		rsslMap.keyPrimitiveType = RSSL_DT_ASCII_STRING;
+		rsslMap.keyFieldId = 235;
+
+		RsslRet ret = rsslEncodeMapInit( &mapEncodeIter, &rsslMap, 0, 0 );
+		RsslMapEntry mapEntry;
+
+		rsslClearMapEntry( &mapEntry );
+
+		char buffer[200];
+		RsslBuffer rsslBuf1;
+		rsslBuf1.length = 200;
+		rsslBuf1.data = buffer;
+
+		RsslBuffer jsonValue;
+		jsonValue.data = ( char* )"{\"consumerList\":{\"consumer\":{\"name\":\"\",\"dataType\":\"Ascii\",\"value\":\"Consumer_1\"}}}";
+		jsonValue.length = static_cast<rtrUInt32>( strlen( jsonValue.data ) );
+
+		encodeNonRWFData( &rsslBuf1, &jsonValue );
+
+		mapEntry.flags = RSSL_MPEF_NONE;
+		mapEntry.action = RSSL_MPEA_ADD_ENTRY;
+		mapEntry.encData = rsslBuf1;
+
+		RsslBuffer key1;
+		key1.data = const_cast<char*>("Key1");
+		key1.length = 4;
+
+		ret = rsslEncodeMapEntry( &mapEncodeIter, &mapEntry, &key1 );
+
+		rsslClearMapEntry( &mapEntry );
+
+		char buffer2[100];
+		RsslBuffer rsslBuf2;
+		rsslBuf2.length = 100;
+		rsslBuf2.data = buffer2;
+
+		RsslBuffer jsonValue2;
+		jsonValue2.data = ( char* )"{\"value\":\"KLMNOPQR\"}";
+		jsonValue2.length = static_cast<rtrUInt32>( strlen( jsonValue2.data ) );
+
+		encodeNonRWFData( &rsslBuf2, &jsonValue2 );
+
+		mapEntry.flags = RSSL_MPEF_NONE;
+		mapEntry.action = RSSL_MPEA_ADD_ENTRY;
+		mapEntry.encData = rsslBuf2;
+
+		RsslBuffer key2;
+		key2.data = const_cast<char*>("Key2");
+		key2.length = 4;
+
+		ret = rsslEncodeMapEntry( &mapEncodeIter, &mapEntry, &key2 );
+
+		ret = rsslEncodeMapComplete( &mapEncodeIter, RSSL_TRUE );
+
+		mapBuffer.length = rsslGetEncodedBufferLength( &mapEncodeIter );
+
+		Map map;
+		StaticDecoder::setRsslData( &map, &mapBuffer, RSSL_DT_MAP, RSSL_RWF_MAJOR_VERSION, RSSL_RWF_MINOR_VERSION, &dictionary );
+
+		EXPECT_TRUE( map.forth() ) << "Map contains Json - first map forth()" ;
+
+		const MapEntry& me1 = map.getEntry();
+
+		EXPECT_EQ( me1.getKey().getDataType(), DataType::AsciiEnum ) << "MapEntry::getKey().getDataType() == DataType::AsciiEnum" ;
+		EXPECT_STREQ( me1.getKey().getAscii(), EmaString( "Key1" ) ) << "MapEntry::getKey().getAscii()";
+		EXPECT_EQ( me1.getAction(), MapEntry::AddEnum ) << "MapEntry::getAction() == MapEntry::AddEnum" ;
+		EXPECT_EQ( me1.getLoad().getDataType(), DataType::JsonEnum ) << "MapEntry::getLoad().getDataType() == DataType::JsonEnum" ;
+
+		EmaBuffer compareTo( jsonValue.data, jsonValue.length );
+		EXPECT_STREQ( me1.getJson().getBuffer(), compareTo ) << "MapEntry::getJson().getBuffer()" ;
+
+		EXPECT_TRUE( map.forth() ) << "Map contains Json - second map forth()" ;
+
+		const MapEntry& me2 = map.getEntry();
+
+		EXPECT_EQ( me2.getKey().getDataType(), DataType::AsciiEnum ) << "MapEntry::getKey().getDataType() == DataType::AsciiEnum" ;
+		EXPECT_STREQ( me2.getKey().getAscii(), EmaString( "Key2" ) ) << "MapEntry::getKey().getAscii()";
+		EXPECT_EQ( me2.getAction(), MapEntry::AddEnum ) << "MapEntry::getAction() == MapEntry::AddEnum" ;
+		EXPECT_EQ( me2.getLoad().getDataType(), DataType::JsonEnum ) << "MapEntry::getLoad().getDataType() == DataType::JsonEnum" ;
+
+		EmaBuffer compareTo2( jsonValue2.data, jsonValue2.length );
+		EXPECT_EQ( me2.getJson().getBuffer(), compareTo2 ) << "MapEntry::getJson().getBuffer()";
+	}
+	catch ( const OmmException& )
+	{
+		EXPECT_FALSE( true ) << "Map Decode with Json payload - exception not expected" ;
 	}
 }
 
@@ -3060,15 +3173,101 @@ TEST(MapTests, testMapContainsFieldListsEncodeDecodeAll)
 	// load dictionary for decoding of the field list
 	RsslDataDictionary dictionary;
 
-	ASSERT_TRUE(loadDictionaryFromFile( &dictionary )) << "Failed to load dictionary";
+	const EmaString mapString =
+		"Map totalCountHint=\"5\" keyFieldId=\"3426\"\n"
+		"    SummaryData dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    SummaryDataEnd\n"
+		"    MapEntry action=\"Delete\" key dataType=\"Buffer\" value=\n"
+		"\n"
+		"4142 4344                                  ABCD\n"
+		"\n"
+		"     permissionData=\"50 45 52 4D 49 53 53 49 4F 4E 20 44 41 54 41\" dataType=\"NoData\"\n"
+		"        NoData\n"
+		"        NoDataEnd\n"
+		"    MapEntryEnd\n"
+		"    MapEntry action=\"Add\" key dataType=\"Buffer\" value=\n"
+		"\n"
+		"4142 4344                                  ABCD\n"
+		"\n"
+		"     permissionData=\"50 45 52 4D 49 53 53 49 4F 4E 20 44 41 54 41\" dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    MapEntryEnd\n"
+		"    MapEntry action=\"Add\" key dataType=\"Buffer\" value=\n"
+		"\n"
+		"4546 4748 49                               EFGHI\n"
+		"\n"
+		"     permissionData=\"50 45 52 4D 49 53 53 49 4F 4E 20 44 41 54 41\" dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    MapEntryEnd\n"
+		"    MapEntry action=\"Update\" key dataType=\"Buffer\" value=\n"
+		"\n"
+		"4a4b 4c4d 4e4f 50                          JKLMNOP\n"
+		"\n"
+		"     permissionData=\"50 45 52 4D 49 53 53 49 4F 4E 20 44 41 54 41\" dataType=\"FieldList\"\n"
+		"        FieldList FieldListNum=\"65\" DictionaryId=\"1\"\n"
+		"            FieldEntry fid=\"1\" name=\"PROD_PERM\" dataType=\"UInt\" value=\"64\"\n"
+		"            FieldEntry fid=\"6\" name=\"TRDPRC_1\" dataType=\"Real\" value=\"0.11\"\n"
+		"            FieldEntry fid=\"-2\" name=\"INTEGER\" dataType=\"Int\" value=\"32\"\n"
+		"            FieldEntry fid=\"16\" name=\"TRADE_DATE\" dataType=\"Date\" value=\"07 NOV 1999\"\n"
+		"            FieldEntry fid=\"18\" name=\"TRDTIM_1\" dataType=\"Time\" value=\"02:03:04:005:000:000\"\n"
+		"            FieldEntry fid=\"-3\" name=\"TRADE_DATE\" dataType=\"DateTime\" value=\"07 NOV 1999 01:02:03:000:000:000\"\n"
+		"            FieldEntry fid=\"-5\" name=\"MY_QOS\" dataType=\"Qos\" value=\"RealTime/TickByTick\"\n"
+		"            FieldEntry fid=\"-6\" name=\"MY_STATE\" dataType=\"State\" value=\"Open / Ok / None / 'Succeeded'\"\n"
+		"            FieldEntry fid=\"235\" name=\"PNAC\" dataType=\"Ascii\" value=\"ABCDEF\"\n"
+		"        FieldListEnd\n"
+		"    MapEntryEnd\n"
+		"MapEnd\n";
 
-	Map mapEnc;
-	EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+	ASSERT_TRUE( loadDictionaryFromFile( &dictionary ) ) << "Failed to load dictionary";
+
+	DataDictionary emaDataDictionary, emaDataDictionaryEmpty;
+
+	try {
+		emaDataDictionary.loadFieldDictionary( "RDMFieldDictionaryTest" );
+		emaDataDictionary.loadEnumTypeDictionary( "enumtypeTest.def" );
+	}
+	catch ( const OmmException& ) {
+		ASSERT_TRUE( false ) << "DataDictionary::loadFieldDictionary() failed to load dictionary information";
+	}
+
+	Map mapEnc, mapEmpty;;
+	EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 	mapEnc.totalCountHint( 5 );
-	EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+	EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 	mapEnc.keyFieldId( 3426 );
-	EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+	EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 	try
 	{
@@ -3079,7 +3278,7 @@ TEST(MapTests, testMapContainsFieldListsEncodeDecodeAll)
 		EmaEncodeFieldListAll( flEnc );
 
 		mapEnc.summaryData( flEnc );
-		EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 
 		char* s1 = const_cast<char*>("PERMISSION DATA");
@@ -3091,32 +3290,44 @@ TEST(MapTests, testMapContainsFieldListsEncodeDecodeAll)
 		FieldList flEnc1;
 		EmaEncodeFieldListAll( flEnc1 );
 		mapEnc.addKeyBuffer( orderBuf1, MapEntry::DeleteEnum, flEnc1, permission );
-		EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 		//second entry  //Add FieldList
 		mapEnc.addKeyBuffer( orderBuf1, MapEntry::AddEnum, flEnc1, permission );
-		EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 		//third entry  //Add FieldList
 		char* orderBufData2 = const_cast<char*>("EFGHI");
 		EmaBuffer orderBuf2( orderBufData2, 5 );
 		mapEnc.addKeyBuffer( orderBuf2, MapEntry::AddEnum, flEnc1, permission );
-		EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
 		//fourth entry  //Update FieldList
 		char* orderBufData3 = const_cast<char*>("JKLMNOP");
 		EmaBuffer orderBuf3( orderBufData3, 7 );
 		mapEnc.addKeyBuffer( orderBuf3, MapEntry::UpdateEnum, flEnc1, permission );
-		EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
+
+		EXPECT_EQ( mapEnc.toString( emaDataDictionary ), "\nUnable to decode not completed Map data.\n" ) << "Map.toString() == Unable to decode not completed Map data.";
 
 		mapEnc.complete();
-		EXPECT_EQ( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() == Decoding of just encoded object in the same application is not supported";
+		EXPECT_EQ( mapEnc.toString(), "\ntoString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.\n" ) << "Map.toString() == toString() method could not be used for just encoded object. Use toString(dictionary) for just encoded object.";
 
+		EXPECT_EQ( mapEnc.toString( emaDataDictionaryEmpty ), "\nDictionary is not loaded.\n" ) << "Map.toString() == Dictionary is not loaded.";
+
+		EXPECT_EQ( mapEnc.toString( emaDataDictionary ), mapString ) << "Map.toString() == mapString";
+
+		mapEmpty.addKeyBuffer( orderBuf3, MapEntry::UpdateEnum, flEnc1, permission );
+		mapEmpty.complete();
+		mapEmpty.clear();
+		EXPECT_EQ ( mapEmpty.toString( emaDataDictionary ), "\nUnable to decode not completed Map data.\n" ) << "Map.toString() == Unable to decode not completed Map data.";
+
+		mapEmpty.complete();
+		EXPECT_EQ( mapEmpty.toString( emaDataDictionary ), "Map\nMapEnd\n" ) << "Map.toString() == Map\nMapEnd\n";
 
 		//Now do EMA decoding of Map
 		StaticDecoder::setData( &mapEnc, &dictionary );
-		EXPECT_NE( mapEnc.toString(), "\nDecoding of just encoded object in the same application is not supported\n") << "Map.toString() != Decoding of just encoded object in the same application is not supported";
-
+		EXPECT_EQ( mapEnc.toString(), mapString ) << "Map.toString() == mapString";
 
 		EXPECT_TRUE( mapEnc.hasKeyFieldId() ) << "Map contains FieldList - hasKeyFieldId()" ;
 		EXPECT_EQ( mapEnc.getKeyFieldId(), 3426 ) << "Map contains FieldList - getKeyFieldId()" ;
@@ -7554,6 +7765,219 @@ TEST(MapTests, testMapEntryKeyUtf8WithNoPayload_Encode_Decode)
 	{
 		EXPECT_TRUE(false) << "Exception not expected with text : " << excp.getText();
 		return;
+	}
+}
+
+TEST(MapTests, testMapAddNotCompletedContainer)
+{
+	try
+	{
+		Map map;
+		FieldList fieldList;
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		map.complete();
+
+		EXPECT_FALSE(true) << "Map complete while FieldList is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map complete while FieldList is not completed  - exception expected";
+	}
+
+	try
+	{
+		Map map;
+		FieldList fieldList;
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		fieldList.addUInt(1, 64);
+		map.complete();
+
+		EXPECT_FALSE(true) << "Map complete while FieldList with data is not completed  - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map complete while FieldList with data is not completed  - exception expected";
+	}
+
+	try
+	{
+		Map map;
+		FieldList fieldList;
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+
+		EXPECT_FALSE(true) << "Map add two not completed FieldList - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map add two not completed FieldList - exception expected";
+	}
+
+	try
+	{
+		Map map;
+		FieldList fieldList, fieldList1;
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		fieldList.complete();
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList1);
+		map.complete();
+
+		EXPECT_FALSE(true) << "Map add first completed and second not completed FieldList - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map add first completed and second not completed FieldList - exception expected";
+	}
+
+	try
+	{
+		Map map;
+		FieldList fieldList, fieldList1;
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		fieldList1.complete();
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList1);
+		map.complete();
+
+		EXPECT_FALSE(true) << "Map add first not completed and second completed FieldList - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map add first not completed and second completed FieldList - exception expected";
+	}
+
+	try
+	{
+		Map map;
+		FieldList fieldList, fieldList1;
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		fieldList.complete();
+		map.complete();
+		map.addKeyInt(1, MapEntry::AddEnum, fieldList1);
+
+		EXPECT_FALSE(true) << "Map add first completed then complete map and add some second FieldList - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map add first completed then complete map and add some second FieldList - exception expected";
+	}
+
+	try
+	{
+		Map map;
+		FieldList fieldList;
+
+		fieldList.addInt(1, 2);
+		map.summaryData(fieldList);
+		map.complete();
+
+		EXPECT_FALSE(true) << "Map add uncompleted FieldList passed in summaryData - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map add uncompleted FieldList passed in summaryData - exception expected";
+	}
+
+	try
+	{
+		Map map, map1;
+		FieldList fieldList;
+
+		fieldList.complete();
+		map1.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		map1.complete();
+		map.summaryData(map1);
+		map.complete();
+
+		EXPECT_TRUE(true) << "Map add completed map passed in summaryData with nested FieldList - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Map add completed map passed in summaryData with nested FieldList - exception not expected " << exp.getText();
+	}
+
+	try
+	{
+		Map map, map1;
+		FieldList fieldList;
+
+		fieldList.complete();
+		map1.addKeyInt(1, MapEntry::AddEnum, fieldList);
+		map1.complete();
+		map.addKeyInt(1, MapEntry::AddEnum, map1);
+		map.complete();
+
+		EXPECT_TRUE(true) << "Map add completed Map with nested FieldList - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Map add completed Map with nested FieldList - exception not expected " << exp.getText();
+	}
+
+	try
+	{
+		Map map;
+		map.addKeyInt(1, MapEntry::AddEnum, FieldList().addCodeInt(1).complete());
+		map.addKeyInt(1, MapEntry::AddEnum, FieldList().addCodeInt(2).complete());
+		map.complete();
+
+		EXPECT_TRUE(true) << "Map add two FieldList as a separate objects - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Map add two FieldList as a separate objects - exception not expected with text " << exp.getText();
+	}
+
+	try
+	{
+		Map map;
+		GenericMsg genericMsg;
+
+		genericMsg.streamId(1);
+
+		map.addKeyInt(1, MapEntry::AddEnum, genericMsg);
+		map.complete();
+
+		EXPECT_TRUE(true) << "Map add not completed GenericMsg - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Map add not completed GenericMsg - exception not expected with text " << exp.getText();
+	}
+
+	try
+	{
+		Map map;
+		OmmOpaque opaque;
+
+		char* string = const_cast<char*>("OPQRST");
+		EmaBuffer buffer(string, 6);
+		opaque.set(buffer);
+
+		map.addKeyInt(1, MapEntry::UpdateEnum, opaque);
+		map.complete();
+
+		EXPECT_TRUE(true) << "Map add OmmOpaque - exception not expected";
+	}
+	catch (const OmmException& exp)
+	{
+		EXPECT_FALSE(true) << "Map add OmmOpaque - exception not expected with text " << exp.getText();
+	}
+
+	try
+	{
+		Map map;
+		ElementList elementList;
+		GenericMsg genericMsg;
+		
+		map.addKeyInt(1, MapEntry::UpdateEnum, genericMsg);
+		map.addKeyInt(2, MapEntry::UpdateEnum, elementList);
+		map.complete();
+
+		EXPECT_FALSE(true) << "Map add not completed ElementList after GenericMsg - exception expected";
+	}
+	catch (const OmmException&)
+	{
+		EXPECT_TRUE(true) << "Map add not completed ElementList after GenericMsg - exception expected";
 	}
 }
 

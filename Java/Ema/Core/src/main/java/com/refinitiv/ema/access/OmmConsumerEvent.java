@@ -1,11 +1,13 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
+
+import java.util.List;
 
 /**
  * OmmConsumerEvent encapsulates item identifiers.
@@ -57,5 +59,14 @@ public interface OmmConsumerEvent
 	 * @return the channel information associated with the event
 	 */
 	public ChannelInformation channelInformation();
+	
+	/**
+	 * Returns a list of channel information for session channels associated with the event.
+	 * 
+	 * <p>This function returns an empty list if this event does not have any session channels.</p>
+	 * 
+	 * @param sessionChannelInfo the ChannelInformation List
+	 */
+	public void sessionChannelInfo(List<ChannelInformation> sessionChannelInfo);
 }
 

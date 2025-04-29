@@ -1,13 +1,17 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2023 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
+using System;
+using System.Threading;
+
 using LSEG.Eta.PerfTools.Common;
 using LSEG.Eta.Transports;
+
 using Provider = LSEG.Eta.PerfTools.Common.Provider;
 
 namespace LSEG.Eta.Perftools.NIProvPerf
@@ -18,7 +22,7 @@ namespace LSEG.Eta.Perftools.NIProvPerf
     ///
     /// The purpose of this application is to measure performance of the ETA transport,
     /// encoders and decoders, in providing Level I Market Price content to the
-    /// Refinitiv Real-Time Distribution System Advanced Data Hub (ADH).
+    /// LSEG Real-Time Distribution System Advanced Data Hub (ADH).
     /// <p>
     /// <em>Summary</em>
     /// <p>

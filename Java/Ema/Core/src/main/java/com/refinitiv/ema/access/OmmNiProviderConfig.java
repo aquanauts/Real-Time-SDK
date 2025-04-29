@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019,2024, LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -140,6 +140,27 @@ public interface OmmNiProviderConfig extends OmmProviderConfig
 	public OmmNiProviderConfig host(String host);
 
 	/**
+	 * Specifies connection type. Overrides prior value.
+	 *
+	 * @param channelType specifies connection type used by application. Connection type defined in EmaConfig.ConnectionType.
+	 * @throws OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+	 * @throws OmmInvalidUsageException if channelType is not valid.
+	 * @return reference to this object
+	 */
+	public OmmNiProviderConfig channelType(int channelType);
+
+	/**
+	 * Specifies encrypted protocol type. Overrides prior value.
+	 *
+	 * @param encProtocolType specifies encrypted protocol type used by application. Encrypted protocol type defined in EmaConfig.EncryptedProtocolType.
+	 * @throws OmmInvalidUsageException if use this API with WarmStandby channel configuration.
+	 * @throws OmmInvalidUsageException if use this API with not encoded channel type.
+	 * @throws OmmInvalidUsageException if encProtocolType is not valid.
+	 * @return reference to this object
+	 */
+	public OmmNiProviderConfig encryptedProtocolType(int encProtocolType);
+
+	/**
 	 * Specifies the operation model, overriding the default<br>
 	 * The operation model specifies whether to dispatch messages
 	 * in the user or application thread of control.
@@ -240,8 +261,7 @@ public interface OmmNiProviderConfig extends OmmProviderConfig
 	
 	/**
 	 * Specifies the type of the key store for certificate file.
-     * Defaults to the property keystore.type in the JDK security properties file (java.security).
-     * Sun JDK default = JKS
+     * RTSDK Default = JKS
      * 
 	 * @param keyStoreType specifies the type of key store for tunneling connection.
 	 * @return reference to this object
@@ -267,12 +287,21 @@ public interface OmmNiProviderConfig extends OmmProviderConfig
 	
     /**
 	 * Specifies the Cryptographic protocol to be used. Sun JDK default is TLS which will go the latest one
-	 * supported by JDK (currently is TLSv1.2).
+	 * supported by the JDK version in use.
 	 *  
 	 * @param securityProtocol specifies a cryptographic protocol for tunneling connection.
 	 * @return reference to this object
 	 */
     public OmmNiProviderConfig tunnelingSecurityProtocol(String securityProtocol); 
+    
+    /**
+	 * The Cryptographic protocol versions to be used. RTSDK default is {"1.3" , "1.2"} for the default protocol "TLS"
+	 * which will go to the latest one supported by the JDK version in use.
+	 *  
+	 * @param securityProtocolVersions specifies a cryptographic protocol versions list to use for tunneling connection.
+	 * @return reference to this object
+	 */
+    public OmmNiProviderConfig tunnelingSecurityProtocolVersions(String[] securityProtocolVersions); 
     
     /**
 	 * Specifies the Java Cryptography Package provider to be used. The Oracle JDK default is SunJSSE.

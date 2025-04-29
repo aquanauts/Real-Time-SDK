@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -447,13 +447,13 @@ namespace LSEG.Eta.Codec
 
                         break;
                     case RMTESParseState.ESC_21:
-                        if (currPtr.Contents[i] != 0x40) /* Refinitiv Ctrl 1 to CL */
+                        if (currPtr.Contents[i] != 0x40) /* LSEG Ctrl 1 to CL */
                         {
                             return _returnInfo.ReturnControlParse(ESCReturnCode.ESC_ERROR, currentSet, 0, currPtr);
                         }
                         break;
                     case RMTESParseState.ESC_22:
-                        if (currPtr.Contents[i] != 0x30) /* Refinitiv Ctrl 2 to CR */
+                        if (currPtr.Contents[i] != 0x30) /* LSEG Ctrl 2 to CR */
                         {
                             return _returnInfo.ReturnControlParse(ESCReturnCode.ESC_ERROR, currentSet, 0, currPtr);
                         }
@@ -1024,7 +1024,7 @@ namespace LSEG.Eta.Codec
                         {
                             return CodecReturnCode.BUFFER_TOO_SMALL;
                         }
-                        char toConvert = (char)(rmtesBuffer.Data.Contents[outIterCount] & 0xFF00 | rmtesBuffer.Data.Contents[outIterCount + 1] & 0xFF);
+                        char toConvert = (char)((((int)rmtesBuffer.Data.Contents[outIterCount]) << 8) | ((int)rmtesBuffer.Data.Contents[outIterCount + 1]));
                         _tempInfo = UTF8ToUCS2(cacheBuffer.Data, inIterCount, toConvert, cacheBuffer.Length);
                         if (_tempInfo.Value >= 3)
                         {
@@ -1382,8 +1382,7 @@ namespace LSEG.Eta.Codec
                         if (outIterCount + 1 > rmtesBuffer.AllocatedLength)
                             return CodecReturnCode.BUFFER_TOO_SMALL;
 
-                        rmtesBuffer.Data.WriteAt(outIterCount++, rmtesBuffer.Data.Contents[outIterCount]);
-                        inIterCount++;
+                        rmtesBuffer.Data.WriteAt(outIterCount++, cacheBuffer.Data.Contents[inIterCount++]);
                     }
                 }
             }

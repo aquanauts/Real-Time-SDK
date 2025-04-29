@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #ifndef RSSL_WATCHLIST_H
@@ -22,8 +22,6 @@ typedef struct RsslWatchlist RsslWatchlist;
 typedef struct RsslWatchlistMsgEvent RsslWatchlistMsgEvent;
 typedef struct RsslWatchlistStreamInfo RsslWatchlistStreamInfo;
 
-/* The callback the watchlist uses to call the reactor to provide messages. */
-typedef RsslRet RsslWatchlistMsgCallback(RsslWatchlist*, RsslWatchlistMsgEvent*,RsslErrorInfo*);
 
 struct RsslWatchlistStreamInfo
 {
@@ -96,7 +94,6 @@ RsslInt64 rsslWatchlistProcessFTGroupPing(RsslWatchlist *pWatchlist, RsslUInt8 f
 /* Options for rsslWatchlistCreate. */
 typedef struct
 {
-	RsslWatchlistMsgCallback	*msgCallback;
 	RsslUInt32					itemCountHint;
 	RsslBool					obeyOpenWindow;
 	RsslUInt32					requestTimeout;
@@ -138,7 +135,7 @@ void rsslWatchlistDestroy(RsslWatchlist *pWatchlist);
 /* Options for processing an RsslMsg in the watchlist. */
 typedef struct
 {
-	RsslChannel			*pChannel;
+	//RsslChannel			*pChannel;
 	RsslBuffer			*pRsslBuffer;
 	RsslDecodeIterator	*pDecodeIterator;
 	RsslMsg				*pRsslMsg;

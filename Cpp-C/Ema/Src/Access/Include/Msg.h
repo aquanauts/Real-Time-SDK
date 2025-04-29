@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|        Copyright (C) 2019 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|        Copyright (C) 2019, 2024-2025 LSEG. All rights reserved.                --
  *|-----------------------------------------------------------------------------
  */
 
@@ -172,6 +172,8 @@ protected :
 	friend class TunnelStreamLoginReqMsgImpl;
 	friend class SubItem;
 	friend class MsgDecoder;
+	friend class PackedMsgImpl;
+	friend class ConsumerRoutingSession;
 
 	Msg();
 
@@ -180,8 +182,8 @@ protected :
 	void setDecoder( MsgDecoder* );
 	bool hasDecoder() const;
 
-	MsgDecoder*		_pDecoder;
-	MsgEncoder*		_pEncoder;
+	mutable MsgDecoder*	_pDecoder;
+	mutable MsgEncoder*	_pEncoder;
 
 	Attrib			_attrib;
 	Payload			_payload;

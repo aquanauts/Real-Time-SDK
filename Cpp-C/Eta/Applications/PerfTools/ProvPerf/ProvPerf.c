@@ -2,7 +2,7 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2020 Refinitiv. All rights reserved.
+ * Copyright (C) 2020 LSEG. All rights reserved.     
 */
 
 #include "ProvPerf.h"
@@ -349,6 +349,19 @@ RsslReactorCallbackRet channelEventCallback(RsslReactor *pReactor, RsslReactorCh
 					if (count < reactorChannelInfo.rsslChannelInfo.componentInfoCount - 1)
 						printf(", ");
 				}
+
+			switch (reactorChannelInfo.rsslChannelInfo.encryptionProtocol)
+			{
+			case RSSL_ENC_TLSV1_2:
+				printf("\n  Encryption protocol: TLSv1.2");
+				break;
+			case RSSL_ENC_TLSV1_3:
+				printf("\n  Encryption protocol: TLSv1.3");
+				break;
+			default:
+				printf("\n  Encryption protocol: unknown");
+			}
+
 			printf ("\n\n");
 
 			/* Check that we can successfully pack, if packing messages. */
@@ -890,6 +903,19 @@ RsslRet processActiveChannel(ChannelHandler *pChanHandler, ChannelInfo *pChannel
 			if (count < channelInfo.componentInfoCount - 1)
 				printf(", ");
 		}
+
+	switch (channelInfo.encryptionProtocol)
+	{
+	case RSSL_ENC_TLSV1_2:
+		printf("\n  Encryption protocol: TLSv1.2");
+		break;
+	case RSSL_ENC_TLSV1_3:
+		printf("\n  Encryption protocol: TLSv1.3");
+		break;
+	default:
+		printf("\n  Encryption protocol: unknown");
+	}
+
 	printf ("\n\n");
 
 	/* Check that we can successfully pack, if packing messages. */

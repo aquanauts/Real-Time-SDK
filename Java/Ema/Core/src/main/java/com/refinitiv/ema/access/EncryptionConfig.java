@@ -4,28 +4,26 @@ import com.refinitiv.eta.transport.ConnectionTypes;
 
 class EncryptionConfig
 {
-	int					ConnectionType;
+	int					ConnectionType = ConnectionTypes.SOCKET;
 	String				KeyStoreType;
 	String				KeyStoreFile;
 	String				KeyStorePasswd;
 	String				SecurityProvider;
 	String 				SecurityProtocol;
+	String[]			SecurityProtocolVersions;
 	String				KeyManagerAlgorithm;
 	String				TrustManagerAlgorithm;
 
-	EncryptionConfig()
-	{
-		clear();
-	}
 
 	void clear()
 	{
-		ConnectionType = ConnectionTypes.HTTP;
+		ConnectionType = ConnectionTypes.SOCKET;
 		KeyStoreType = null;
 		KeyStoreFile = null;
 		KeyStorePasswd = null;
 		SecurityProvider = null;
 		SecurityProtocol = null;
+		SecurityProtocolVersions = null;
 		KeyManagerAlgorithm = null;
 		TrustManagerAlgorithm = null;
 	}
@@ -38,6 +36,7 @@ class EncryptionConfig
 		KeyStorePasswd = source.KeyStorePasswd;
 		SecurityProvider = source.SecurityProvider;
 		SecurityProtocol = source.SecurityProtocol;
+		SecurityProtocolVersions = source.SecurityProtocolVersions;
 		KeyManagerAlgorithm = source.KeyManagerAlgorithm;
 		TrustManagerAlgorithm = source.TrustManagerAlgorithm;
 	}

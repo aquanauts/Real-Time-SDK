@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -389,6 +389,7 @@ public class KerberosAuthenticationScheme implements IAuthenticationScheme
      * @return the kerberos service ticket
      * @throws PrivilegedActionException the privileged action exception
      */
+    @SuppressWarnings("removal") //Subject.doAs cannot be replaced for backward compatibility reasons. No equivalent method supporting both java 8 (Subject.doAs) and java >=19 (AccessController.doPrivilaged) without warnings.
     public byte[] getKerberosServiceTicket(String userName, String domain, String service, String server, LoginContext loginContext)
             throws PrivilegedActionException
     {

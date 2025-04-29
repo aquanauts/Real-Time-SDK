@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -213,7 +213,7 @@ public interface Msg extends XMLDecoder
 
     /**
      * Domain Type of this message, corresponds to a domain model definition
-     * (values less than 128 are Refinitiv defined domain models, values
+     * (values less than 128 are LSEG defined domain models, values
      * between 128 - 255 are user defined domain models).
      * Must be in the range of 0 - 255.
      * 
@@ -223,7 +223,7 @@ public interface Msg extends XMLDecoder
 
     /**
      * Domain Type of this message, corresponds to a domain model definition
-     * (values less than 128 are Refinitiv defined domain models, values
+     * (values less than 128 are LSEG defined domain models, values
      * between 128 - 255 are user defined domain models).
      * 
      * @return the domainType

@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2022, 2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
@@ -181,6 +181,14 @@ void OmmConsumer::getChannelInformation(ChannelInformation& ci) {
 	ci.clear();
 }
 
+void OmmConsumer::getSessionInformation(EmaVector<ChannelInformation>& ci) 
+{
+	if (_pImpl)
+		_pImpl->getSessionInformation(ci);
+	else
+		ci.clear();
+}
+
 void OmmConsumer::getChannelStatistics(ChannelStatistics& cs) {
   // this function can be called during the OmmConsumer constructor (usually from an event
   // received during that process). If so, just have to return 0.
@@ -200,6 +208,11 @@ void OmmConsumer::modifyReactorIOCtl(Int32 code, Int32 value)
 	_pImpl->modifyReactorIOCtl(code, value);
 }
 
+void OmmConsumer::modifyReactorChannelIOCtl(Int32 code, void* value)
+{
+	_pImpl->modifyReactorChannelIOCtl(code, value);
+}
+
 void OmmConsumer::renewOAuth2Credentials(OAuth2CredentialRenewal& credentials)
 {
 	_pImpl->renewOAuth2Credentials(credentials);
@@ -208,4 +221,9 @@ void OmmConsumer::renewOAuth2Credentials(OAuth2CredentialRenewal& credentials)
 void OmmConsumer::renewLoginCredentials(LoginMsgCredentialRenewal& credentials)
 {
 	_pImpl->renewLoginMsgCredentials(credentials);
+}
+
+void OmmConsumer::fallbackPreferredHost() 
+{
+	_pImpl->fallbackPreferredHost();
 }

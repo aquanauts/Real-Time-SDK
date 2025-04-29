@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -580,7 +580,7 @@ int emaProblemReport( void* pContext, const char* sourceFile, unsigned int line,
 
 	snprintf( reportBuffer, reportBufferLen,  "%s" 
 						    "\n\nApplication: %s"
-							"\nProcess Id: 0x%X"
+							"\nProcess Id: 0x%luX"
 #ifdef WIN32
 							"\nThread Id: 0x%X"
 #endif
@@ -627,7 +627,7 @@ const char* timeString()
 #ifdef WIN32
 	snprintf( timeString + strlen( timeString ), sizeof ( timeString )- strlen( timeString ), ".%03d ", tv.millitm );
 #else
-	snprintf( timeString + strlen(timeString), sizeof ( timeString )- strlen( timeString ), ".%06d ", tv.tv_usec);
+	snprintf( timeString + strlen(timeString), sizeof ( timeString )- strlen( timeString ), ".%06ld ", tv.tv_usec);
 #endif
 
 	return timeString;

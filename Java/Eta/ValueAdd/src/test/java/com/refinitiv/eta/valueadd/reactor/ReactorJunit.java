@@ -1,14 +1,15 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022, 2024 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
 package com.refinitiv.eta.valueadd.reactor;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -5040,7 +5041,7 @@ public class ReactorJunit
             // create a mock SelectableBiDirectionalQueue
             SelectableBiDirectionalQueue workerQueue = Mockito.mock(SelectableBiDirectionalQueue.class);
             // the first call to write() will fail
-            Mockito.stub(workerQueue.write((VaNode)Mockito.anyObject())).toReturn(false);
+            when(workerQueue.write(Mockito.any(VaNode.class))).thenReturn(false);
             // set reactor worker queue to mock worker queue
             reactor._workerQueue = workerQueue;
             assertEquals(ReactorReturnCodes.FAILURE, reactor.connect(rcOpts, consumerRole, errorInfo));

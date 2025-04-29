@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -13,6 +13,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
@@ -237,6 +238,8 @@ public class Provider implements ProviderCallback, TunnelStreamListenerCallback,
         {
             System.out.println("keyfile: " + providerCmdLineParser.keyfile());
             System.out.println("keypasswd: " + providerCmdLineParser.keypasswd());
+            System.out.println("securityProtocol: " + providerCmdLineParser.securityProtocol());
+            System.out.println("securityProtocolVersions: " + Arrays.toString(providerCmdLineParser.securityProtocolVersions()));
         }
 
         // load dictionary
@@ -299,6 +302,8 @@ public class Provider implements ProviderCallback, TunnelStreamListenerCallback,
             bindOptions.connectionType(providerCmdLineParser.connectionType());
             bindOptions.encryptionOptions().keystoreFile(providerCmdLineParser.keyfile());
             bindOptions.encryptionOptions().keystorePasswd(providerCmdLineParser.keypasswd());
+            bindOptions.encryptionOptions().securityProtocol(providerCmdLineParser.securityProtocol());
+            bindOptions.encryptionOptions().securityProtocolVersions(providerCmdLineParser.securityProtocolVersions());
         }
         bindOptions.guaranteedOutputBuffers(1500);
         bindOptions.majorVersion(Codec.majorVersion());

@@ -1,8 +1,8 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
@@ -39,10 +39,12 @@ import com.refinitiv.ema.access.OmmIProviderConfig.OperationModel;
 import com.refinitiv.ema.access.OmmException.ExceptionType;
 import com.refinitiv.ema.access.OmmLoggerClient.Severity;
 import com.refinitiv.eta.transport.BindOptions;
+import com.refinitiv.eta.transport.ChannelState;
 import com.refinitiv.eta.transport.ConnectionTypes;
 import com.refinitiv.eta.transport.Server;
 import com.refinitiv.eta.transport.Transport;
 import com.refinitiv.eta.transport.TransportFactory;
+import com.refinitiv.eta.transport.TransportReturnCodes;
 import com.refinitiv.eta.transport.WriteFlags;
 import com.refinitiv.eta.transport.WritePriorities;
 abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClient, ReactorServiceNameToIdCallback, ReactorJsonConversionEventCallback
@@ -220,7 +222,7 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			{
 				strBuilder().append("Failed to open Selector: ").append(e.getLocalizedMessage());
 				String temp = _strBuilder.toString();
-				
+
 				if (_loggerClient.isErrorEnabled())
 					_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName, temp, Severity.ERROR));
 
@@ -233,6 +235,18 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			if (_activeServerConfig.xmlTraceEnable)
 				_rsslReactorOpts.enableXmlTracing();
 
+			if (_activeServerConfig.xmlTraceEnable || _activeServerConfig.xmlTraceToFileEnable){
+				if ( _activeServerConfig.xmlTraceEnable) _rsslReactorOpts.enableXmlTracing();
+				if ( _activeServerConfig.xmlTraceToFileEnable ) _rsslReactorOpts.enableXmlTraceToFile();
+
+				_rsslReactorOpts.setXmlTraceMaxFileSize(_activeServerConfig.xmlTraceMaxFileSize);
+				_rsslReactorOpts.setXmlTraceFileName(_activeServerConfig.xmlTraceFileName);
+				if (_activeServerConfig.xmlTraceToMultipleFilesEnable) _rsslReactorOpts.enableXmlTraceToMultipleFiles();
+				_rsslReactorOpts.xmlTraceWrite(_activeServerConfig.xmlTraceWriteEnable);
+				_rsslReactorOpts.xmlTraceRead(_activeServerConfig.xmlTraceReadEnable);
+				_rsslReactorOpts.xmlTracePing(_activeServerConfig.xmlTracePingEnable);
+			}
+
 			_rsslReactorOpts.userSpecObj(this);
 
 			_rsslReactor = ReactorFactory.createReactor(_rsslReactorOpts, _rsslErrorInfo);
@@ -243,14 +257,13 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 						.append(_rsslErrorInfo.error().sysError()).append("' Error Location='")
 						.append(_rsslErrorInfo.location()).append("' Error Text='")
 						.append(_rsslErrorInfo.error().text()).append("'. ");
-				
+
 				String temp = _strBuilder.toString();
-				
+
 				if (_loggerClient.isErrorEnabled())
 					_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName, temp, Severity.ERROR));
 
 				throw (ommIUExcept().message(temp, OmmInvalidUsageException.ErrorCode.INTERNAL_ERROR));
-				
 			} else
 			{
 				if (_loggerClient.isTraceEnabled())
@@ -348,27 +361,27 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			if ( productVersion == null)
 				productVersion = "EMA Java Edition";
 
-	        _bindOptions.componentVersion(productVersion);
-			
+			_bindOptions.componentVersion(productVersion);
+
 			_server = Transport.bind(_bindOptions, _transportError);
 			if (_server == null)
-		    {
+			{
 				strBuilder().append("Failed to initialize OmmServerBaseImpl (Transport.bind).")
 					.append("' Error Id='").append(_transportError.errorId()).append("' Internal sysError='")
 					.append(_transportError.sysError()).append("' Error Text='")
 					.append(_transportError.text()).append("'. ");
-					
+
 				String temp = _strBuilder.toString();
-					
+
 				if (_loggerClient.isErrorEnabled())
 					_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName, temp, Severity.ERROR));
 
 				throw (ommIUExcept().message(temp, OmmInvalidUsageException.ErrorCode.FAILURE));
-		    }
-			
+			}
+
 			if (_loggerClient.isTraceEnabled())
 				_loggerClient.trace(formatLogMessage(_activeServerConfig.instanceName, "Provider bound on port = " + _server.portNumber() + ".", Severity.TRACE));
-				
+
 			try
 			{
 				_server.selectableChannel().register(_selector, SelectionKey.OP_ACCEPT, _server);
@@ -563,6 +576,20 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 				_serverChannelHandler.closeActiveSessions();
 				_serverChannelHandler = null;
 			}
+			
+			if(_server != null && _server.state() == ChannelState.ACTIVE &&  TransportReturnCodes.SUCCESS != _server.close(_rsslErrorInfo.error()))
+			{
+				if (_loggerClient.isErrorEnabled())
+				{
+					strBuilder().append("Server.Close() failed while uninitializing OmmServerBaseImpl.")
+							.append("Error Id ").append(_rsslErrorInfo.error().errorId())
+							.append("Internal sysError ").append(_rsslErrorInfo.error().sysError())
+							.append("Error Text ")
+							.append(_rsslErrorInfo.error().text()).append("'. ");
+
+					_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName, _strBuilder.toString(), Severity.ERROR));
+				}
+			}
 
 			_pipe.sink().close();
 			_pipe.source().close();
@@ -668,11 +695,43 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			}
 
 			if ((ce = attributes.getPrimitiveValue(ConfigManager.SendJsonConvError)) != null) {
-				_activeServerConfig.sendJsonConvError = ce.intLongValue() > 0 ? true : false;
+				_activeServerConfig.sendJsonConvError = ce.intLongValue() > 0;
 			}
 				
 			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceToStdout)) != null)
-				_activeServerConfig.xmlTraceEnable = ce.intLongValue() == 1 ? true : ActiveConfig.DEFAULT_XML_TRACE_ENABLE;
+			{
+				_activeServerConfig.xmlTraceEnable = ce.intLongValue() != 0;
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceToFile)) != null)
+			{
+				_activeServerConfig.xmlTraceToFileEnable = ce.intLongValue() != 0;
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceMaxFileSize)) != null)
+			{
+				long xmlTraceMaxFileSize = ce.intLongValue();
+				if (xmlTraceMaxFileSize > 0)
+					_activeServerConfig.xmlTraceMaxFileSize = xmlTraceMaxFileSize;
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceFileName)) != null)
+			{
+				_activeServerConfig.xmlTraceFileName = (String) ce.value();
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceToMultipleFiles)) != null)
+			{
+				_activeServerConfig.xmlTraceToMultipleFilesEnable = ce.intLongValue() != 0;
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceWrite)) != null)
+			{
+				_activeServerConfig.xmlTraceWriteEnable = ce.intLongValue() != 0;
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTraceRead)) != null)
+			{
+				_activeServerConfig.xmlTraceReadEnable = ce.intLongValue() != 0;
+			}
+			if( (ce = attributes.getPrimitiveValue(ConfigManager.XmlTracePing)) != null)
+			{
+				_activeServerConfig.xmlTracePingEnable = ce.intLongValue() != 0;
+			}
 		}
 
 		// .........................................................................
@@ -979,7 +1038,12 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			break;
 		}
 	}
-	
+
+	void onDispatchError(String text, int errorCode)
+	{
+		_ommProviderErrorClient.onDispatchError(text, errorCode);
+	}
+
 	OmmInvalidUsageExceptionImpl ommIUExcept()
 	{
 		if (_ommIUExcept == null)
@@ -1033,7 +1097,9 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 			if (userLock().isLocked()) {
 				userLock().unlock();
 			}
-			throw (ommJCExcept().message(sessionInfo, errorCode, text));
+			if (_activeServerConfig.userDispatch != OperationModel.API_DISPATCH) {
+				throw (ommJCExcept().message(sessionInfo, errorCode, text));
+			}
 		}
 	}
 
@@ -1200,8 +1266,8 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 								reactorAcceptOptions.acceptOptions().nakMount(false);
 								reactorAcceptOptions.initTimeout(_activeServerConfig.serverConfig.initializationTimeout);
 								
-								if (_rsslReactor.accept(_server, reactorAcceptOptions, _providerRole, _rsslErrorInfo) == ReactorReturnCodes.FAILURE)
-		                        {
+								if (_rsslReactor.accept(_server, reactorAcceptOptions, _providerRole, _rsslErrorInfo) != ReactorReturnCodes.SUCCESS)
+								{
 									if (_loggerClient.isErrorEnabled()) 
 									{
 										_dispatchStrBuilder.setLength(0);
@@ -1222,7 +1288,7 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 									clientSession.returnToPool();
 									
 									return false;
-		                        }
+								}
 							}
 							if (key.isReadable())
 							{
@@ -1271,14 +1337,22 @@ abstract class OmmServerBaseImpl implements OmmCommonImpl, Runnable, TimeoutClie
 					{
 						_userLock.lock();
 						try {
-							if (_loggerClient.isErrorEnabled())
+							if (_loggerClient.isErrorEnabled() || hasErrorClient())
 							{
 								strBuilder().append("Call to rsslReactorDispatchLoop() failed. Internal sysError='")
 										.append(_rsslErrorInfo.error().sysError()).append("' Error text='")
 										.append(_rsslErrorInfo.error().text()).append("'. ");
+							}
 
+							if (_loggerClient.isErrorEnabled())
+							{
 								_loggerClient.error(formatLogMessage(_activeServerConfig.instanceName,
 										_strBuilder.toString(), Severity.ERROR));
+							}
+
+							if (hasErrorClient())
+							{
+								onDispatchError(_strBuilder.toString(), ret);
 							}
 						} finally {
 							_userLock.unlock();

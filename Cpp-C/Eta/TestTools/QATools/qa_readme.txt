@@ -35,8 +35,16 @@ consumer-OMMSeq-001: Alter Consumer to have the following new options and implem
     Two Market Price Item Request with same key and different streamId (-requestSameKeyWithDiffStreamId)
 
 consumer-DebugDump-001: Alter Consumer to print debug dumps and add options -dumpIpcIn, -dumpIpcOut, -dumpIpcComp, -dumpIpcInit, -dumpRsslIn, -dumpRsslOut.
+    Additional options: -stopRequestAfterLogin if specified, do not send any requests after Login Refresh is recieved.
 
 consumer-TracePing-001: Alter Consumer to trace Ping messages. Add option -xping, -x1, -xnowrite, -xnoread.
+
+consumer-PTimeout-001: Alter Consumer to add proxy connection timeout. Add option -ptimeout.
+    Note: to display the curl_easy_setopt's parameters in runBlockingLibcurlProxyConnection use eta-PTimeout-001.
+
+consumer-Ws-001: Alter Consumer to add test options for Websocket transport which are; -testCompressionZlib
+
+consumer-Ws-002: Alter Consumer to works with Websocket json blocking mode. Test option: -socketBlockingMode
 
 
 Module:  Value Add Consumer
@@ -46,7 +54,7 @@ vaconsumer-LoginReissue-001:  Alter VAConsumer to send a login reissue with PAUS
 and a RESUME-ALL after receiving a source directory update.
 
 vaconsumer-TsFrag-001:  Alter VAConsumer to accept -bufSize and -fillSize as inputs.  The bufSize is the
-size of buffer requested by getBuffer().  The fillSize is is the number of bytes written.  For example,
+size of buffer requested by getBuffer().  The fillSize is the number of bytes written.  For example,
 if bufSize is 1000 and fillSize is 900, then the VAConsumer gets a buffer of 1000 bytes but only writes
 900 bytes before sending. The filled buffer is sent to the provider/ads in fragments if larger than max
 fragment size.  This code change fills the buffer with "1, 2, 3....255" and repeats this pattern of data
@@ -62,17 +70,17 @@ vaconsumer-TsFrag-002:  Alter VAConsumer to accept -msgSize as an input.  This i
   will then need to check for the same pattern in the fully assembled message and print "TEST PASSED".
 
 vaconsumer-ChnlStats-001: Alters VAConsumer to set statisticFilter for testing ReactorChannelStatistics base on Filer READ, WRITE or PING.
-  And testing reactor options to identify tokenServiceUrl, serviceDiscoveryUrl.
-
-vaconsumer-ChnlStats-003: Alters VAConsumer to set statisticFilter for testing ReactorChannelStatistics base on Filer READ, WRITE or PING. 
-  And testing reactor options to identify tokenServiceUrl, serviceDiscoveryUrl.
-  The new configuration parameters introduce in version 1.4.0 for reactor to test 'restRequestTimeout', 'tokenReissueRatio', 'reissueTokenAttemptLimit' and 'reissueTokenAttemptInterval'.
+  And testing reactor options to identify tokenServiceUrl.
 
 vaconsumer-ChnlStats-002: Alters VAConsumer to create 2 connections with 1 reactor, each connection requests login using different uname and passwd, 
-  in order to test ReactorChannelStatistic and sessionMgnt for 2 connections. And testing reactor options to identify tokenServiceUrl, serviceDiscoveryUrl.
+  in order to test ReactorChannelStatistic and sessionMgnt for 2 connections. And testing reactor options to identify tokenServiceUrl.
+
+vaconsumer-ChnlStats-003: Alters VAConsumer to set statisticFilter for testing ReactorChannelStatistics base on Filer READ, WRITE or PING. 
+  And testing reactor options to identify tokenServiceUrl.
+  The new configuration parameters introduce in version 1.4.0 for reactor to test 'restRequestTimeout', 'tokenReissueRatio', 'reissueTokenAttemptLimit' and 'reissueTokenAttemptInterval'.
 
 vaconsumer-ChnlStats-004: Alters VAConsumer to create 2 connections with 1 reactor, each connection requests login using different uname and passwd, 
-  in order to test ReactorChannelStatistic and sessionMgnt for 2 connections. And testing reactor options to identify tokenServiceUrl, serviceDiscoveryUrl.
+  in order to test ReactorChannelStatistic and sessionMgnt for 2 connections. And testing reactor options to identify tokenServiceUrl.
   The new configuration parameters introduce in version 1.4.0 for reactor to test 'restRequestTimeout', 'tokenReissueRatio', 'reissueTokenAttemptLimit' and 'reissueTokenAttemptInterval'.
 
 vaconsumer-DebugFunctions-001:  Alter VAConsumer to show how to use rsslSetDebugFunctions
@@ -87,6 +95,8 @@ vaconsumer-Ws-004: Alter VAConsumer to test handle error case when it sends requ
 
 vaconsumer-Ws-005: Alter VAConsumer to send Post Key Attribute as FieldList and Domain Contribution.
 
+vaconsumer-Ws-006: Alter VAConsumer to works with Websocket json blocking mode. Test option: -socketBlockingMode
+
 vaconsumer-OAuthV2-001: Alter VAConsumer to create 1 reactor, 2 connections, both for OAuth V2 but can identify either same / diff credential.
 
 vaconsumer-OAuthV2-002: Alter VAConsumer to create 1 reactor, 2 connections, 1st connection is for STS and 2nd connection is for OAuth V2.
@@ -94,6 +104,8 @@ vaconsumer-OAuthV2-002: Alter VAConsumer to create 1 reactor, 2 connections, 1st
 vaconsumer-OAuthV2-003: Alter VAConsumer to create 1 reactor, 6 connections, 1st, 2nd and 3rd connection are for STS. And 4th, 5th, and 6th connection are for OAuth V2.
 
 vaconsumer-Jwt-001: Alter VAConsumer to create 1 reactor, 2 connections, both for OAuth V2 JWT but can identify either same / diff credential
+
+vaconsumer-ExplitSD-001: VAConsumer to create 1 reactor, 2 connections, both for V1 STS and option for -blockingExplicitSD 0 or 1, default is not doing explicit SD.
 
 vaconsumer-CpuBind-001: Alter VAConsumer to add command-line options for testing bind CPU API.
  Command line options.
@@ -103,7 +115,38 @@ vaconsumer-CpuBind-001: Alter VAConsumer to add command-line options for testing
 -mainThreadCPU specifies the CPU to bind for main VAConsumer thread: Cpu core id or P:X C:Y T:Z format;
 -workerThreadCPU specifies the CPU to bind for Reactor worker thread: Cpu core id or P:X C:Y T:Z format.
 
-consumer-Ws-001: Alter Consumer to add test options for Websocket transport which are; -testCompressionZlib
+vaconsumer-CpuBind-002: Alter VAConsumer to add command-line options for testing bind CPU API.
+ Command line options.
+-mainThreadBindVer specifies the method of API call to bind main thread: 1 - use regular (default), 2 - use extended,
+   i.e. when 1 - will call rsslBindThread() to bind CPU specified in "-mainThreadCPU" for the main thread of VAConsumer,
+        when 2 - will call rsslBindThreadEx() to bind CPU specified in "-mainThreadCPU" for the main thread of VAConsumer;
+-mainThreadCPU specifies the CPU to bind for main VAConsumer thread: Cpu core id or P:X C:Y T:Z format;
+-workerThreadCPU specifies the CPU to bind for Reactor worker thread: Cpu core id or P:X C:Y T:Z format;
+-cpuStrToConvert specifies CPU (list of CPUs) in PCT format or logical Ids to convert to logical Ids.
+
+vaConsumer-ExtConn-001: Alter VAConsumer to test reconnect.
+ Added special monitoring thread to check inconsistent state of RsslSocketChannels.
+ Enhanced channel commands to support connection list from 2 or 3 options: (1)direct, (2)via proxy and (3)additonal proxy.
+ By default, use two connection options: (1) and (2). (2)Proxy server specifies via command line options -ph, -pp.
+ Added command-line options to add the additional proxy server to the connection list.
+    -connectlist3 - if it specifies then connection list has 3 options.
+    -ph2 <proxy host> specifies proxy host name for case (3), by default: webproxy.pln.colo.services.
+    -pp2 <proxy port> specifies proxy port for case (3), by default: 80.
+
+vaconsumer-PH-001: Alter VAConsumer to add command-line options for testing Preferred host feature.
+    -reconnectAttemptLimit <integer value> specifies the maximum number of times the RsllReactor will attempt to reconnect a channel. If set to -1, there is no limit
+    -reconnectMinDelay <milliseconds> specifies the minimum time the RsslReactor will wait before attempting to reconnect
+    -reconnectMaxDelay <milliseconds> specifies the maximum time the RsslReactor will wait before attempting to reconnect
+
+
+Module:  MultiCred Watchlist Consumer
+---------------------------
+multicredwlconsumer-PH-001: Alter MultiCredWLConsumer to add command-line options for requesting list of items with different serviceName to test Preferred host feature.
+    from
+    -s SERVICE -mp ITEM
+    to
+    -mp SERVICE1:ITEM1 -mp SERVICE2:ITEM2
+
 
 Module:  Watchlist Consumer
 ---------------------------
@@ -183,6 +226,9 @@ the following command line inputs.
     "-maxDelay"  input that permits user to specify ReconnectMaxDelay
 Sample usage: -h2 localhost -p2 14025 -h3 localhost -p3 14026 -attempLimit -1 -numConnections 3 -minDelay 5000 -maxDelay 30000
 
+wlconsumer-RtoRecovery-001: Alters WLConsumer to get use the RTSDK apigateway test tool to delay the response of the token reissue at least 5 seconds
+before calling the rsslReactorQueryServiceDiscovery() method to establish a reactor channel after closing the previous one.
+
 Module:  Provider 
 -----------------
 
@@ -208,6 +254,8 @@ provider-Multi-001: Alters Provider to enable serverSharedSocket = RSSL_TRUE.
 
 provider-Ws-001: Alter Provider to add test options for Websocket transport which are; -testCompressionZlib, -compressionLevel
 
+provider-Ws-002: Alter Provider to work with Websocket json blocking mode. Test option: -serverBlockingMode, -channelsBlockingMode
+
 provider-DebugDump-001: Alter Provider to print debug dumps and add options -dumpIpcIn, -dumpIpcOut, -dumpIpcComp, -dumpIpcInit, -dumpRsslIn, -dumpRsslOut.
 	Sample usage for sending source directory response.
 	./Provider -pl "rssl.json.v2,rssl.rwf" -dumpRsslOut
@@ -215,6 +263,7 @@ provider-DebugDump-001: Alter Provider to print debug dumps and add options -dum
 
 provider-TracePing-001: Alters Provider to trace Ping messages. Add option -xping, -x1, -xnowrite, -xnoread.
 
+provider-ExtConn-001: Alters Provider to support 32 connections.
 
 Module:  VA Provider 
 -----------------
@@ -239,6 +288,10 @@ It allows sending and handling Generic messages before VAProvider sends a login 
 Sample usage: VAProvider -rtt -delaySendLoginRefresh 2
 VAConsumer -rtt; Consumer -rtt
 
+vaprovider-LoginReject-001:  Alters VAProvider to act like an RTO forced disconnect during RTO maintenance window on the number of main-loop cycles (added test option "-ni <count>").
+Sample usage: VAProvider -ni 5
+VAConsumer; Consumer
+
 vaprovider-TsFrag-001:  Alter VAProvider to validate incoming tunnel stream message content to have "1, 2, 3...255".  If the content is as expected, this code change prints a "TEST PASSED".  This code change works in conjunction with vaconsumer-TsFrag-001.
 
 vaprovider-TsFrag-002:  Alter VAProvider to validate incoming tunnel stream message as a generic message with opaque buffer data body of "1, 2, 3....255" repeated.  If the content is as expected, this code change prints a "TEST PASSED".  This code change works in conjunction with vaconsumer-TsFrag-002.
@@ -246,6 +299,10 @@ vaprovider-TsFrag-002:  Alter VAProvider to validate incoming tunnel stream mess
 vaprovider-Ws-001: Alter VAProvider to add test options for Websocket transport which are; -testCompressionZlib, -compressionLevel, -sendGenericMessage and -jsonExpandEnum
 
 vaprovider-Ws-002: Alter VAProvider to add test options for Websocket transport -catchUnknownJsonKeys and decode FieldList data
+
+vaprovider-Ws-003: Alter VAProvider to work with Websocket json blocking mode. Test option: -serverBlockingMode, -channelsBlockingMode
+
+
 
 Module:  NIProvider 
 -----------------
@@ -257,6 +314,8 @@ Module: Reactor
 -----------------
 
 etareactor-001: Alters reactor worker thread to print calculated reconnect delay for connection recovery
+
+etareactor-curlparams-001: Alter reactor rest client to print curl proxy settings for rest requests
 
 etacconsperf-Rto-001
     Performance tool with ability to connect to RTO. Requests one item by default; this item is the 1st one in the list specified in 350k.xml
@@ -281,6 +340,7 @@ eta-rsslWrite-001: Alters ETA methods rsslWrite and rsslWriteEx to display that 
 	- on the first usage of the method;
 	- every time from call to call when the writeFlags parameter changes its value.
 
+eta-PTimeout-001: Alters ETA runBlockingLibcurlProxyConnection to display curl_easy_setopt's parameters.
 
 Module: Provider Performance tool
 -----------------
@@ -289,3 +349,5 @@ provperf-DebugDump-001: Alter ProvPerf to print debug dumps and add options -dum
 	Sample usage for sending Websocket+JSON packed messages:
 	./ProvPerf -pl "rssl.json.v2,rssl.rwf" -tickRate 1 -updateRate 3 -latencyUpdateRate 0 -maxPackCount 3 -dumpRsslOut
 	./ConsPerf -connType websocket -pl "rssl.json.v2" -tickRate 1 -itemCount 3
+
+provperf-InitCpuIdLib-001: Alter ProvPerf control initialization CpuId library and add option -shouldInitCpuIdLib.

@@ -1,8 +1,8 @@
-﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.              --
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -1159,18 +1159,21 @@ namespace LSEG.Eta.Codec
                 return CodecReturnCode.BUFFER_TOO_SMALL;
             }
 
-            newEncodeBuffer.WritePosition = _startBufPos;
+            int newStartPos = newEncodeBuffer.WritePosition;
+            _clientBuffer.Clear();
+            _clientBuffer.Data(newEncodeBuffer);
 
             // copy ByteBuffer to ByteBuffer.
-            newEncodeBuffer.Put(_buffer.Contents, _startBufPos, _startBufPos + encodedLength);
+            newEncodeBuffer.Put(_buffer.Contents, _startBufPos, encodedLength);
 
             // modify _startBufPos to that of newEncodeBuffer
-            _startBufPos = newEncodeBuffer.Position;
+            _startBufPos = newStartPos;
 
             // realign iterator data
             _curBufPos += offset;
             _endBufPos = endBufPos;
             _buffer = newEncodeBuffer;
+
             _writer._buffer = _buffer;
 
             // modify the iterator marks
@@ -1286,6 +1289,9 @@ namespace LSEG.Eta.Codec
         {
             return ((_curBufPos + length) > _endBufPos) ? true : false;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        internal EncodingLevel GetCurrentLevelInfo() => _levelInfo[_encodingLevel];
 
     }
 }

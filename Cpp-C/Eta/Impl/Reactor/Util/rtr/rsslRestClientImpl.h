@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.              --
  *|-----------------------------------------------------------------------------
 */
 
@@ -179,6 +179,7 @@ typedef struct {
 	void*					pUserSpecPtr;		/*!<a user specified pointer, possibly a closure. */
 	RsslRestNetworkArgs		networkArgs;		/*!<specifies network arguments if any. */
 	RsslUInt32				requestTimeOut;		/*!<specifies maximum time the request is allowed to take, in seconds. */
+	RsslBool				restVerboseMode;	/*!<Enable Verbose REST debug messages. */
 } RsslRestRequestArgs;
 
 /**
@@ -194,6 +195,7 @@ RTR_C_INLINE void rsslClearRestRequestArgs(RsslRestRequestArgs *rsslRestRequestA
 	rsslRestRequestArgs->pUserSpecPtr = 0;
 	rsslClearRestNetworkArgs(&rsslRestRequestArgs->networkArgs);
 	rsslRestRequestArgs->requestTimeOut = 0; /* Never timeout during transfer and waiting for a response */
+	rsslRestRequestArgs->restVerboseMode = RSSL_FALSE;
 }
 
 /**
@@ -317,7 +319,7 @@ typedef struct {
 	RsslBuffer      *locationList;   /*!< A list of locations. The list indicates the location of the service. */
 	RsslUInt32      locationCount;   /*!< The number of locations in locationList. */
 	RsslBuffer      port;            /*!< A port number used to establish connection. */
-	RsslBuffer      provider;        /*!< A public Refinitiv Real-Time - Optimized provider. */
+	RsslBuffer      provider;        /*!< A public Real-Time - Optimized provider. */
 	RsslBuffer      transport;       /*!< A transport type used to access service. */
 } RsslRestServiceEndpointInfo;
 

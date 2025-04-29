@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2023 Refinitiv. All rights reserved.              --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2023-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -17,12 +17,11 @@ using Xunit;
 using Xunit.Categories;
 
 using LSEG.Eta.Common;
-using LSEG.Eta.Transports;
 
 namespace LSEG.Eta.Transports.Tests;
 
 [Category("TransportLock")]
-public class TransportLockTests
+public class TransportLockTests : IDisposable
 {
     #region Utilities
 
@@ -1280,9 +1279,9 @@ public class TransportLockTests
         public override string ToString()
         {
             return $"RunTime={RunTime}"
-                + $"\t\tclientSessionCount={ClientSessionCount}\tthreadsPerChannels={ThreadsPerChannels}\n"
-                + $"messageSize={MessageSize}\tflushInterval={FlushInterval}\tguaranteedOutputBuffers={GuaranteedOutputBuffers}\n"
-                + $"GlobalLocking={GlobalLocking}\twriteLocking={WriteLocking}\tblocking={Blocking}\npacking={Packing}\t\tcallWriteWithPackedMessage={CallWriteWithPackedMessage}\n"
+                + $"\t\tclientSessionCount={ClientSessionCount}\tthreadsPerChannels={ThreadsPerChannels}{NewLine}"
+                + $"messageSize={MessageSize}\tflushInterval={FlushInterval}\tguaranteedOutputBuffers={GuaranteedOutputBuffers}{NewLine}"
+                + $"GlobalLocking={GlobalLocking}\twriteLocking={WriteLocking}\tblocking={Blocking}\npacking={Packing}\t\tcallWriteWithPackedMessage={CallWriteWithPackedMessage}{NewLine}"
                 + $"CompressionType={CompressionType}\tcompressionLevel={CompressionLevel}\tmaxMessageCount={MaxMessageCount}";
         }
     }
@@ -2108,7 +2107,7 @@ public class TransportLockTests
 
         if (!WaitForStateRunning(server))
         {
-            Assert.True(false, "server terminated while waiting for RUNNING state, error="
+            Assert.Fail("server terminated while waiting for RUNNING state, error="
                                + server.ErrorMsg);
         }
         else
@@ -2138,7 +2137,7 @@ public class TransportLockTests
             if (result != null)
             {
                 if (server.ErrorMsg == null)
-                    Assert.True(false, result);
+                    Assert.Fail(result);
                 else
                     Console.WriteLine("server failed (errorMsg to follow) and comparison of stats failed with: "
                                         + result);
@@ -2147,8 +2146,13 @@ public class TransportLockTests
 
         // If a server failure occurred, fail the test.
         if (server.ErrorMsg != null)
-            Assert.True(false, server.ErrorMsg);
+            Assert.Fail(server.ErrorMsg);
     }
 
+    public void Dispose()
+       => Transport.Clear();
+
+    public TransportLockTests()
+        => Transport.Clear();
     #endregion
 }

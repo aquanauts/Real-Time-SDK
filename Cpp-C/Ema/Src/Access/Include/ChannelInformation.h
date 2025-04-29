@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2020 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2020, 2024-2025 LSEG. All rights reserved.         --
  *|-----------------------------------------------------------------------------
  */
 
@@ -27,6 +27,7 @@
 */   
 
 #include "Access/Include/EmaString.h"
+#include "PreferredHostInfo.h"
 
 namespace refinitiv {
 
@@ -35,6 +36,7 @@ namespace ema {
 namespace access {
 
 class EmaString;
+class ChannelInfoImpl;
 
 class EMA_ACCESS_API ChannelInformation
 {
@@ -67,7 +69,7 @@ public:
 								receive networks are different */
 	Ext_Line_SocketEnum = 5,  /*!< (5) Channel is using an extended line socket transport */
 	Seq_McastEnum = 6,        /*!< (6) Channel is an unreliable, sequenced multicast connection
-								for reading from a Refinitiv Real-Time Direct Feed system. This is a
+								for reading from a LSEG Real-Time Direct Feed system. This is a
 								client-only, read-only transport. This transport is supported on
 								Linux only. */
 	WebSocketEnum = 7,        /*!< (7) Channel is a WebSocket connection based tunneling type */
@@ -79,7 +81,7 @@ public:
   enum ProtocolType
   {
 	UnknownEnum = -1,		/*!< (-1) Unknown wireformat protocol */
-	RwfEnum = 0,			/*!< (0) Refinitiv wireformat protocol */
+	RwfEnum = 0,			/*!< (0) LSEG wireformat protocol */
 	RsslJsonEnum = 2		/*!< (2) Rssl JSON protocol */
   };
 
@@ -234,7 +236,23 @@ public:
   */
   UInt64 getEncryptionProtocol() const { return _encryptionProtocol; }
 
-  /** Gets a string representation of the class instance.
+
+	/** Gets configured name of the connection
+	@return The name of the connection, as defined by the configuration.
+	*/	
+	EmaString getName() const { return _name; }
+
+	/** Gets session name of the connection
+	@return The name of the session that contains this connection
+	*/
+	EmaString getSessionName() const { return _sessionName; }
+
+  /** Gets the preferred host information
+	@return Preferred host information for current channel 
+  */
+  const PreferredHostInfo& getPreferredHostInfo() const { return _preferredHostInfo; }
+
+  /** Gets a string representation of the class instance
 	  @return string representation of the class instance.
   */
   const EmaString& toString() const;
@@ -243,12 +261,25 @@ public:
 	  \remark invokes toString.c_str()
 	  @return a NULL terminated character string representation of this object
   */
-	operator const char* () const;
+  operator const char* () const;
   
   //@}
 
   ///@name Operations
   //@{
+
+	/** Specifies name
+		@param[in] name specifies name as a string
+		@return reference to this object
+	*/
+	ChannelInformation& name(const EmaString& name);
+
+	/** Specifies session name
+		@param[in] sessionName specifies name as a string
+		@return reference to this object
+	*/
+	ChannelInformation& sessionName(const EmaString& sessionName);
+
   /** Specifies hostname
 	  @param[in] hostname specifies hostname as a string
 	  @return reference to this object
@@ -367,6 +398,8 @@ public:
 private:
   ChannelState _channelState;
   ConnectionType _connectionType;
+  EmaString _name;
+  EmaString _sessionName;
   EmaString _hostname;
   EmaString _ipAddress;
   UInt16 _port;
@@ -384,7 +417,12 @@ private:
   CompressionType _compressionType;
   UInt32 _compressionThreshold;
   UInt64 _encryptionProtocol;
+  PreferredHostInfo _preferredHostInfo;
   mutable EmaString _toString;
+
+  ChannelInformation& preferredHostInfo(void* preferredHostInfo, const void* channel);
+
+  friend class ChannelInfoImpl;
 };
 
 }

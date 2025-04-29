@@ -1,12 +1,15 @@
 ///*|-----------------------------------------------------------------------------
-// *|            This source code is provided under the Apache 2.0 license      --
-// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
-// *|                See the project's LICENSE.md for details.                  --
-// *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+// *|            This source code is provided under the Apache 2.0 license
+// *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+// *|                See the project's LICENSE.md for details.
+// *|           Copyright (C) 2019-2024 LSEG. All rights reserved.     
 ///*|-----------------------------------------------------------------------------
 
 package com.refinitiv.ema.access;
 
+
+import java.util.Map;
+import java.util.HashMap;
 
 import com.refinitiv.ema.access.OmmLoggerClient.Severity;
 import com.refinitiv.ema.access.ProgrammaticConfigure.InstanceEntryFlag;
@@ -16,6 +19,7 @@ class OmmConsumerConfigImpl extends EmaConfigImpl implements OmmConsumerConfig
 {
 	private int 				_operationModel;
 	private DataDictionary 		dataDictionary;
+	private Map<String, ServiceListImpl> 	_serviceListMap;
 	
 	OmmConsumerConfigImpl()
 	{
@@ -150,6 +154,43 @@ class OmmConsumerConfigImpl extends EmaConfigImpl implements OmmConsumerConfig
 	public OmmConsumerConfig host(String host)
 	{
 		hostInt(host, OmmConsumerActiveConfig.DEFAULT_CONSUMER_SERVICE_NAME);
+		return this;
+	}
+
+	@Override
+	public OmmConsumerConfig channelType(int connectionType)
+	{
+		if (    connectionType != EmaConfig.ConnectionType.SOCKET &&
+				connectionType != EmaConfig.ConnectionType.ENCRYPTED &&
+				connectionType != EmaConfig.ConnectionType.HTTP &&
+				connectionType != EmaConfig.ConnectionType.WEBSOCKET)
+		{
+			StringBuilder temp = new StringBuilder();
+			temp.append("Try to pass invalid argument:");
+			temp.append(connectionType);
+			temp.append(" to channelType(). Please use channel types present in EmaConfig.ConnectionTypeEnum.");
+			throw ommIUExcept().message(temp.toString(), OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		}
+
+		channelTypeInt(connectionType);
+		return this;
+	}
+
+	@Override
+	public OmmConsumerConfig encryptedProtocolType(int encProtocolType)
+	{
+		if (    encProtocolType != EmaConfig.EncryptedProtocolType.SOCKET &&
+				encProtocolType != EmaConfig.EncryptedProtocolType.HTTP &&
+				encProtocolType != EmaConfig.EncryptedProtocolType.WEBSOCKET)
+		{
+			StringBuilder temp = new StringBuilder();
+			temp.append("Try to pass invalid argument:");
+			temp.append(encProtocolType);
+			temp.append(" to encryptedProtocolType(). Please use channel types present in EmaConfig.EncryptedProtocolTypeEnum.");
+			throw ommIUExcept().message(temp.toString(), OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		}
+
+		encProtocolTypeInt(encProtocolType);
 		return this;
 	}
 
@@ -295,6 +336,21 @@ class OmmConsumerConfigImpl extends EmaConfigImpl implements OmmConsumerConfig
 		return warmStandbyChannelSet;
 	}
 	
+	String sessionChannel(String instanceName)
+	{
+		String sessionChannel = null;
+
+		if ( _programmaticConfigure != null )
+		{
+			sessionChannel = _programmaticConfigure.activeEntryNames(instanceName, InstanceEntryFlag.SESSION_CHANNEL_FLAG);
+			if (sessionChannel != null)
+				return sessionChannel;
+		}
+	
+		sessionChannel = (String) xmlConfig().getConsumerAttributeValue(instanceName, ConfigManager.ConsumerSessionChannelSet);
+		return sessionChannel;
+	}
+	
 	String dictionaryName(String instanceName)
 	{
 		String dictionaryName = null;
@@ -392,6 +448,13 @@ class OmmConsumerConfigImpl extends EmaConfigImpl implements OmmConsumerConfig
 		encryptionCfg().SecurityProtocol = securityProtocol;
 		return this;
 	}
+	
+	@Override
+	public OmmConsumerConfig tunnelingSecurityProtocolVersions(String[] securityProtocolVersions)
+	{
+		encryptionCfg().SecurityProtocolVersions = securityProtocolVersions;
+		return this;
+	}
 
 	@Override
 	public OmmConsumerConfig tunnelingSecurityProvider(String securityProvider)
@@ -439,4 +502,85 @@ class OmmConsumerConfigImpl extends EmaConfigImpl implements OmmConsumerConfig
 		return dataDictionary;
 	}
 	
+	@Override
+	public OmmConsumerConfig restProxyHostName(String restProxyHostName)
+	{
+		restProxyHostNameInt(restProxyHostName);
+		return this;
+	}
+	
+	@Override
+	public OmmConsumerConfig restProxyPort(String restProxyPort)
+	{
+		restProxyPortInt(restProxyPort);
+		return this;
+	}
+	
+	@Override
+	public OmmConsumerConfig restProxyUserName(String restProxyUserName)
+	{
+		restProxyUserNameInt(restProxyUserName);
+		return this;
+	}
+	
+	@Override
+	public OmmConsumerConfig restProxyPasswd(String restProxyPasswd)
+	{
+		restProxyPasswdInt(restProxyPasswd);
+		return this;
+	}
+	
+	@Override
+	public OmmConsumerConfig restProxyDomain(String restProxyDomain)
+	{
+		restProxyDomainInt(restProxyDomain);
+		return this;
+	}
+	
+	@Override
+	public OmmConsumerConfig restProxyLocalHostName(String restProxyLocalHostName)
+	{
+		restProxyLocalHostNameInt(restProxyLocalHostName);
+		return this;
+	}
+	
+	@Override
+	public OmmConsumerConfig restProxyKrb5ConfigFile(String restProxyKrb5ConfigFile)
+	{
+		restProxyKrb5ConfigFileInt(restProxyKrb5ConfigFile);
+		return this;
+	}
+
+	@Override
+	public OmmConsumerConfig addServiceList(ServiceList serviceList) 
+	{
+		if(serviceList.name() == null || serviceList.name().isEmpty())
+		{
+			_serviceListMap = null;
+			throw ommIUExcept().message("The ServiceList's name must be non-empty string value.",
+					OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		}
+		
+		if(_serviceListMap == null)
+		{
+			_serviceListMap = new HashMap<String, ServiceListImpl>();
+		}
+		
+		if(_serviceListMap.containsKey(serviceList.name()))
+		{
+			_serviceListMap = null;
+			throw ommIUExcept().message("The " + serviceList.name() + " name of ServiceList has been added to OmmConsumerConfig.",
+					OmmInvalidUsageException.ErrorCode.INVALID_ARGUMENT);
+		}
+		
+		/* Deep copy of the passed in ServiceList and keeps a list of ServiceList for handling by ConsumerSession */
+		_serviceListMap.put(serviceList.name(), new ServiceListImpl((ServiceListImpl)serviceList));
+		
+		return this;
+	}
+	
+	Map<String, ServiceListImpl> serviceListMap()
+	{
+		return _serviceListMap;
+	}
 }

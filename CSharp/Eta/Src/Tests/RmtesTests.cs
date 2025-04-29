@@ -1,8 +1,8 @@
 ﻿/*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2022-2023 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2022-2024 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -109,9 +109,9 @@ namespace LSEG.Eta.Tests
 
          1B = Escape
          21 = ESC_21
-         40 = Refinitiv Ctrl 1 to CL
+         40 = LSEG Ctrl 1 to CL
          22 = ESC_22
-         30 = Refinitiv Ctrl 2 to CR
+         30 = LSEG Ctrl 2 to CR
          24 = ESC_24
          28 = ESC_24_28
          47 = G0 = Chinese1
@@ -142,12 +142,12 @@ namespace LSEG.Eta.Tests
          2B = ESC_26_40_ESC_24_2B
          42 = G3 = JapaneseKanji
          28 = ESC_28
-         42 = G0 = Refinitiv Basic 1
+         42 = G0 = LSEG Basic 1
          49 = G0 = JapaneseKatakana
          4A = G0 = JapaneseLatin
          29 = ESC_29
-         31 = G1 = Refinitiv Basic 2
-         42 = G1 = Refinitiv Basic 1
+         31 = G1 = LSEG Basic 2
+         42 = G1 = LSEG Basic 1
          49 = G1 = JapaneseKatakana
          4A = G1 = JapaneseLatin
          2A = ESC_2A
@@ -213,7 +213,7 @@ namespace LSEG.Eta.Tests
                 retVal = decoder.RMTESApplyToCache(inBuffer, cacheBuffer);
                 if (retVal < CodecReturnCode.SUCCESS)
                 {
-                    Console.Write("Error in RMTESApplyToCache: " + retVal.GetAsString() + "\n");
+                    Console.Write("Error in RMTESApplyToCache: " + retVal.GetAsString() + NewLine);
                 }
 
                 // Fully clear out buffer because the tests do not account for previous partial update existences
@@ -244,7 +244,7 @@ namespace LSEG.Eta.Tests
                     if (i % 2 != 0)
                         Console.Write(" ");
                 }
-                Console.Write("\n");
+                Console.WriteLine();
 
                 // Validation
                 byte[] endResult = testCase.endResult();
@@ -256,12 +256,12 @@ namespace LSEG.Eta.Tests
                     if (i % 2 != 0)
                         Console.Write(" ");
                 }
-                Console.Write("\n");
+                Console.WriteLine();
                 for (int i = 0; i < endResult.Length; ++i)
                 {
                     if (endResult[i] != rmtesBuffer.Data.Contents[i])
                     {
-                        Console.Write("Assert error on above test\n");
+                        Console.WriteLine($"Assert error on above test");
                     }
                     Assert.Equal(endResult[i], rmtesBuffer.Data.Contents[i]);
                 }
@@ -331,6 +331,18 @@ namespace LSEG.Eta.Tests
 
             String str2 = Encoding.UTF8.GetString(rmtesBuffer.Data.Contents, 0, rmtesBuffer.Length);
             Assert.Equal(0, String.CompareOrdinal(stringText2, 0, str2, 0, stringText2.Length));
+
+            char[] inBuf3 = { (char)0x1B, '%', '0', 'C', 'P', 'I' };
+            String inBuf3String = new String(inBuf3);
+
+            inBuffer.Data(inBuf3String);
+
+            decoder.RMTESApplyToCache(inBuffer, cacheBuffer);
+            decoder.RMTESToUTF8(rmtesBuffer, cacheBuffer);
+
+            String stringText3 = "CPI";
+            String str3 = Encoding.UTF8.GetString(rmtesBuffer.Data.Contents, 0, rmtesBuffer.Length);
+            Assert.Equal(0, String.CompareOrdinal(stringText3, 0, str3, 0, stringText3.Length));
         }
 
         [Fact]
@@ -641,7 +653,7 @@ namespace LSEG.Eta.Tests
 
             RmtesInfo tempInfo;
 
-            Console.Write("Control Parse Tests:\n\n");
+            Console.Write($"Control Parse Tests:{NewLine}{NewLine}");
 
             WorkingSetSetup();
 
@@ -659,16 +671,16 @@ namespace LSEG.Eta.Tests
                 retCode = tempInfo.ESCRetCode;
 
                 Assert.Equal(curTest.expectedRet, retCode);
-                Console.Write("retCode = " + retCode + "\n");
+                Console.WriteLine("retCode = " + retCode);
                 Assert.Equal(curTest.returnValue, ret);
-                Console.Write("ret = " + ret + "\n");
+                Console.WriteLine("ret = " + ret);
 
                 Assert.True(curTest.endSet.G0.Equals(testSet.G0));
                 Console.Write("testSet.G0 = " + testSet.G0 + ", curTest.endSet.G0 = "
                                    + curTest.endSet.G0);
                 Assert.True(curTest.endSet.G1.Equals(testSet.G1));
-                Console.Write("testSet.G1 = " + testSet.G1 + ", curTest.endSet.G1 = "
-                                   + curTest.endSet.G1 + "\n");
+                Console.WriteLine("testSet.G1 = " + testSet.G1 + ", curTest.endSet.G1 = "
+                                   + curTest.endSet.G1);
                 Assert.True(curTest.endSet.G2.Equals(testSet.G2));
                 Assert.True(curTest.endSet.G3.Equals(testSet.G3));
 

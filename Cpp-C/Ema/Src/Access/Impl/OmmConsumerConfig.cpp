@@ -1,13 +1,14 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|          Copyright (C) 2019-2022 Refinitiv. All rights reserved.          --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|          Copyright (C) 2019-2025 LSEG. All rights reserved.               --
  *|-----------------------------------------------------------------------------
  */
 
 #include "OmmConsumerConfig.h"
 #include "OmmConsumerConfigImpl.h"
+#include "OmmInvalidUsageException.h"
 
 using namespace refinitiv::ema::access;
 
@@ -62,6 +63,12 @@ OmmConsumerConfig& OmmConsumerConfig::password(const EmaString& password)
 OmmConsumerConfig& OmmConsumerConfig::position(const EmaString& position)
 {
 	_pImpl->position(position);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::applicationName(const EmaString& applicationName)
+{
+	_pImpl->applicationName(applicationName);
 	return *this;
 }
 
@@ -134,6 +141,39 @@ OmmConsumerConfig& OmmConsumerConfig::serviceDiscoveryUrl(const EmaString& servi
 OmmConsumerConfig& OmmConsumerConfig::host(const EmaString& host)
 {
 	_pImpl->host(host);
+	return *this;
+}
+
+OmmConsumerConfig&  OmmConsumerConfig::channelType(EmaConfig::ConnectionTypeEnum channelType)
+{
+	if (channelType != EmaConfig::ConnectionTypeEnum::SOCKET &&
+		channelType != EmaConfig::ConnectionTypeEnum::ENCRYPTED &&
+		channelType != EmaConfig::ConnectionTypeEnum::HTTP &&
+		channelType != EmaConfig::ConnectionTypeEnum::WEBSOCKET)
+	{
+		refinitiv::ema::access::EmaString tmp("Try to pass invalid argument: ");
+		tmp.append((int)channelType);
+		tmp.append(" to channelType(). Please use channel types present in EmaConfig::ConnectionTypeEnum.");
+		throwIueException(tmp, OmmInvalidUsageException::InvalidArgumentEnum);
+	}
+
+	_pImpl->channelType((RsslConnectionTypes)channelType);
+	return *this;
+}
+
+OmmConsumerConfig&  OmmConsumerConfig::encryptedProtocolType(EmaConfig::EncryptedProtocolTypeEnum encProtocolType)
+{
+	if (encProtocolType != EmaConfig::EncryptedProtocolTypeEnum::SOCKET &&
+		encProtocolType != EmaConfig::EncryptedProtocolTypeEnum::HTTP &&
+		encProtocolType != EmaConfig::EncryptedProtocolTypeEnum::WEBSOCKET)
+	{
+		refinitiv::ema::access::EmaString tmp("Try to pass invalid argument: ");
+		tmp.append((int)encProtocolType);
+		tmp.append(" to encryptedProtocolType(). Please use channel types present in EmaConfig::EncryptedProtocolTypeEnum.");
+		throwIueException(tmp, OmmInvalidUsageException::InvalidArgumentEnum);
+	}
+
+	_pImpl->encryptedProtocolTypes((RsslConnectionTypes)encProtocolType);
 	return *this;
 }
 
@@ -284,5 +324,54 @@ OmmConsumerConfig& OmmConsumerConfig::workerThreadBind(const EmaString& cpuStrin
 OmmConsumerConfig& OmmConsumerConfig::apiThreadBind(const EmaString& cpuString)
 {
 	_pImpl->setCpuApiThreadBind(cpuString);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::shouldInitializeCPUIDlib(bool shouldInitCPUIDlib)
+{
+	_pImpl->setShouldInitializeCPUIDlib(shouldInitCPUIDlib);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::dataDictionary(const refinitiv::ema::rdm::DataDictionary& dataDictionary, bool shouldCopyIntoAPI)
+{
+	_pImpl->dataDictionary(dataDictionary, shouldCopyIntoAPI);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::restProxyHostName(const EmaString& restProxyHostName)
+{
+	_pImpl->restProxyHostName(restProxyHostName);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::restProxyPort(const EmaString& restProxyPort)
+{
+	_pImpl->restProxyPort(restProxyPort);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::restProxyUserName(const EmaString& restProxyUserName)
+{
+	_pImpl->restProxyUserName(restProxyUserName);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::restProxyPasswd(const EmaString& restProxyPasswd)
+{
+	_pImpl->restProxyPasswd(restProxyPasswd);
+	return *this;
+}
+
+OmmConsumerConfig& OmmConsumerConfig::restProxyDomain(const EmaString& restProxyDomain)
+{
+	_pImpl->restProxyDomain(restProxyDomain);
+	return *this;
+}
+
+
+OmmConsumerConfig& OmmConsumerConfig::addServiceList(const ServiceList& serviceList)
+{
+	_pImpl->addServiceList(serviceList);
 	return *this;
 }

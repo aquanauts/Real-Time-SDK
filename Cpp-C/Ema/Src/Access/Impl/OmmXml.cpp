@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019 LSEG. All rights reserved.                 --
  *|-----------------------------------------------------------------------------
  */
 
@@ -26,9 +26,9 @@ OmmXml::~OmmXml()
 {
 	_pDecoder->~OmmXmlDecoder();
 
-	if ( _pEncoder && !GlobalPool::isFinalState() )
+	if ( _pEncoder )
 	{
-		g_pool._ommXmlEncoderPool.returnItem( _pEncoder );
+		g_pool.returnItem( _pEncoder );
 	}
 }
 
@@ -86,7 +86,7 @@ const EmaBuffer& OmmXml::getBuffer() const
 OmmXml& OmmXml::set( const EmaBuffer& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ommXmlEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmXmlEncoderItem();
 
 	_pEncoder->set( value );
 
@@ -96,7 +96,7 @@ OmmXml& OmmXml::set( const EmaBuffer& value )
 OmmXml& OmmXml::set( const EmaString& value )
 {
 	if ( !_pEncoder )
-		_pEncoder = g_pool._ommXmlEncoderPool.getItem();
+		_pEncoder = g_pool.getOmmXmlEncoderItem();
 
 	_pEncoder->set( value );
 

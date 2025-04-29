@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -38,6 +38,7 @@ class UpdateMsg;
 class OmmAnsiPage;
 class OmmOpaque;
 class OmmXml;
+class OmmJson;
 
 class FieldListEncoder : public Encoder
 {
@@ -48,6 +49,8 @@ public :
 	virtual ~FieldListEncoder();
 
 	void clear();
+
+	void release();
 
 	void info( Int16 dictionaryId, Int16 fieldListNum );
 
@@ -80,6 +83,8 @@ public :
 	void addOpaque( Int16 fieldId, const OmmOpaque& value );
 
 	void addXml( Int16 fieldId, const OmmXml& value );
+
+	void addJson( Int16 fieldId, const OmmJson& value );
 
 	void addAnsiPage( Int16 fieldId, const OmmAnsiPage& value );
 
@@ -168,6 +173,8 @@ private :
 	RsslFieldList			_rsslFieldList;
 
 	RsslFieldEntry			_rsslFieldEntry;
+
+	DataType::DataTypeEnum	_emaLoadType;
 
 	bool					_containerInitialized;
 };

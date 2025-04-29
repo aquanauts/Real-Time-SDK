@@ -2,10 +2,11 @@
  * This source code is provided under the Apache 2.0 license and is provided
  * AS IS with no warranty or guarantee of fit for purpose.  See the project's 
  * LICENSE.md for details. 
- * Copyright (C) 2019 Refinitiv. All rights reserved.
+ * Copyright (C) 2019 LSEG. All rights reserved.
 */
 
 #include "rtr/wlDirectory.h"
+#include "rtr/rsslReactorImpl.h"
 
 WlDirectoryRequest *wlDirectoryRequestCreate(RsslRDMDirectoryRequest *pDirectoryReqMsg,
 	   void *pUserSpec, RsslErrorInfo *pErrorInfo)
@@ -190,7 +191,7 @@ RsslRet wlSendDirectoryMsgToRequest(WlBase *pBase, WlDirectoryRequest *pDirector
 		}
 	}
 
-	return (*pBase->config.msgCallback)(&pBase->watchlist, &msgEvent, pErrorInfo);
+	return _reactorWatchlistMsgCallback(&pBase->watchlist, &msgEvent, pErrorInfo);
 }
 
 RsslRet wlSendServiceListToRequest(WlBase *pBase, WlDirectory *pDirectory, 

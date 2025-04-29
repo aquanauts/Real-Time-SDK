@@ -26,7 +26,6 @@
 			<Dictionary value="Dictionary_1"/>
 			
 			<XmlTraceFileName value="EmaMyTrace"/>
-			<XmlTraceToFile value="1"/>
 			<EnableRtt value="0" />
 		</Consumer>
 		<Consumer>
@@ -42,12 +41,18 @@
 			<DispatchTimeoutApiThread value="90"/>
 			<MaxDispatchCountApiThread value="400"/>
 			<MaxDispatchCountUserThread value="5"/>
-			<PipePort value="7001"/>
-			
+
 			<ReconnectAttemptLimit value="10"/>
 			<ReconnectMinDelay value="123" />
 			<ReconnectMaxDelay value="456" />
 			<XmlTraceToStdout value="0" />
+			<XmlTraceToFile value="0" />
+			<XmlTraceMaxFileSize value="40000"/>
+			<XmlTraceFileName value="log_test_server"/>
+			<XmlTraceToMultipleFiles value="0"/>
+			<XmlTraceWrite value="0"/>
+			<XmlTraceRead value="0"/>
+			<XmlTracePing value="0"/>
 			<MsgKeyInUpdates value="1"/>
 			<RestRequestTimeOut value="60000"/>
 			<ReissueTokenAttemptLimit value="5"/>
@@ -55,6 +60,9 @@
 			<TokenReissueRatio value="0.5"/>
 			<EnableRtt value="1" />
 			<SendJsonConvError value="1"/>
+			
+			<RestProxyHostName value="restProxyNonLocalHost"/>
+			<RestProxyPort value="9083"/>
 		</Consumer>
 		<Consumer>
 			<Name value="Consumer_3"/>
@@ -70,6 +78,13 @@
 			<ReconnectMinDelay value="330" />
 			<ReconnectMaxDelay value="450" />
 			<XmlTraceToStdout value="0" />
+			<XmlTraceToFile value="0" />
+			<XmlTraceMaxFileSize value="40000"/>
+			<XmlTraceFileName value="log_test_server"/>
+			<XmlTraceToMultipleFiles value="0"/>
+			<XmlTraceWrite value="0"/>
+			<XmlTraceRead value="0"/>
+			<XmlTracePing value="0"/>
 			<MsgKeyInUpdates value="1"/>
 		</Consumer>
 		<Consumer>
@@ -110,7 +125,7 @@
 			<!-- dictionary is optional: defaulted to "ChannelDictionary" -->
 			<Dictionary value="Dictionary_2"/>
 		</Consumer>
-		<Consumer>
+		<!-- Consumer>
 			<Name value="Check_Multiple_Occurrences"/>
 			<Dictionary value="Dictionary_1"/>
 			<Channel value="C1"/>
@@ -118,12 +133,27 @@
 			<ChannelSet value="CS1"/>
 			<Channel value="C3"/>
 			<ChannelSet value="CS2"/>
-		</Consumer>
+		</Consumer -->
 		<Consumer>
 			<Name value="Consumer_8"/>
 			<WarmStandbyChannelSet value="WarmStandbyChannel_1, WarmStandbyChannel_2"/>
 			<Dictionary value="Dictionary_2"/>
 			<XmlTraceToStdout value="0" />
+			<XmlTraceToFile value="0" />
+			<XmlTraceMaxFileSize value="40000"/>
+			<XmlTraceFileName value="log_test_server"/>
+			<XmlTraceToMultipleFiles value="0"/>
+			<XmlTraceWrite value="0"/>
+			<XmlTraceRead value="0"/>
+			<XmlTracePing value="0"/>
+		</Consumer>
+		<Consumer>
+			<Name value="Consumer_9"/>
+			<SessionChannelSet value="Connection_1, Connection_2"/>
+			<Dictionary value="Dictionary_2"/>
+			<ReconnectAttemptLimit value="10"/>
+			<ReconnectMinDelay value="2000" />
+			<ReconnectMaxDelay value="6000" />
 		</Consumer>
 	</ConsumerList>
 </ConsumerGroup>
@@ -153,6 +183,13 @@
 			<Directory value="Directory_1"/>
 			
 			<XmlTraceToStdout value="0"/>
+			<XmlTraceToFile value="0"/>
+			<XmlTraceMaxFileSize value="40000"/>
+			<XmlTraceFileName value="log_test_server"/>
+			<XmlTraceToMultipleFiles value="0"/>
+			<XmlTraceWrite value="0"/>
+			<XmlTraceRead value="0"/>
+			<XmlTracePing value="0"/>
 		</NiProvider>
 		
 		<NiProvider>
@@ -163,6 +200,13 @@
 			<Directory value="Directory_2"/>
 			
 			<XmlTraceToStdout value="0"/>
+			<XmlTraceToFile value="0"/>
+			<XmlTraceMaxFileSize value="40000"/>
+			<XmlTraceFileName value="log_test_server"/>
+			<XmlTraceToMultipleFiles value="0"/>
+			<XmlTraceWrite value="0"/>
+			<XmlTraceRead value="0"/>
+			<XmlTracePing value="0"/>
 		</NiProvider>
 		
 		<NiProvider>
@@ -172,15 +216,16 @@
 			<ChannelSet value="Channel_2, Channel_3"/>
 			<Channel	value="Channel_1"/>
 
-			<Directory value="Directory_3"/>
+			<Directory value="Directory_2"/>
 			
 			<ReconnectAttemptLimit value="5"/>
 			<ReconnectMinDelay value="330" />
 			<ReconnectMaxDelay value="450" />
-			<XmlTraceFileName value="EmaMyTrace3"/>
+			<!-- XmlTraceFileName value="EmaMyTrace3"/ -->
 			<XmlTraceMaxFileSize value="66666666" />
-			<XmlTraceToFile value="1" />
 			<XmlTraceToStdout value="0" />
+			<XmlTraceToFile value="0" />
+			<XmlTraceFileName value="log_test_server"/>
 			<XmlTraceToMultipleFiles value="1" />
 			<XmlTraceWrite value="1"/>
 			<XmlTraceRead value="1"/>
@@ -217,9 +262,7 @@
 			<MaxDispatchCountApiThread value="500" />
 			
 			<MaxDispatchCountUserThread value="500" />
-			
-			<PipePort value="9009" />
-			
+
 			<RefreshFirstRequired value="1" />
         </IProvider>
 		<IProvider>
@@ -242,8 +285,14 @@
 			<DispatchTimeoutApiThread value="90"/>
 			<MaxDispatchCountApiThread value="400"/>
 			<MaxDispatchCountUserThread value="5"/>
-			<PipePort value="7001"/>
 			<XmlTraceToStdout value="0" />
+			<XmlTraceToFile value="0" />
+			<XmlTraceMaxFileSize value="40000"/>
+			<XmlTraceFileName value="log_test_server"/>
+			<XmlTraceToMultipleFiles value="0"/>
+			<XmlTraceWrite value="0"/>
+			<XmlTraceRead value="0"/>
+			<XmlTracePing value="0"/>
         </IProvider>
 		<IProvider>
             <!-- Name is mandatory                                                                       -->
@@ -266,9 +315,7 @@
 			<MaxDispatchCountApiThread value="500" />
 			
 			<MaxDispatchCountUserThread value="500" />
-			
-			<PipePort value="9009" />
-			
+
 			<RefreshFirstRequired value="1" />
         </IProvider>
     </IProviderList>
@@ -503,6 +550,32 @@
         </Server>
     </ServerList>
 </ServerGroup>
+
+<SessionChannelGroup>
+        <SessionChannelList>
+                <SessionChannelInfo>
+                        <Name value="Connection_1"/>
+                        <ChannelSet value="Channel_1,Channel_2,Channel_3"/>
+                        <ReconnectAttemptLimit value="10"/>
+                        <ReconnectMinDelay value="2000"/>
+                        <ReconnectMaxDelay value="6000"/>
+                </SessionChannelInfo>
+                <SessionChannelInfo>
+                        <Name value="Connection_2"/>
+                        <ChannelSet value="Channel_4,Channel_5"/>
+                        <ReconnectAttemptLimit value="4"/>
+                        <ReconnectMinDelay value="3000"/>
+                        <ReconnectMaxDelay value="4000"/>
+                </SessionChannelInfo>
+				<SessionChannelInfo>
+                        <Name value="Connection_3"/>
+                        <WarmStandbyChannelSet value="WarmStandbyChannel_1, WarmStandbyChannel_2"/>
+                        <ReconnectAttemptLimit value="40"/>
+                        <ReconnectMinDelay value="5000"/>
+                        <ReconnectMaxDelay value="8000"/>
+                </SessionChannelInfo>
+        </SessionChannelList>
+</SessionChannelGroup>
 
 <!-- source directory refresh configuration used by provider											-->
 <DirectoryGroup>

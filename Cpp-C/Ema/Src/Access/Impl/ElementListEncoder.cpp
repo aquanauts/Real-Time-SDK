@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.
  *|-----------------------------------------------------------------------------
  */
 
@@ -22,6 +22,7 @@
 #include "OmmAnsiPage.h"
 #include "OmmOpaque.h"
 #include "OmmXml.h"
+#include "OmmJson.h"
 #include "AckMsg.h"
 #include "GenericMsg.h"
 #include "PostMsg.h"
@@ -38,6 +39,7 @@ extern const EmaString& getMTypeAsString( OmmReal::MagnitudeType mType );
 ElementListEncoder::ElementListEncoder() :
  _rsslElementList(),
  _rsslElementEntry(),
+ _emaLoadType( DataType::NoDataEnum ),
  _containerInitialized( false )
 {
 }
@@ -48,10 +50,24 @@ ElementListEncoder::~ElementListEncoder()
 
 void ElementListEncoder::clear()
 {
-	Encoder::releaseEncIterator();
+	Encoder::clearEncIterator();
 
 	rsslClearElementList( &_rsslElementList );
 	rsslClearElementEntry( &_rsslElementEntry );
+
+	_emaLoadType = DataType::NoDataEnum;
+
+	_containerInitialized = false;
+}
+
+void ElementListEncoder::release()
+{
+	Encoder::releaseEncIterator();
+
+	rsslClearElementList(&_rsslElementList);
+	rsslClearElementEntry(&_rsslElementEntry);
+
+	_emaLoadType = DataType::NoDataEnum;
 
 	_containerInitialized = false;
 }
@@ -130,6 +146,19 @@ void ElementListEncoder::addPrimitiveEntry( const EmaString& name, RsslDataType 
 
 void ElementListEncoder::addEncodedEntry( const EmaString& name, RsslDataType rsslDataType, const char* methodName, const RsslBuffer& rsslBuffer )
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_ELEMENT_LIST ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRIES &&
+		 _levelInfo->_encodingState != RSSL_EIS_SET_DATA ))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to add ElementListEntry while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	if ( _containerComplete )
 	{
 		EmaString temp( "Attempt to add an entry after complete() was called." );
@@ -163,6 +192,19 @@ void ElementListEncoder::addEncodedEntry( const EmaString& name, RsslDataType rs
 
 void ElementListEncoder::startEncodingEntry( const EmaString& name, RsslDataType rsslDataType, const char* methodName )
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_ELEMENT_LIST ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRIES &&
+		 _levelInfo->_encodingState != RSSL_EIS_SET_DATA))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to add ElementListEntry while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	if ( _containerComplete )
 	{
 		EmaString temp( "Attempt to add an entry after complete() was called." );
@@ -197,6 +239,22 @@ void ElementListEncoder::startEncodingEntry( const EmaString& name, RsslDataType
 
 void ElementListEncoder::endEncodingEntry() const
 {
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_ELEMENT_LIST ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRY_INIT &&
+			_levelInfo->_encodingState != RSSL_EIS_SET_ENTRY_INIT &&
+			_levelInfo->_encodingState != RSSL_EIS_ENTRY_WAIT_COMPLETE &&
+			_levelInfo->_encodingState != RSSL_EIS_SET_ENTRY_WAIT_COMPLETE &&
+			_levelInfo->_encodingState != RSSL_EIS_ENTRIES))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to complete ElementList while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
+	}
+
 	RsslRet retCode = rsslEncodeElementEntryComplete( &_pEncodeIter->_rsslEncIter, RSSL_TRUE );
 	while ( retCode == RSSL_RET_BUFFER_TOO_SMALL )
 	{
@@ -598,6 +656,8 @@ void ElementListEncoder::addElementList( const EmaString& name, const ElementLis
 
 	const Encoder& enc = static_cast<const Data&>(elementList).getEncoder();
 
+	_emaLoadType = elementList.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		if ( enc.isComplete() )
@@ -633,6 +693,8 @@ void ElementListEncoder::addFieldList( const EmaString& name, const FieldList& f
 
 	const Encoder& enc = static_cast<const Data&>(fieldList).getEncoder();
 
+	_emaLoadType = fieldList.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		if ( enc.isComplete() )
@@ -666,6 +728,8 @@ void ElementListEncoder::addReqMsg( const EmaString& name, const ReqMsg& reqMsg 
 		initEncode();
 	}
 
+	_emaLoadType = reqMsg.getDataType();
+
 	if ( static_cast<const Data&>(reqMsg).hasEncoder() && static_cast<const Data&>(reqMsg).getEncoder().ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_MSG, "addReqMsg()", static_cast<const Data&>(reqMsg).getEncoder().getRsslBuffer() );
@@ -691,6 +755,8 @@ void ElementListEncoder::addRefreshMsg( const EmaString& name, const RefreshMsg&
 
 		initEncode();
 	}
+
+	_emaLoadType = refreshMsg.getDataType();
 
 	if ( static_cast<const Data&>(refreshMsg).hasEncoder() && static_cast<const Data&>(refreshMsg).getEncoder().ownsIterator() )
 	{
@@ -718,6 +784,8 @@ void ElementListEncoder::addStatusMsg( const EmaString& name, const StatusMsg& s
 		initEncode();
 	}
 
+	_emaLoadType = statusMsg.getDataType();
+
 	if ( static_cast<const Data&>(statusMsg).hasEncoder() && static_cast<const Data&>(statusMsg).getEncoder().ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_MSG, "addStatusMsg()", static_cast<const Data&>(statusMsg).getEncoder().getRsslBuffer() );
@@ -743,6 +811,8 @@ void ElementListEncoder::addUpdateMsg( const EmaString& name, const UpdateMsg& u
 
 		initEncode();
 	}
+
+	_emaLoadType = updateMsg.getDataType();
 
 	if ( static_cast<const Data&>(updateMsg).hasEncoder() && static_cast<const Data&>(updateMsg).getEncoder().ownsIterator() )
 	{
@@ -770,6 +840,8 @@ void ElementListEncoder::addPostMsg( const EmaString& name, const PostMsg& postM
 		initEncode();
 	}
 
+	_emaLoadType = postMsg.getDataType();
+
 	if ( static_cast<const Data&>(postMsg).hasEncoder() && static_cast<const Data&>(postMsg).getEncoder().ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_MSG, "addPostMsg()", static_cast<const Data&>(postMsg).getEncoder().getRsslBuffer() );
@@ -796,6 +868,8 @@ void ElementListEncoder::addAckMsg( const EmaString& name, const AckMsg& ackMsg 
 		initEncode();
 	}
 
+	_emaLoadType = ackMsg.getDataType();
+
 	if ( static_cast<const Data&>(ackMsg).hasEncoder() && static_cast<const Data&>(ackMsg).getEncoder().ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_MSG, "addAckMsg()", static_cast<const Data&>(ackMsg).getEncoder().getRsslBuffer() );
@@ -821,6 +895,8 @@ void ElementListEncoder::addGenericMsg( const EmaString& name, const GenericMsg&
 
 		initEncode();
 	}
+
+	_emaLoadType = genMsg.getDataType();
 
 	if ( static_cast<const Data&>(genMsg).hasEncoder() && static_cast<const Data&>(genMsg).getEncoder().ownsIterator() )
 	{
@@ -849,6 +925,8 @@ void ElementListEncoder::addMap( const EmaString& name, const Map& map )
 	}
 
 	const Encoder& enc = static_cast<const Data&>(map).getEncoder();
+
+	_emaLoadType = map.getDataType();
 
 	if ( enc.ownsIterator() )
 	{
@@ -885,6 +963,8 @@ void ElementListEncoder::addVector( const EmaString& name, const Vector& vector 
 
 	const Encoder& enc = static_cast<const Data&>(vector).getEncoder();
 
+	_emaLoadType = vector.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		if ( enc.isComplete() )
@@ -919,6 +999,8 @@ void ElementListEncoder::addSeries( const EmaString& name, const Series& series 
 	}
 
 	const Encoder& enc = static_cast<const Data&>(series).getEncoder();
+
+	_emaLoadType = series.getDataType();
 
 	if ( enc.ownsIterator() )
 	{
@@ -955,6 +1037,8 @@ void ElementListEncoder::addFilterList( const EmaString& name, const FilterList&
 
 	const Encoder& enc = static_cast<const Data&>(filterList).getEncoder();
 
+	_emaLoadType = filterList.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		if ( enc.isComplete() )
@@ -990,6 +1074,8 @@ void ElementListEncoder::addOpaque( const EmaString& name, const OmmOpaque& ommO
 
 	const Encoder& enc = static_cast<const Data&>(ommOpaque).getEncoder();
 
+	_emaLoadType = ommOpaque.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_OPAQUE, "addOpaque()", enc.getRsslBuffer());
@@ -1000,8 +1086,7 @@ void ElementListEncoder::addOpaque( const EmaString& name, const OmmOpaque& ommO
 	}
 	else
 	{
-		EmaString temp( "Attempt to pass an empty OmmOpaque to addOpaque() while it is not supported." );
-		throwIueException( temp, OmmInvalidUsageException::InvalidOperationEnum );
+		/* This case (blank Opaques) handled in hasDecoder() section */
 	}
 }
 
@@ -1018,6 +1103,8 @@ void ElementListEncoder::addXml( const EmaString& name, const OmmXml& ommXml )
 
 	const Encoder& enc = static_cast<const Data&>(ommXml).getEncoder();
 
+	_emaLoadType = ommXml.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_XML, "addXml()", enc.getRsslBuffer());
@@ -1028,8 +1115,36 @@ void ElementListEncoder::addXml( const EmaString& name, const OmmXml& ommXml )
 	}
 	else
 	{
-		EmaString temp( "Attempt to pass an empty OmmXml to addXml() while it is not supported." );
-		throwIueException( temp, OmmInvalidUsageException::InvalidOperationEnum );
+		/* This case (blank XML) handled in hasDecoder() section */
+	}
+}
+
+void ElementListEncoder::addJson( const EmaString& name, const OmmJson& ommJson )
+{
+	if ( rsslElementListCheckHasStandardData( &_rsslElementList ) == RSSL_FALSE )
+	{
+		rsslElementListApplyHasStandardData( &_rsslElementList );
+
+		acquireEncIterator();
+
+		initEncode();
+	}
+
+	const Encoder& enc = static_cast<const Data&>(ommJson).getEncoder();
+
+	_emaLoadType = ommJson.getDataType();
+
+	if ( enc.ownsIterator() )
+	{
+		addEncodedEntry( name, RSSL_DT_JSON, "addJson()", enc.getRsslBuffer());
+	}
+	else if ( static_cast<const Data&>(ommJson).hasDecoder() )
+	{
+		addEncodedEntry( name, RSSL_DT_JSON, "addJson()", static_cast<Data&>( const_cast<OmmJson&>(ommJson)).getDecoder().getRsslBuffer() );
+	}
+	else
+	{
+		/* This case (blank JSON) handled in hasDecoder() section */
 	}
 }
 
@@ -1046,6 +1161,8 @@ void ElementListEncoder::addAnsiPage( const EmaString& name, const OmmAnsiPage& 
 
 	const Encoder& enc = static_cast<const Data&>(ommAnsiPage).getEncoder();
 
+	_emaLoadType = ommAnsiPage.getDataType();
+
 	if ( enc.ownsIterator() )
 	{
 		addEncodedEntry( name, RSSL_DT_ANSI_PAGE, "addAnsiPage()", enc.getRsslBuffer());
@@ -1056,8 +1173,7 @@ void ElementListEncoder::addAnsiPage( const EmaString& name, const OmmAnsiPage& 
 	}
 	else
 	{
-		EmaString temp( "Attempt to pass an empty OmmAnsiPage to addAnsiPage() while it is not supported." );
-		throwIueException( temp, OmmInvalidUsageException::InvalidOperationEnum );
+		/* This case (blank AnsiPage) handled in hasDecoder() section */
 	}
 }
 
@@ -1297,6 +1413,20 @@ void ElementListEncoder::complete()
 		acquireEncIterator();
 
 		initEncode();
+	}
+
+	RsslEncodingLevel *_levelInfo = &(_pEncodeIter->_rsslEncIter._levelInfo[_pEncodeIter->_rsslEncIter._encodingLevel]);
+
+	if (_levelInfo->_containerType != RSSL_DT_ELEMENT_LIST ||
+		(_levelInfo->_encodingState != RSSL_EIS_ENTRIES &&
+		 _levelInfo->_encodingState != RSSL_EIS_SET_DATA &&
+		 _levelInfo->_encodingState != RSSL_EIS_WAIT_COMPLETE))
+	{
+		/*If an internal container is not completed. Internal container empty.*/
+		EmaString temp("Attemp to complete ElementList while complete() was not called for passed in container: ");
+		temp.append(DataType(_emaLoadType));
+		throwIueException(temp, OmmInvalidUsageException::InvalidArgumentEnum);
+		return;
 	}
 
 	RsslRet retCode = rsslEncodeElementListComplete( &(_pEncodeIter->_rsslEncIter), RSSL_TRUE );

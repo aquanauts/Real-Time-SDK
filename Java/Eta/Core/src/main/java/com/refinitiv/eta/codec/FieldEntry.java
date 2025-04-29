@@ -1,8 +1,8 @@
 /*|-----------------------------------------------------------------------------
- *|            This source code is provided under the Apache 2.0 license      --
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019-2022 Refinitiv. All rights reserved.         --
+ *|            This source code is provided under the Apache 2.0 license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2022 LSEG. All rights reserved.     
  *|-----------------------------------------------------------------------------
  */
 
@@ -84,6 +84,7 @@ public interface FieldEntry
      * 
      * @deprecated as of ETAJ3.0.0.L1.  Similar, but more type safe, functionality is provided by other FieldEntry interfaces	
      */
+    @Deprecated
     public int encode(EncodeIterator iter, Object data);
 
     /**
@@ -355,7 +356,7 @@ public interface FieldEntry
      * The field identifier. Refers to specific name and type information defined
      * by an external field dictionary, such as the RDMFieldDictionary.
      * Negative fieldId values typically refer to user defined values while positive fieldId
-     * values typically refer to Refinitiv defined values.
+     * values typically refer to LSEG defined values.
      * Must be in the range of -32768 - 32767.
      * 
      * @param fieldId the fieldId to set
@@ -366,7 +367,7 @@ public interface FieldEntry
      * The field identifier. Refers to specific name and type information defined
      * by an external field dictionary, such as the RDMFieldDictionary. Negative
      * fieldId values typically refer to user defined values while positive fieldId
-     * values typically refer to Refinitiv defined values.
+     * values typically refer to LSEG defined values.
      * 
      * @return the fieldId
      */

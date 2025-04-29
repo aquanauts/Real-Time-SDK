@@ -1,7 +1,7 @@
 /*|-----------------------------------------------------------------------------
- *|  and is provided AS IS with no warranty or guarantee of fit for purpose.  --
- *|                See the project's LICENSE.md for details.                  --
- *|           Copyright (C) 2019 Refinitiv. All rights reserved.            --
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019, 2024 LSEG. All rights reserved.             --
  *|----------------------------------------------------------------------------- 
  */
 
@@ -39,7 +39,23 @@ namespace ema {
 namespace access {
 
 class FieldListDecoder;
-
+class DictionaryCallbackClient;
+class OmmConsumerImpl;
+class OmmConsumerConfigImpl;
+class PostMsg;
+class AckMsg;
+class GenericMsg;
+class RefreshMsg;
+class ReqMsg;
+class StatusMsg;
+class UpdateMsg;
+class FilterList;
+class Map;
+class Series;
+class Vector;
+class ElementList;
+class FieldList;
+class OmmArray;
 }
 
 namespace rdm {
@@ -422,6 +438,20 @@ public:
 	*/
 	refinitiv::ema::access::UInt32 extractDictionaryType(const refinitiv::ema::access::Series& series);
 
+	/**
+	* Check whether the Field Dictionary has been loaded or not.
+
+	* @return true if Field Dictionary has been loaded, otherwise false.
+	*/
+	bool isFieldDictionaryLoaded() const;
+
+	/**
+	* Check whether the EnumTypeDef has been loaded or not.
+
+	* @return true if EnumTypeDef has been loaded, otherwise false.
+	*/
+	bool isEnumTypeDefLoaded() const;
+
 	/** Returns a string representation of the class instance.
 	@throw OmmMemoryExhaustionException if app runs out of memory
 	@return string representation of the class instance
@@ -436,7 +466,24 @@ public:
 
 private:
 
+	friend class refinitiv::ema::access::DictionaryCallbackClient;
 	friend class refinitiv::ema::access::FieldListDecoder;
+	friend class refinitiv::ema::access::OmmConsumerImpl;
+	friend class refinitiv::ema::access::OmmConsumerConfigImpl;
+	friend class refinitiv::ema::access::PostMsg;
+	friend class refinitiv::ema::access::AckMsg;
+	friend class refinitiv::ema::access::GenericMsg;
+	friend class refinitiv::ema::access::RefreshMsg;
+	friend class refinitiv::ema::access::ReqMsg;
+	friend class refinitiv::ema::access::StatusMsg;
+	friend class refinitiv::ema::access::UpdateMsg;
+	friend class refinitiv::ema::access::FilterList;
+	friend class refinitiv::ema::access::Map;
+	friend class refinitiv::ema::access::Series;
+	friend class refinitiv::ema::access::Vector;
+	friend class refinitiv::ema::access::ElementList;
+	friend class refinitiv::ema::access::FieldList;
+	friend class refinitiv::ema::access::OmmArray;
 
 	DataDictionary(bool);
 
