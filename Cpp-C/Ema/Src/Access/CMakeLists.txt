@@ -207,7 +207,7 @@ else()
             Impl/OmmJson.cpp Impl/OmmJsonDecoder.cpp Impl/OmmJsonDecoder.h
             Impl/OmmJsonEncoder.cpp Impl/OmmJsonEncoder.h
             # Impl/R,P...
-            Impl/Payload.cpp
+			Impl/Parser.cpp Impl/Payload.cpp
             Impl/Pipe.cpp Impl/Pipe.h
             Impl/PostMsg.cpp Impl/PostMsgDecoder.cpp Impl/PostMsgDecoder.h
             Impl/PostMsgEncoder.cpp Impl/PostMsgEncoder.h
@@ -337,6 +337,7 @@ else()
             Include/OmmUnsupportedDomainTypeException.h
             Include/OmmUtf8.h
             Include/OmmXml.h
+            Include/Parser.h
             Include/PackedMsg.h
             Include/Payload.h
             Include/PostMsg.h
